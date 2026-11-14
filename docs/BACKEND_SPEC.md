@@ -1,8 +1,12 @@
-# Fade — Backend Spec (MVP)
+# Wingin' it! — Backend Spec (MVP)
 
 Nov 14, 2026 · companion to `docs/FRONTEND_SPEC.md` · derived from `Fade — Build Spec (MVP).md`
 
-This is the complete brief for the **Python game server and the content pipeline** of Fade. Part A, the shared contract, appears word for word in the frontend spec too. Part B covers everything the backend owns: rooms, the state machine, the action judge, fuel, the language engine, speech, translation, the word deck, AWS, dev and demo tooling, validation, tests and deployment. An agent should be able to build the server from this document, the frontend spec and the content written here, with nothing else.
+> **Characters:** players pick a male or female character for their role at join (§A2 rule 9); the server stores and relays it (`gender`).
+>
+> **Name:** the game is **Wingin' it!** (logo: WINGIN' IT!). The original build spec uses the working title *Fade*; wherever it says Fade, read Wingin' it!. Code identifiers use the prefix `wingin` (e.g. `wingin:token:…`, `wingin_games`).
+
+This is the complete brief for the **Python game server and the content pipeline** of *Wingin' it!* Part A, the shared contract, appears word for word in the frontend spec too. Part B covers everything the backend owns: rooms, the state machine, the action judge, fuel, the language engine, speech, translation, the word deck, AWS, dev and demo tooling, validation, tests and deployment. An agent should be able to build the server from this document, the frontend spec and the content written here, with nothing else.
 
 **How to read it**
 
@@ -43,7 +47,9 @@ This is the complete brief for the **Python game server and the content pipeline
 
 ## A1. Product in one paragraph
 
-**Fade** is a two-player co-op browser game built for a hackathon demo. A **Flyer** (default English) sits in a first-person 3D toy cockpit. A **Tower** (default Hindi) has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** (default English) sits in a first-person 3D toy cockpit. A **Tower** (default Hindi) has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+
+**Presentation is 3D-first and cinematic.** The Flyer's whole experience is a real-time 3D toy world with scripted camera cinematics between and inside phases; the Tower's 2D screen plays synchronized 2D cinematic beats on the same server clock. The server's job is to cue them exactly (`cinematic`, `fx`, `World`); the client's job is to make every cued frame look great (Frontend §F0).
 
 ## A2. Non-negotiable invariants
 
@@ -61,6 +67,7 @@ These hold everywhere. Tests on both sides check them.
 6. **Only the current station's controls are clickable**, and only while an action is active and no cinematic or event is running.
 7. **During any cinematic, all input except push-to-talk is disabled.**
 8. **Fun, never scary.** Crashes end in a cartoon "POOF" cloud.
+9. **Characters.** Each player picks a **gender (male / female)** for their role's character on joining. The Flyer's character is the passenger in the right-hand seat (a 3D toy model in the cockpit and a 2D portrait); the Tower's character is the air-traffic controller (a 2D portrait with a headset). Gender is public (it's in `room_state`), stays with the player across play again / swap roles, and also drives **Hindi grammatical gender** in UI strings that refer to that player (`बोल रहा है` / `बोल रही है`). The unconscious captain (the NPC pilot in the left seat) is not player-selectable.
 
 ## A3. Ports, URLs and environment
 
@@ -102,8 +109,8 @@ server -> welcome      {server_ms, room_code, mock_speech, dev_mode, demo, gloss
 server -> room_state   (spectator view, so the join form can disable taken roles)
 client -> ping x5      {client_ms}            (100 ms apart)
 server -> pong x5      {client_ms, server_ms}
-client -> join         {name, role, lang, token?}
-server -> joined       {player_id, token, role, lang, name}
+client -> join         {name, role, lang, gender, token?}
+server -> joined       {player_id, token, role, lang, gender, name}
 server -> room_state   (to everyone in the room)
 ... if the game is already running (rejoin):
 server -> game_state, flyer_view | manual_card, history, cinematic (if one is running), channel, deck (if in DECK)
@@ -111,7 +118,7 @@ server -> game_state, flyer_view | manual_card, history, cinematic (if one is ru
 
 **Clock sync.** For each pong: `rtt = now - client_ms`, `offset = server_ms + rtt/2 - now`. Keep the offset from the sample with the smallest RTT. `serverNow() = Date.now() + offset`. Re-run 3 pings every 30 s and keep the best.
 
-**Reconnect and tokens.** `joined.token` is an opaque string. The client stores it in `sessionStorage` under `fade:token:{CODE}:{role}` (keyed by role, because same-origin iframes in `/dev/split` share `sessionStorage`). On reconnect it sends `join` with the token; the server re-binds the same player slot. A `join` without a valid token for a role that is held by another player (connected, or disconnected less than 60 s ago) gets `error role_taken`. In Dev Mode a token-less join for a disconnected role takes it over **[ASSUMPTION]**.
+**Reconnect and tokens.** `joined.token` is an opaque string. The client stores it in `sessionStorage` under `wingin:token:{CODE}:{role}` (keyed by role, because same-origin iframes in `/dev/split` share `sessionStorage`). On reconnect it sends `join` with the token; the server re-binds the same player slot. A `join` without a valid token for a role that is held by another player (connected, or disconnected less than 60 s ago) gets `error role_taken`. In Dev Mode a token-less join for a disconnected role takes it over **[ASSUMPTION]**.
 
 Client reconnect backoff: 0.5 s, 1 s, 2 s, 4 s, then every 5 s, forever, with a "Reconnecting…" overlay.
 
@@ -129,6 +136,7 @@ type StationId = "overhead" | "pedestal" | "front";
 type Verb = "press" | "toggle" | "pull" | "move_down" | "move_up";
 type LampColor = "red" | "green" | "blue" | "yellow";
 type Side = "left" | "right";
+type Gender = "male" | "female";          // the player's character for their role (avatar + Hindi grammar)
 
 type ConceptId =
   | "RED" | "GREEN" | "BLUE" | "ONE" | "TWO" | "THREE" | "FOUR"
@@ -175,8 +183,8 @@ type ObjectState =
 ```ts
 type C2S =
   | { type: "ping"; client_ms: number }
-  | { type: "join"; name: string; role: Role; lang: Lang; token?: string }
-  | { type: "update_player"; name?: string; role?: Role; lang?: Lang }   // LOBBY only [ASSUMPTION]
+  | { type: "join"; name: string; role: Role; lang: Lang; gender: Gender; token?: string }
+  | { type: "update_player"; name?: string; role?: Role; lang?: Lang; gender?: Gender }   // LOBBY only [ASSUMPTION]
   | { type: "ready"; ready?: boolean }                                   // default true
   | { type: "ptt_start" }
   | { type: "ptt_end" }
@@ -215,9 +223,9 @@ type S2C =
 interface Welcome { type: "welcome"; server_ms: number; room_code: string; mock_speech: boolean;
   dev_mode: boolean; demo: boolean; gloss_threshold: number; version: string }
 interface Pong { type: "pong"; client_ms: number; server_ms: number }
-interface Joined { type: "joined"; player_id: string; token: string; role: Role; lang: Lang; name: string }
+interface Joined { type: "joined"; player_id: string; token: string; role: Role; lang: Lang; gender: Gender; name: string }
 
-interface PlayerPublic { id: string; name: string; role: Role; lang: Lang; ready: boolean;
+interface PlayerPublic { id: string; name: string; role: Role; lang: Lang; gender: Gender; ready: boolean;
   connected: boolean; is_bot: boolean }
 interface RoomState { type: "room_state"; code: string; status: Status; demo: boolean;
   mock_speech: boolean; players: PlayerPublic[]; can_start: boolean;
@@ -323,7 +331,7 @@ type ToastKey = "toast.crossover"      // params {word}: "CROSSOVER! +5s"
 interface Crash { type: "crash"; phase: PhaseNo }
 interface RetryVotes { type: "retry_votes"; roles: Role[] }
 
-interface DeckMsg { type: "deck"; partner_name: string; partner_lang: Lang; learned_count: number;
+interface DeckMsg { type: "deck"; partner_name: string; partner_lang: Lang; partner_gender: Gender; learned_count: number;
   words: DeckWord[]; report: string | null; report_pending: boolean; stats: Stats }
 interface DeckWord { concept: ConceptId; word: string;      // partner-language word, Latin (romanized if Hindi)
   meaning: string; meaning_script: "latin" | "deva";        // meaning in the player's own language/script
@@ -546,7 +554,7 @@ Clients map each code to a localized toast (Frontend §F7). The server's `messag
 **Game start**
 
 ```
-both: join, ready → server: room_state(can_start) → status PROLOGUE
+both: join {name, role, lang, gender}, ready → server: room_state(can_start) → status PROLOGUE
 server → both: game_state{status:PROLOGUE}, cinematic{prologue}
 (12 s or double skip) → PHASE_INTRO(1): game_state, cinematic{p1_intro}, manual_card{null}
 (1.2 s) → PLAYING(1): world = phase-1 start; flyer_view; game_state{fuel 150, draining}
@@ -726,7 +734,7 @@ Principles:
 ## B2. Repo layout
 
 ```
-fade/
+wingin-it/
   README.md                      # mock mode in 2 commands: `docker compose up`, open http://localhost:5173/dev/split
   docker-compose.yml
   .github/workflows/ci.yml       # validator + pytest + client typecheck/build
@@ -739,14 +747,14 @@ fade/
     manual_terms.json            # §B5.2
     cinematics.json              # §A10 (also read by the client)
     demo.json                    # §A17
-    phase1_pilot_down.json       # §B5.3
-    phase2_engine_fire.json      # §B5.4
-    phase3_storm_landing.json    # §B5.5
+    phase1_pilot_down.json       # §B5.4
+    phase2_engine_fire.json      # §B5.5
+    phase3_storm_landing.json    # §B5.6
     validate_content.py          # §B6.2
   scripts/
     make_terminology.py          # Translate custom terminology from the lexicon
     make_vocabularies.py         # Transcribe custom vocabularies from the lexicon
-    create_table.py              # DynamoDB table fade_games
+    create_table.py              # DynamoDB table wingin_games
   server/
     requirements.txt
     Dockerfile
@@ -831,9 +839,9 @@ Read once at startup into a frozen `Settings` object (pydantic-settings or plain
 | `AWS_REGION` | `us-east-1` | Must support Transcribe streaming for `hi-IN`. Check the supported-languages table before deploying. |
 | `TRANSCRIBE_MULTI_LANG` | `1` | `1` = multi-language identification (`hi-IN,en-US`, the speaker's language preferred). `0` = single language per speaker. See §B13.3. |
 | `TRANSCRIBE_VOCAB_HI` / `TRANSCRIBE_VOCAB_EN` | empty | Optional custom vocabulary names. |
-| `TRANSLATE_TERMINOLOGY` | empty | Optional custom terminology, e.g. `fade-terms`. |
+| `TRANSLATE_TERMINOLOGY` | empty | Optional custom terminology, e.g. `wingin-terms`. |
 | `BEDROCK_MODEL_ID` | empty | Any text model enabled in the account. Empty = template report. |
-| `DDB_TABLE` | empty | Results table (`fade_games`). Empty = don't persist. |
+| `DDB_TABLE` | empty | Results table (`wingin_games`). Empty = don't persist. |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated. CORS and WebSocket `Origin` check. In Dev Mode `localhost:*` and `127.0.0.1:*` are always allowed. |
 | `GLOSS_THRESHOLD` | `2` | §B11.6 |
 | `CONTENT_DIR` | `../content` (relative to `server/`), `/app/content` in Docker | |
@@ -1375,7 +1383,7 @@ Step  = {object, verb, value?: "on"|"off", count?: int (default 1)}
          "expect": [{"object": "PD_FIRE_HANDLE_R", "verb": "pull"}]}
       ],
       "flyer_examples": {"en": ["Right! The right engine!", "Left! It's the left one!"], "hi": ["दायाँ! दायाँ इंजन!", "बायाँ! बायाँ वाला!"], "hi_roman": ["Daayan! Daayan engine!", "Baayan! Baayan wala!"]},
-      "hint": {"en": "Which side? The Flyer can see it from the window.", "hi": "कौन सी तरफ़? फ़्लायर खिड़की से देख सकता है।"},
+      "hint": {"en": "Which side? The Flyer can see it from the window.", "hi": "कौन सी तरफ़? फ़्लायर को खिड़की से आग दिखती है।"},
       "sticky": {"en": "You can't see the fire — ask!", "hi": "तुम्हें आग नहीं दिखती — पूछो!"},
       "on_start": [],
       "on_success": ["sfx:clunk", "fx:lamp_flicker:PD_FIRE_LAMP_{FIRE_SIDE.LR}"]
@@ -1683,6 +1691,7 @@ class Player:
     name: str
     role: Role
     lang: Lang
+    gender: Gender                  # "male" | "female", chosen at join (§A2 rule 9)
     ready: bool = False
     is_bot: bool = False
     conn: Connection | None = None
@@ -1722,8 +1731,8 @@ class Room:
 **`join` handling.**
 
 - Valid `token` matching a player in this room → rebind: `player.conn = conn`, `disconnected_at = None`, send `joined`, then the **rejoin snapshot**: `room_state`, `game_state`, `flyer_view` or `manual_card` (by role), `history` (the partner's last 5 utterances for this listener, with translations they already revealed), `channel`, the running `cinematic` (same `start_at_ms`, so the client seeks), and `deck` if in DECK. If the room was PAUSED and both humans are now connected → resume (§B8.4).
-- No token: the role is free → create a `Player` (`name` trimmed to 16 chars, HTML-stripped). Role held → `error role_taken` (Dev Mode: take over a disconnected slot).
-- `update_player` (LOBBY only): change name/role/lang; resets `ready` for that player.
+- No token: the role is free → create a `Player` (`name` trimmed to 16 chars, HTML-stripped; `gender` required, validated as `male`/`female` by the pydantic model). Role held → `error role_taken` (Dev Mode: take over a disconnected slot).
+- `update_player` (LOBBY only): change name/role/lang/gender; resets `ready` for that player.
 - After any roster change: broadcast `room_state` with `can_start` and `block_reason`:
   - `missing_player` if either role has no player (a bot counts as present when that role's bot is on in Dev Mode),
   - `same_language` if both have the same `lang`,
@@ -1863,7 +1872,7 @@ Build it per role from `game` (identical for both roles: it contains no secrets)
 ### B8.5 Play again / swap roles (DECK only)
 
 - `play_again`: votes per role (bots vote at once). Both → new `Game` with a new seed (or the same `seed_override` in Dev Mode), same roles → PROLOGUE.
-- `swap_roles`: both → swap the two players' roles, **keep each player's language**, set both not ready → LOBBY. Tokens stay valid (the client re-keys its sessionStorage entry on the new role from `joined`, which the server re-sends to both after the swap).
+- `swap_roles`: both → swap the two players' roles, **keep each player's language and gender**, set both not ready → LOBBY. Tokens stay valid (the client re-keys its sessionStorage entry on the new role from `joined`, which the server re-sends to both after the swap).
 
 ## B9. Actions, randomization and the judge (`app/actions.py`, `app/rng.py`)
 
@@ -2399,7 +2408,7 @@ def wav_bytes(pcm: bytes, rate=16000) -> bytes:
 ### B15.3 Mission report (Bedrock)
 
 - When `BEDROCK_MODEL_ID` is set and the room isn't mock: one Converse call per player, in parallel, in that player's language, `maxTokens 200`, `temperature 0.7`, timeout 5 s.
-- Prompt (build spec §15): "Write a 2–3 sentence, upbeat mission report for a co-op game where two people who don't share a language landed a plane. Mention the names, fuel left and two or three words the player learned. Language: {Hindi (Devanagari script) | English}. Facts: {json}." Facts = `{flyer, tower, fuel_left_s, total_time_s, wrong_actions, learned_words: [w1, w2, w3]}`.
+- Prompt (build spec §15): "Write a 2–3 sentence, upbeat mission report for a co-op game where two people who don't share a language landed a plane. Mention the names, fuel left and two or three words the player learned. Language: {Hindi (Devanagari script) | English}. Facts: {json}." Facts = `{flyer, flyer_gender, tower, tower_gender, fuel_left_s, total_time_s, wrong_actions, learned_words: [w1, w2, w3]}`. Add to the prompt: "Use the players' genders for pronouns and, in Hindi, for verb agreement."
 - Fallback templates (used on timeout, error, empty model id or mock):
   - en: "{flyer} and {tower} landed with {fuel}s of fuel to spare. You learned {n} words, including {w1} and {w2}."
   - hi: "{flyer} और {tower} ने {fuel} सेकंड ईंधन बचाकर विमान उतार लिया। आपने {n} शब्द सीखे, जैसे {w1} और {w2}।"
@@ -2408,13 +2417,13 @@ def wav_bytes(pcm: bytes, rate=16000) -> bytes:
 
 ### B15.4 DynamoDB (`persistence.py`)
 
-When `DDB_TABLE` is set: `put_item` in a thread at ENDING, failures logged and ignored. Table `fade_games`, partition key `game_id` (S), on-demand. Item:
+When `DDB_TABLE` is set: `put_item` in a thread at ENDING, failures logged and ignored. Table `wingin_games`, partition key `game_id` (S), on-demand. Item:
 
 ```json
 {
   "game_id": "g_…", "room": "KXPD", "seed": 42, "demo": false,
   "started_at": "2026-11-14T18:02:11Z", "ended_at": "…", "total_time_s": 412.3,
-  "players": [{"name": "Asha", "role": "tower", "lang": "hi"}, {"name": "Sam", "role": "flyer", "lang": "en"}],
+  "players": [{"name": "Asha", "role": "tower", "lang": "hi", "gender": "female"}, {"name": "Sam", "role": "flyer", "lang": "en", "gender": "male"}],
   "phases": [{"phase": 1, "fuel_left_s": 61.2, "wrong_actions": 2, "lifelines_used": 0, "attempts": 1, "time_s": 98.4}],
   "words": {"p_…": {"RED": {"heard": 6, "glossed": 4, "understood": 2, "spoken": 1}}},
   "latency_ms_p50": 820, "latency_ms_p95": 1310
@@ -2429,7 +2438,7 @@ Numbers go in as `Decimal`. `scripts/create_table.py` creates the table.
 
 Bots are virtual players (`is_bot = True`, no connection) that call the **same handlers** as real messages (`handle_say_text`, `handle_interact`), so they exercise the real code paths.
 
-- Toggled with `dev bots {flyer, tower}` (Dev Mode) or automatically for `demo.auto_phases`. Turning a bot on for an empty role in LOBBY creates the virtual player (name "Auto Tower" / "Auto Flyer", language = the opposite of the human's).
+- Toggled with `dev bots {flyer, tower}` (Dev Mode) or automatically for `demo.auto_phases`. Turning a bot on for an empty role in LOBBY creates the virtual player (name "Auto Tower" / "Auto Flyer", language = the opposite of the human's, gender `male` for Auto Tower and `female` for Auto Flyer).
 - **Auto Tower:** on action activation (+`BOT_DELAY_MS/2`): if the action has `ask` → say it; then `BOT_DELAY_MS` later say the branch line for the rolled value. Say-only → say the `say` line. `branch_on` → the branch line. Line form: `hi_roman` if the bot speaks Hindi, `en` otherwise.
 - **Auto Flyer:** when an `ask` utterance from the Tower arrives (or the action activated with an observe and the Tower is a bot), reply 1 s later with the quick-reply answer for the rolled value. When a Tower utterance contains a verb concept (PRESS/PULL/ON/OFF/DOWN), or `BOT_DELAY_MS` after the Auto Tower's instruction, perform the correct steps of the current run in order, 300 ms apart (presses 300 ms apart, all within the debounce window).
 - Bots stop when their toggle is off, on PAUSED, and outside PLAYING. Bot timers are generation-guarded. Bots auto-vote for skip, retry and play again.
@@ -2480,7 +2489,7 @@ Test helpers (`conftest.py`): `FakeClock` (patches `monotonic` and the scheduler
 | `test_lifelines.py` | 3 per player in phase 3; refused in phases 1–2 and at 0; only the partner's last 3 utterances; decremented only when a translation is delivered; failure → `translation_failed` and not decremented; a second request on the same utterance is free |
 | `test_privacy.py` | play complete games (bots, every path, both seeds) and assert: no Tower message has type `flyer_view`/`object_state`; no Tower `cinematic.params` contains `fire_side`/`stopped_side`/`damaged_side`; no Tower `game_state`/`fx`/`toast` contains a rolled value; no Flyer message has type `manual_card` or contains any branch line text; `dev_state` is never sent with `DEV_MODE=0` |
 | `test_manual.py` | rule labels: "हरा बटन तीन बार दबाओ", "दो नंबर स्विच चालू करो", "बायाँ लाल लीवर खींचो"; English equivalents; count shown when siblings differ (B3 NO "लाल बटन एक बार दबाओ"); keywords highlighted, no glosses; `quick_say` present only in mock/dev |
-| `test_state_machine.py` | LOBBY → PROLOGUE only with both ready and different languages; full sequence of states and cinematic ids; double skip; crash/retry; pause/resume within 60 s; abandon after 60 s; play again; swap roles keeps languages |
+| `test_state_machine.py` | `join` without a valid `gender` is rejected (`bad_message`); `gender` appears in `room_state` and survives rejoin, play again and swap roles; LOBBY → PROLOGUE only with both ready and different languages; full sequence of states and cinematic ids; double skip; crash/retry; pause/resume within 60 s; abandon after 60 s; play again; swap roles keeps languages |
 | `test_full_game_bots.py` | for every combination of variable values (forced), bots finish the whole game; the deck is produced; mission report falls back to the template |
 | `test_mock_translate.py` | every authored line translates to its counterpart in both directions; the keyword-substitution fallback |
 | `test_deck.py` | learned = understood ≥ 1 or spoken ≥ 1; ordering; Hindi meanings in Devanagari; clips cut with padding and a valid WAV header |
@@ -2526,8 +2535,8 @@ services:
 
 ### B19.3 AWS (recommended: ECS Fargate + ALB + Amplify)
 
-1. ECR repo `fade-server`; push the image.
-2. ECS cluster, task definition: 1 vCPU / 2 GB, port 8000, env `MOCK_SPEECH=0 DEV_MODE=0 AWS_REGION=… BEDROCK_MODEL_ID=… DDB_TABLE=fade_games ALLOWED_ORIGINS=https://<client domain>`, task role with the IAM policy below, logs to CloudWatch.
+1. ECR repo `wingin-server`; push the image.
+2. ECS cluster, task definition: 1 vCPU / 2 GB, port 8000, env `MOCK_SPEECH=0 DEV_MODE=0 AWS_REGION=… BEDROCK_MODEL_ID=… DDB_TABLE=wingin_games ALLOWED_ORIGINS=https://<client domain>`, task role with the IAM policy below, logs to CloudWatch.
 3. Service with **desired count 1, max 1** (game state is in memory; never scale out). Deployment: minimum healthy 0%, maximum 100% (so two tasks never run at once).
 4. ALB: HTTPS listener (ACM certificate) → target group (HTTP 8000, health check `GET /health`), **idle timeout 300 s**, stickiness not needed with one task.
 5. Client on Amplify Hosting with `VITE_WS_URL=wss://api.<domain>/ws`, `VITE_API_URL=https://api.<domain>`, `VITE_DEV_MODE=0`.
@@ -2551,9 +2560,9 @@ The page must be HTTPS (or the microphone is blocked) and the socket must then b
 
 ### B19.4 Setup scripts
 
-- `scripts/make_terminology.py`: CSV with header `en,hi`, one row per concept (`en.display`, `hi.display_deva`), then `translate.import_terminology(Name="fade-terms", MergeStrategy="OVERWRITE", TerminologyData={"File": csv, "Format": "CSV"})`.
-- `scripts/make_vocabularies.py`: `fade-hi` from all Devanagari variants + shared Devanagari spellings (`hi-IN`); `fade-en` from English variants (`en-US`). On rejection, print a warning and continue.
-- `scripts/create_table.py`: create `fade_games` (PAY_PER_REQUEST) if missing.
+- `scripts/make_terminology.py`: CSV with header `en,hi`, one row per concept (`en.display`, `hi.display_deva`), then `translate.import_terminology(Name="wingin-terms", MergeStrategy="OVERWRITE", TerminologyData={"File": csv, "Format": "CSV"})`.
+- `scripts/make_vocabularies.py`: `wingin-hi` from all Devanagari variants + shared Devanagari spellings (`hi-IN`); `wingin-en` from English variants (`en-US`). On rejection, print a warning and continue.
+- `scripts/create_table.py`: create `wingin_games` (PAY_PER_REQUEST) if missing.
 
 ### B19.5 CI (`.github/workflows/ci.yml`)
 
@@ -2575,6 +2584,7 @@ Jobs: `content` (`python content/validate_content.py`), `server` (`pip install -
 ## B21. Backend acceptance checklist
 
 - [ ] Server refuses to start when content is invalid; `/health` 200 otherwise.
+- [ ] `join` requires `gender`; it shows in `room_state`, the deck (`partner_gender`), the Bedrock facts and the DynamoDB item, and is kept on swap roles.
 - [ ] `docker compose up` + `/dev/split`: prologue plays and Phase 1 starts with no other steps.
 - [ ] The full game finishes in Mock Mode on **both values of every variable** (forced with `dev force` or seeds).
 - [ ] Wrong action: −10 s, `action_result` with the reason, the Tower gets `used` with the control name in its language, and `last_wrong` on the card.

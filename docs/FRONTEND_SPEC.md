@@ -1,8 +1,14 @@
-# Fade — Frontend Spec (MVP)
+# Wingin' it! — Frontend Spec (MVP)
 
 Nov 14, 2026 · companion to `docs/BACKEND_SPEC.md` · derived from `Fade — Build Spec (MVP).md`
 
-This is the complete brief for the **browser client** of Fade: the lobby, the Flyer's 3D toy cockpit and HUD, the Tower's 2D control-tower screen with the ring-bound manual, subtitles and lifelines, every cinematic, the microphone and push-to-talk, procedural sound, the word deck, and the dev, mock and demo tooling. Part A, the shared contract, appears word for word in the backend spec too. Part F is everything the client owns.
+> **Home and characters:** the game opens on a **home page** (start or join a game) and each player picks a **male or female character** for their role before playing (§F8).
+>
+> **Name:** the game is **Wingin' it!** (logo: WINGIN' IT!). The original build spec uses the working title *Fade*; wherever it says Fade, read Wingin' it!. Code identifiers use the prefix `wingin` (e.g. `wingin:token:…`, `wingin_games`).
+
+This is the complete brief for the **browser client** of *Wingin' it!*: the lobby, the Flyer's 3D toy cockpit and HUD, the Tower's 2D control-tower screen with the ring-bound manual, subtitles and lifelines, every cinematic, the microphone and push-to-talk, procedural sound, the word deck, and the dev, mock and demo tooling. Part A, the shared contract, appears word for word in the backend spec too. Part F is everything the client owns.
+
+**The frontend is 3D-first and cinematic.** The Flyer plays inside a real-time 3D toy cockpit with scripted camera cinematics; the Tower's 2D screen plays synchronized cinematic beats. §F0 sets the art direction, the color script, the shot and motion rules and the visual acceptance set every 3D/cinematic task must meet.
 
 **How to read it**
 
@@ -15,6 +21,7 @@ This is the complete brief for the **browser client** of Fade: the lobby, the Fl
 
 - Part A — Shared Contract (A1–A17)
 - Part F — Frontend
+  - F0 Design direction: 3D-first and cinematic (art pillars, color script, shot rules, motion language, hero beats, visual acceptance set)
   - F1 Principles
   - F2 Stack, packages and build config
   - F3 Client layout
@@ -22,7 +29,7 @@ This is the complete brief for the **browser client** of Fade: the lobby, the Fl
   - F5 Networking (`net/`)
   - F6 State store (`state/store.ts`)
   - F7 UI strings (`i18n/strings.ts`)
-  - F8 Lobby
+  - F8 Home page, character select and lobby
   - F9 The 3D cockpit (scene, stations, parts, environment, characters, world mapping)
   - F10 Camera rig and light rigs
   - F11 Flyer HUD
@@ -32,7 +39,7 @@ This is the complete brief for the **browser client** of Fade: the lobby, the Fl
   - F15 Action feedback
   - F16 Audio (microphone, worklet, push-to-talk, procedural SFX, mixing)
   - F17 Word deck
-  - F18 Dev mode (split view, mock talking, quick-say, bots, dev panel)
+  - F18 Dev mode (split view, mock talking, quick-say, bots, dev panel, scene sandbox and cinematic scrubber)
   - F19 Demo mode (presenter)
   - F20 Overlays and edge cases
   - F21 Performance budget
@@ -46,7 +53,9 @@ This is the complete brief for the **browser client** of Fade: the lobby, the Fl
 
 ## A1. Product in one paragraph
 
-**Fade** is a two-player co-op browser game built for a hackathon demo. A **Flyer** (default English) sits in a first-person 3D toy cockpit. A **Tower** (default Hindi) has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** (default English) sits in a first-person 3D toy cockpit. A **Tower** (default Hindi) has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+
+**Presentation is 3D-first and cinematic.** The Flyer's whole experience is a real-time 3D toy world with scripted camera cinematics between and inside phases; the Tower's 2D screen plays synchronized 2D cinematic beats on the same server clock. The server's job is to cue them exactly (`cinematic`, `fx`, `World`); the client's job is to make every cued frame look great (Frontend §F0).
 
 ## A2. Non-negotiable invariants
 
@@ -64,6 +73,7 @@ These hold everywhere. Tests on both sides check them.
 6. **Only the current station's controls are clickable**, and only while an action is active and no cinematic or event is running.
 7. **During any cinematic, all input except push-to-talk is disabled.**
 8. **Fun, never scary.** Crashes end in a cartoon "POOF" cloud.
+9. **Characters.** Each player picks a **gender (male / female)** for their role's character on joining. The Flyer's character is the passenger in the right-hand seat (a 3D toy model in the cockpit and a 2D portrait); the Tower's character is the air-traffic controller (a 2D portrait with a headset). Gender is public (it's in `room_state`), stays with the player across play again / swap roles, and also drives **Hindi grammatical gender** in UI strings that refer to that player (`बोल रहा है` / `बोल रही है`). The unconscious captain (the NPC pilot in the left seat) is not player-selectable.
 
 ## A3. Ports, URLs and environment
 
@@ -105,8 +115,8 @@ server -> welcome      {server_ms, room_code, mock_speech, dev_mode, demo, gloss
 server -> room_state   (spectator view, so the join form can disable taken roles)
 client -> ping x5      {client_ms}            (100 ms apart)
 server -> pong x5      {client_ms, server_ms}
-client -> join         {name, role, lang, token?}
-server -> joined       {player_id, token, role, lang, name}
+client -> join         {name, role, lang, gender, token?}
+server -> joined       {player_id, token, role, lang, gender, name}
 server -> room_state   (to everyone in the room)
 ... if the game is already running (rejoin):
 server -> game_state, flyer_view | manual_card, history, cinematic (if one is running), channel, deck (if in DECK)
@@ -114,7 +124,7 @@ server -> game_state, flyer_view | manual_card, history, cinematic (if one is ru
 
 **Clock sync.** For each pong: `rtt = now - client_ms`, `offset = server_ms + rtt/2 - now`. Keep the offset from the sample with the smallest RTT. `serverNow() = Date.now() + offset`. Re-run 3 pings every 30 s and keep the best.
 
-**Reconnect and tokens.** `joined.token` is an opaque string. The client stores it in `sessionStorage` under `fade:token:{CODE}:{role}` (keyed by role, because same-origin iframes in `/dev/split` share `sessionStorage`). On reconnect it sends `join` with the token; the server re-binds the same player slot. A `join` without a valid token for a role that is held by another player (connected, or disconnected less than 60 s ago) gets `error role_taken`. In Dev Mode a token-less join for a disconnected role takes it over **[ASSUMPTION]**.
+**Reconnect and tokens.** `joined.token` is an opaque string. The client stores it in `sessionStorage` under `wingin:token:{CODE}:{role}` (keyed by role, because same-origin iframes in `/dev/split` share `sessionStorage`). On reconnect it sends `join` with the token; the server re-binds the same player slot. A `join` without a valid token for a role that is held by another player (connected, or disconnected less than 60 s ago) gets `error role_taken`. In Dev Mode a token-less join for a disconnected role takes it over **[ASSUMPTION]**.
 
 Client reconnect backoff: 0.5 s, 1 s, 2 s, 4 s, then every 5 s, forever, with a "Reconnecting…" overlay.
 
@@ -132,6 +142,7 @@ type StationId = "overhead" | "pedestal" | "front";
 type Verb = "press" | "toggle" | "pull" | "move_down" | "move_up";
 type LampColor = "red" | "green" | "blue" | "yellow";
 type Side = "left" | "right";
+type Gender = "male" | "female";          // the player's character for their role (avatar + Hindi grammar)
 
 type ConceptId =
   | "RED" | "GREEN" | "BLUE" | "ONE" | "TWO" | "THREE" | "FOUR"
@@ -178,8 +189,8 @@ type ObjectState =
 ```ts
 type C2S =
   | { type: "ping"; client_ms: number }
-  | { type: "join"; name: string; role: Role; lang: Lang; token?: string }
-  | { type: "update_player"; name?: string; role?: Role; lang?: Lang }   // LOBBY only [ASSUMPTION]
+  | { type: "join"; name: string; role: Role; lang: Lang; gender: Gender; token?: string }
+  | { type: "update_player"; name?: string; role?: Role; lang?: Lang; gender?: Gender }   // LOBBY only [ASSUMPTION]
   | { type: "ready"; ready?: boolean }                                   // default true
   | { type: "ptt_start" }
   | { type: "ptt_end" }
@@ -218,9 +229,9 @@ type S2C =
 interface Welcome { type: "welcome"; server_ms: number; room_code: string; mock_speech: boolean;
   dev_mode: boolean; demo: boolean; gloss_threshold: number; version: string }
 interface Pong { type: "pong"; client_ms: number; server_ms: number }
-interface Joined { type: "joined"; player_id: string; token: string; role: Role; lang: Lang; name: string }
+interface Joined { type: "joined"; player_id: string; token: string; role: Role; lang: Lang; gender: Gender; name: string }
 
-interface PlayerPublic { id: string; name: string; role: Role; lang: Lang; ready: boolean;
+interface PlayerPublic { id: string; name: string; role: Role; lang: Lang; gender: Gender; ready: boolean;
   connected: boolean; is_bot: boolean }
 interface RoomState { type: "room_state"; code: string; status: Status; demo: boolean;
   mock_speech: boolean; players: PlayerPublic[]; can_start: boolean;
@@ -326,7 +337,7 @@ type ToastKey = "toast.crossover"      // params {word}: "CROSSOVER! +5s"
 interface Crash { type: "crash"; phase: PhaseNo }
 interface RetryVotes { type: "retry_votes"; roles: Role[] }
 
-interface DeckMsg { type: "deck"; partner_name: string; partner_lang: Lang; learned_count: number;
+interface DeckMsg { type: "deck"; partner_name: string; partner_lang: Lang; partner_gender: Gender; learned_count: number;
   words: DeckWord[]; report: string | null; report_pending: boolean; stats: Stats }
 interface DeckWord { concept: ConceptId; word: string;      // partner-language word, Latin (romanized if Hindi)
   meaning: string; meaning_script: "latin" | "deva";        // meaning in the player's own language/script
@@ -549,7 +560,7 @@ Clients map each code to a localized toast (Frontend §F7). The server's `messag
 **Game start**
 
 ```
-both: join, ready → server: room_state(can_start) → status PROLOGUE
+both: join {name, role, lang, gender}, ready → server: room_state(can_start) → status PROLOGUE
 server → both: game_state{status:PROLOGUE}, cinematic{prologue}
 (12 s or double skip) → PHASE_INTRO(1): game_state, cinematic{p1_intro}, manual_card{null}
 (1.2 s) → PLAYING(1): world = phase-1 start; flyer_view; game_state{fuel 150, draining}
@@ -700,6 +711,85 @@ Setup: two laptops back to back on stage, real speech (`MOCK_SPEECH=0`), room cr
 
 # Part F — Frontend
 
+## F0. Design direction: 3D-first and cinematic
+
+**Wingin' it! is a 3D, cinematic game first.** The Flyer's entire experience is a real-time 3D toy world: a first-person cockpit, a living sky outside the windows, and scripted camera cinematics between phases and inside them (the seat slide, the extinguisher, the runway reveal, the touchdown). The Tower's screen is 2D, but it is staged the same way: stamps, page turns, screen shakes and title cards land on the same server-clock beats as the Flyer's cinematics. Everything in Part F serves that. When a choice trades fidelity against simplicity, keep the game playable first (build spec rule 7), then spend the effort on what the camera sees.
+
+**Quality bar:** every frame the camera lands on should look like a still from a toy commercial: chunky, saturated, softly glowing, readable. On stage, the audience watches the Flyer's screen.
+
+### F0.1 Art direction pillars
+
+1. **Toy, not sim.** Thick rounded primitives (drei `RoundedBox`, capsules, spheres), bevels everywhere, a thin dark outline on controls, matte plastic (roughness 0.55, metalness 0). No realistic textures, no greebles. Original design: don't copy any existing game's art or characters.
+2. **Light tells the story.** Each phase has one color script (§F0.2). Lamps and fire are the brightest things in frame and they bloom; everything else stays below the bloom threshold.
+3. **Depth in every shot.** Foreground (the cockpit frame or yoke edge), midground (the panel or wing), background (sky, clouds, runway). Never a flat, dead-on shot of a wall.
+4. **Motivated motion.** The camera moves only for a reason (a sound, an event, a question). It arrives and **holds 0.6–1.0 s** before moving again. Comedy comes from springy object motion, not from camera chaos.
+5. **Readable at a glance.** The current station fills most of the frame, the asked-about lamp is unmistakable, and the subtitles never cover the controls.
+
+### F0.2 Color script per phase
+
+| Moment | Mood | Key light | Accent / glow | Sky | Fog |
+| --- | --- | --- | --- | --- | --- |
+| Prologue → P1 until A1 | tense, but toy | warm cabin #FFD8A8 (0.6) | red alarm pulse #FF3B3B, 1.2 Hz | navy #0B1026 → #2A3A6A, moon #F2F4FF | 0.004, #1a2140 |
+| P1 after A1 | relief, night calm | moonlight #9FB4FF (0.6) | amber #FFB347 (0.8) | same, stars bright | 0.004 |
+| P2 | emergency | `night_calm` base | fire orange #FF7A1A rim through the fire-side window, smoke grey, slow red pulse 0.5 Hz | clouds darken toward the outro | 0.006 |
+| P3 | storm, low visibility | dark-blue hemisphere (0.3) | lightning #DFE8FF spikes to 6, warm landing cones #FFE7B0 after C4 | #0A0F1A → #1E2633 | 0.035 → 0.012 after C4 |
+| Landing / ending | triumph, sunrise | low sun #FFB36B (1.2) | runway lights #FFF4D6 fading | peach #FFB36B → pale blue #A8D8FF | 0.004 |
+
+Palette for objects: §8.1 of the build spec (repeated in `stations.json`). Tower desk and manual colors: §F12.
+
+### F0.3 Shot composition rules
+
+- **Station shots** (`OVERHEAD`, `PEDESTAL`, `FRONT`): the station fills 60–75% of the frame at a slight three-quarter angle, never square-on. The rows the current phase uses sit in the upper 70% of the frame, above the subtitle stack. Digit labels must render at ≥ 18 px on screen at 1440 × 900.
+- **Window shots** (`LEFT_WINDOW` / `RIGHT_WINDOW`): the wing runs as a diagonal through the lower third; the burning nacelle sits near a rule-of-thirds point; the window frame is visible as foreground.
+- **Interior wides** (`WIDE_INTERIOR`, `PILOT`): both seats or the pilot's face readable; the pilot's mustache and the "Zzz" silhouette against the windshield.
+- **Exterior shots** (`EXT_*`): the plane on a thirds line, flying *into* open frame space; the chase cam slightly low; clouds passing in the foreground for parallax.
+- **No clipping:** the camera never intersects geometry (near plane 0.03). Check every shot in the scene sandbox (§F18.5).
+- **Roll:** ≤ 8° except the crash spiral.
+
+### F0.4 Motion language
+
+| Thing | Easing / timing |
+| --- | --- |
+| Camera moves | `moveTo` with `power2.inOut`; whips 0.5 s `power3.inOut`; then hold ≥ 0.6 s |
+| Shake | noise-based (§F10.1), 0.03 m × amount; never stacked above 1.0 |
+| Controls | buttons 80/120 ms; switches `back.out(2)`; handles `power2.out`; bounces `elastic.out(1, 0.4)` |
+| Comedy beats | the seat slide `elastic.out(1, 0.5)`, the "Zzz" float, the pilot's "?" pop `back.out` |
+| Lamps | when a lamp lights: scale 1.15 → 1 over 150 ms (squash), emissive ramps 80 ms |
+| Title cards | slide in 0.4 s `power3.out`, hold ≥ 1.2 s, fade 0.4 s |
+| 2D UI | 150–250 ms, `power2.out`; stamps slam `power4.in` 180 ms |
+
+### F0.5 Hero beats
+
+Each cinematic has one hero beat. Hit it at the spec time with the **flash + sound + shake triple** (whichever of the three apply), then hold at least 1 s so it reads:
+
+| Cinematic | Hero beat |
+| --- | --- |
+| `prologue` | 5.0 s, the pilot slumps onto the yoke (roll dip, alarm starts at 6) |
+| `p1_seat` | the seat slides back with the elastic bounce |
+| `p1_outro` | the overhead lamps going green in sequence, then the clouds parting to the moon |
+| `p2_intro` | 0.8 s, the engine explodes: white flash 60 ms + `boom` + fireball + shake 1.0 |
+| `p2_extinguish` | the foam burst swallowing the flames |
+| `p2_outro` | the plane sinking into black storm clouds with distant lightning |
+| `p3_intro` | 2.0 s, the lightning double flash with thunder 0.8 s later |
+| `p3_runway_reveal` | the fog thinning and the runway edge lights appearing far ahead |
+| `p3_touchdown` | 2.0 s, the wheels hit: bump + screech + sparks + shake |
+| `landing` | the cut to `EXT_FRONT_LOW` at sunrise |
+| `ending` | "YOU LANDED!" over the dawn orbit |
+| `crash` | the cartoon POOF |
+
+### F0.6 Visual acceptance set
+
+Before M3 counts as done (§F23), capture and review these frames at 1440 × 900 (via `e2e/visual.spec.ts` or the Playwright MCP browser, §F18.5):
+
+1. Each station shot in its own phase lighting: `OVERHEAD`/`night_alarm` with the master lamp blinking red, `PEDESTAL`/`fire`, `FRONT`/`storm` with rain.
+2. `RIGHT_WINDOW` and `LEFT_WINDOW` with the wing fire at `full`, `half` and `wisp`.
+3. `EXT_SIDE`, `EXT_CHASE`, `EXT_FRONT_LOW` (with the dawn sky for the last one).
+4. The hero beat of every cinematic in §F0.5, plus the end frame of every cinematic.
+5. The Tower screen in each phase: the manual open, the MAYDAY / LANDED stamps, the phase 2 EMERGENCY stamp, a wrong-action "Flyer used" slip.
+6. The home page, and character select with each of the four characters (Flyer male/female, Tower male/female) previewed; `WIDE_INTERIOR` in the prologue and the landing with each Flyer character.
+
+Check each frame against: the §F0.2 color script, the §F0.3 composition rules, no clipping, glowing lamps clearly lit or clearly dark, labels readable, subtitles not covering controls, no console errors, and ≥ 45 fps in the sandbox on the dev machine.
+
 ## F1. Principles
 
 1. **Render the server.** Every visual state comes from a server message: `game_state`, `flyer_view`, `object_state`, `manual_card`, `cinematic`, `utterance`, and so on. The only client-side "prediction" is the optimistic control motion (§F9.6), which springs back unless the server confirms it.
@@ -707,7 +797,8 @@ Setup: two laptops back to back on stage, real speech (`MOCK_SPEECH=0`), room cr
 3. **Language of the viewer.** All chrome text comes from `strings.ts` in the viewer's `lang`. All Devanagari renders in the DOM (troika `Text` in 3D can't shape Devanagari), and 3D labels are only digits and arrows.
 4. **Latin subtitles, one chip style.** Subtitles render the server's segments exactly. Never style a chip by its concept.
 5. **Toy, not scary.** Saturated colors, rounded shapes, bouncy eases, a cartoon "POOF".
-6. **Mock first.** With `welcome.mock_speech = true` the push-to-talk becomes a text box, and quick-say buttons and quick replies appear. The whole game is finishable in `/dev/split` with no microphone.
+6. **3D and cinematic first.** The camera and the light do the storytelling (§F0). Every 3D or cinematic change is checked visually, never just type-checked.
+7. **Mock first.** With `welcome.mock_speech = true` the push-to-talk becomes a text box, and quick-say buttons and quick replies appear. The whole game is finishable in `/dev/split` with no microphone.
 
 ## F2. Stack, packages and build config
 
@@ -797,6 +888,8 @@ client/
     scene/env/ExteriorPlane.tsx
     scene/env/Wings.tsx            # cockpit-visible wings + nacelles + propellers
     scene/characters/Pilot.tsx
+    scene/characters/FlyerAvatar.tsx  # the Flyer's character in the right seat (male / female)
+    scene/characters/FirstPersonHands.tsx
     scene/LightRig.tsx             # the 5 rigs, tweened
     scene/Effects.tsx              # Bloom + Vignette
     scene/sceneRefs.ts             # refs registry used by cinematics
@@ -804,7 +897,12 @@ client/
     cinematics/runner.ts           # useCinematicRunner: sync, seek, skip
     cinematics/timelines.ts        # Flyer timelines, one per cinematic id
     cinematics/towerTimelines.ts   # Tower 2D timelines
-    ui/Landing.tsx
+    ui/Home.tsx                    # the home page (start / join / how to play)
+    ui/HowToPlay.tsx
+    ui/CharacterSelect.tsx         # role + gender + name + language, with a live avatar preview
+    ui/avatars/FlyerPortrait.tsx   # 2D SVG portrait, male / female
+    ui/avatars/TowerPortrait.tsx   # 2D SVG portrait with headset, male / female
+    ui/avatars/AvatarPreview.tsx   # lobby preview (3D turntable for the Flyer, animated portrait for the Tower)
     ui/Lobby.tsx
     ui/MicCheck.tsx
     ui/FlyerScreen.tsx             # canvas + HUD
@@ -830,8 +928,12 @@ client/
     ui/Settings.tsx                # volume + mute
     ui/DevPanel.tsx
     ui/DevSplit.tsx
+    ui/DevScene.tsx                # /dev/scene: the Flyer scene from a fixture World, no server
+    ui/DevCinematic.tsx            # /dev/cinematic: scrub any Flyer/Tower timeline
     ui/PresenterKeys.tsx
     ui/hotkeys.ts
+    dev/fixtures.ts                # fixture Worlds, object states and cinematic params
+    dev/debugHooks.ts              # window.__wingin (dev only), used by Playwright
   tests/ (vitest) and e2e/ (playwright)
 ```
 
@@ -839,15 +941,17 @@ client/
 
 | Route | Screen |
 | --- | --- |
-| `/` | Landing: FADE logo over a looping `EXT_CHASE` shot of the toy plane. **Create room** and **Join with code**. |
+| `/` | **Home page**: WINGIN' IT! logo over a looping `EXT_CHASE` shot of the toy plane; **Start a game**, **Join a game**, **How to play** (§F8.1). |
 | `/r/:code` | The room. Status `LOBBY` → Lobby; game statuses → Flyer or Tower screen; `DECK` → Word deck. |
 | `/dev/split` | Dev only (`VITE_DEV_MODE=1`): two iframes, Tower left, Flyer right. |
+| `/dev/scene` | Dev only: the Flyer 3D scene rendered from a fixture `World`, no server (§F18.5). |
+| `/dev/cinematic` | Dev only: any Flyer or Tower timeline, paused at a time or playing, with a scrubber (§F18.5). |
 
 Query parameters on `/r/:code` (all optional):
 
 | Param | Effect |
 | --- | --- |
-| `role=flyer\|tower`, `lang=en\|hi`, `name=…` | Prefill the join form. |
+| `role=flyer\|tower`, `lang=en\|hi`, `gender=male\|female`, `name=…` | Prefill character select. |
 | `auto=1` | Join and ready automatically (needs role, lang, name). Used by split view. |
 | `seed=42` | Passed to `POST /api/rooms` (Dev) and to `dev set_seed` on join. |
 | `demo=1` | Create the room as a demo room. |
@@ -857,8 +961,10 @@ Query parameters on `/r/:code` (all optional):
 
 `/dev/split?room=TEST&seed=42&demo=0&bots=` renders:
 
-- left: `/r/TEST?role=tower&lang=hi&name=Tower&auto=1&seed=42`
-- right: `/r/TEST?role=flyer&lang=en&name=Flyer&auto=1`
+- left: `/r/TEST?role=tower&lang=hi&gender=male&name=Tower&auto=1&seed=42`
+- right: `/r/TEST?role=flyer&lang=en&gender=female&name=Flyer&auto=1`
+
+(`auto=1` without `gender` defaults to `male` for the Tower and `female` for the Flyer. The toolbar has a gender toggle per side.)
 
 Each iframe has `allow="microphone; autoplay"`. A thin toolbar above them shows the room code, seed, a "new room" button (random code), language-swap and bots toggles.
 
@@ -875,7 +981,7 @@ interface Socket {
 }
 ```
 
-- On open: wait for `welcome` (→ store), then run 5 pings 100 ms apart (`clock.ts` keeps the best-RTT offset, §A5), then send `join` (from the form, or from `auto=1` params) with the token from `sessionStorage["fade:token:{CODE}:{role}"]` if present.
+- On open: wait for `welcome` (→ store), then run 5 pings 100 ms apart (`clock.ts` keeps the best-RTT offset, §A5), then send `join` (from the form, or from `auto=1` params) with the token from `sessionStorage["wingin:token:{CODE}:{role}"]` if present.
 - On `joined`: store `player_id`, `role`, `lang`, and save the token under the role it returns (re-key on swap).
 - On close: if not intentional, show the "Reconnecting…" overlay and retry with backoff 0.5, 1, 2, 4, then 5 s forever. On reopen, redo the handshake with the token (the server sends the rejoin snapshot).
 - Every 30 s: 3 more pings, keep the best offset.
@@ -947,11 +1053,11 @@ Reducer notes:
 - `cinematic` sets `cinematic` and clears `skipVotes`; `cinematic_skip` sets `skipped`; `skip_votes` sets `skipVotes`.
 - `crash` → `crashed = true`; a `game_state` with status ≠ CRASH → `crashed = false`, `retryVotes = []`.
 - `error` → toast through the code map (§F7.3).
-- `settings` persist in `localStorage["fade:settings"]`.
+- `settings` persist in `localStorage["wingin:settings"]`.
 
 ## F7. UI strings (`i18n/strings.ts`)
 
-Every UI string lives here with `en` and `hi`. A unit test fails if any key is missing a language. `t(key, params)` interpolates `{name}` placeholders. Numbers stay as ASCII digits in both languages.
+Every UI string lives here with `en` and `hi`. A unit test fails if any key is missing a language. `t(key, params, gender?)` interpolates `{name}` placeholders. **Hindi is gendered:** a value may be `{m, f}` instead of a string, and `t` picks it by the gender of the person the string is about (yourself for `ptt.transmitting`, the speaker for `ptt.busy_*`, your partner for `toast.partner_*`). The gendered keys are marked *(m / f)* below; English never varies. Numbers stay as ASCII digits in both languages.
 
 ### F7.1 Chrome strings
 
@@ -962,6 +1068,20 @@ Every UI string lives here with `en` and `hi`. A unit test fails if any key is m
 | `landing.join` | Join with code | कोड से जुड़ो |
 | `landing.code_placeholder` | ABCD | ABCD |
 | `landing.not_found` | Room not found | रूम नहीं मिला |
+| `home.start` | Start a game | खेल शुरू करो |
+| `home.join` | Join a game | खेल से जुड़ो |
+| `home.how` | How to play | कैसे खेलें |
+| `home.how_1` | One of you flies. One of you has the manual. | एक उड़ाएगा, एक के पास मैनुअल है। |
+| `home.how_2` | Talk over the radio in your own language. | रेडियो पर अपनी भाषा में बात करो। |
+| `home.how_3` | The translator fades. Learn each other's words and land the plane! | अनुवाद धीरे-धीरे गायब होगा। एक-दूसरे के शब्द सीखो और विमान उतारो! |
+| `home.back` | Back | वापस |
+| `char.title` | Choose your character | अपना किरदार चुनो |
+| `char.gender` | Character | किरदार |
+| `char.male` | Male | पुरुष |
+| `char.female` | Female | महिला |
+| `char.flyer_caption` | The passenger who has to fly the plane | वह यात्री जिसे विमान उड़ाना है |
+| `char.tower_caption` *(m / f, the selected character)* | The air-traffic controller with the manual | m: मैनुअल वाला एयर-ट्रैफ़िक कंट्रोलर · f: मैनुअल वाली एयर-ट्रैफ़िक कंट्रोलर |
+| `char.pick_all` | Pick a role, a character and a language | भूमिका, किरदार और भाषा चुनो |
 | `lobby.room_code` | Room code | रूम कोड |
 | `lobby.share` | Share this link | यह लिंक भेजो |
 | `lobby.copy` | Copy | कॉपी करो |
@@ -1002,9 +1122,9 @@ Every UI string lives here with `en` and `hi`. A unit test fails if any key is m
 | `hud.fuel` | FUEL | ईंधन |
 | `hud.seconds` | {n}s | {n} सेकंड |
 | `ptt.idle` | Hold SPACE to talk | बोलने के लिए SPACE दबाकर रखो |
-| `ptt.transmitting` | Transmitting… | बोल रहे हो… |
-| `ptt.busy_flyer` | Flyer is talking | फ़्लायर बोल रहा है |
-| `ptt.busy_tower` | Tower is talking | टावर बोल रहा है |
+| `ptt.transmitting` *(m / f, self)* | Transmitting… | m: बोल रहे हो… · f: बोल रही हो… |
+| `ptt.busy_flyer` *(m / f, Flyer)* | Flyer is talking | m: फ़्लायर बोल रहा है · f: फ़्लायर बोल रही है |
+| `ptt.busy_tower` *(m / f, Tower)* | Tower is talking | m: टावर बोल रहा है · f: टावर बोल रही है |
 | `ptt.button` | Hold to talk | दबाकर बोलो |
 | `mock.placeholder` | Type what you'd say, press Enter | जो बोलना है लिखो, Enter दबाओ |
 | `mock.send` | Send | भेजो |
@@ -1057,7 +1177,7 @@ Every UI string lives here with `en` and `hi`. A unit test fails if any key is m
 | `overlay.paused` | Your partner disconnected. Waiting up to 60 s… | साथी का कनेक्शन टूट गया। 60 सेकंड तक इंतज़ार… |
 | `overlay.reconnecting` | Reconnecting… | दोबारा जुड़ रहे हैं… |
 | `overlay.enable_sound` | Click to enable sound | आवाज़ के लिए क्लिक करो |
-| `overlay.unsupported` | This browser can't run Fade. Please use the latest Chrome. | यह ब्राउज़र Fade नहीं चला सकता। कृपया नया Chrome इस्तेमाल करो। |
+| `overlay.unsupported` | This browser can't run Wingin' it! Please use the latest Chrome. | यह ब्राउज़र Wingin' it! नहीं चला सकता। कृपया नया Chrome इस्तेमाल करो। |
 
 ### F7.2 Toast strings (keys from `ToastKey`, §A8)
 
@@ -1065,8 +1185,8 @@ Every UI string lives here with `en` and `hi`. A unit test fails if any key is m
 | --- | --- | --- |
 | `toast.crossover` | CROSSOVER! +5s | क्रॉसओवर! +5 सेकंड |
 | `toast.partner_left` | Partner disconnected. Waiting… | साथी का कनेक्शन टूट गया। इंतज़ार… |
-| `toast.partner_back` | Partner is back! | साथी वापस आ गया! |
-| `toast.partner_gone` | Partner left the game. | साथी खेल छोड़ गया। |
+| `toast.partner_back` *(m / f, partner)* | Partner is back! | m: साथी वापस आ गया! · f: साथी वापस आ गई! |
+| `toast.partner_gone` *(m / f, partner)* | Partner left the game. | m: साथी खेल छोड़ गया। · f: साथी खेल छोड़ गई। |
 | `toast.didnt_catch` | Didn't catch that, try again | समझ नहीं आया, फिर से बोलो |
 | `toast.channel_busy` | Wait — your partner is talking | रुको — साथी बोल रहा है |
 | `toast.translation_failed` | Couldn't decode that one. Lifeline not used. | इसका अनुवाद नहीं हो पाया। लाइफ़लाइन बची है। |
@@ -1077,19 +1197,42 @@ Every UI string lives here with `en` and `hi`. A unit test fails if any key is m
 
 `channel_busy` → `toast.channel_busy`; `no_lifelines` → `toast.no_lifelines`; `translation_failed` → `toast.translation_failed`; `transcribe_failed` → `toast.didnt_catch`; `room_not_found` → `landing.not_found` (navigate to `/`); `role_taken` → mark the role card taken; `lifeline_not_available` → silent (UI shouldn't allow it); `rate_limited`, `not_allowed_now`, `bad_message`, `internal` → console only (and a `toast.info` in Dev Mode).
 
-## F8. Lobby (`ui/Landing.tsx`, `ui/Lobby.tsx`, `ui/MicCheck.tsx`)
+## F8. Home page, character select and lobby (`ui/Home.tsx`, `ui/CharacterSelect.tsx`, `ui/Lobby.tsx`, `ui/MicCheck.tsx`)
 
-**Landing (`/`).**
+The flow is **Home → (Start or Join) → Character select → Lobby (wait, mic check, Ready) → game**.
 
-- Full-screen canvas (a separate small `<Canvas>`): the `ExteriorPlane` flying at night over scrolling toy clouds, camera on the `EXT_CHASE` offset with a slow 0.3 Hz bob. The FADE logo (Baloo 2 800, 120 px, cream #F2E8D5 with a teal #2EC4B6 drop shadow) and the tagline in both languages.
-- Buttons: **Create room** → `createRoom()` → `/r/CODE`. **Join with code** opens a 4-letter input (auto-uppercase, letters only) → `getRoom` → `/r/CODE`.
-- UI language before joining: the browser language (`hi*` → hi, else en), with a small EN / हिन्दी switch in the corner.
+### F8.1 Home page (`/`)
 
-**Room lobby (`/r/:code`, status LOBBY).**
+The first thing anyone sees, and the opening shot of the stage demo, so it must look like a game's title screen, not a web form.
+
+- **Background:** a full-screen attract-loop canvas (a separate small `<Canvas>`, not the cockpit scene): the `ExteriorPlane` flying at night over scrolling toy clouds and the moon, camera on the `EXT_CHASE` offset with a slow 0.3 Hz bob and an occasional 4° banking turn every ~8 s. Same color script as phase 1 calm (§F0.2).
+- **Title:** the WINGIN' IT! logo (Baloo 2 800, 120 px, cream #F2E8D5 with a teal #2EC4B6 extruded drop shadow, a gentle 2 s float) and the tagline `app.tagline` under it.
+- **Menu** (big chunky toy buttons, center-bottom, keyboard navigable with ↑/↓/Enter):
+  1. **Start a game** (`home.start`, primary, teal) → `createRoom({demo, seed, mock} from the URL)` → `/r/CODE`, which opens character select.
+  2. **Join a game** (`home.join`) → a 4-letter code input slides in (auto-uppercase, letters only, paste-friendly) → `getRoom` → `/r/CODE`; unknown code → `landing.not_found`.
+  3. **How to play** (`home.how`) → `HowToPlay.tsx`, a 3-card overlay (`home.how_1..3`) with small illustrations: the two characters back to back, a radio, fading brackets.
+- **Corner controls:** EN / हिन्दी UI-language switch (default from the browser: `hi*` → hi, else en), volume/mute (`Settings`), and the DEMO badge on demo servers.
+- **Motion:** the menu buttons pop in with a 60 ms stagger (`back.out`); hovering a button lifts it 3 px with a soft click sound once audio is unlocked. Clicking anything on the home page unlocks the `AudioContext`.
+
+### F8.2 Character select (`/r/:code` before `joined`)
+
+Shown when the player opens a room link and hasn't joined yet. One screen, three choices and a name, with a live preview:
+
+- **Role** — two large role cards side by side: **Flyer** (`lobby.flyer`, `lobby.flyer_desc`, cockpit icon) and **Tower** (`lobby.tower`, `lobby.tower_desc`, manual icon). A role already held by someone is disabled with `lobby.taken` (from `room_state` / `GET /api/rooms/:code`).
+- **Character (gender)** — on the selected role card, a two-option toggle `char.male` / `char.female`, each a small portrait thumbnail. Required: **Join** stays disabled until it's picked (`char.pick_all`). Never pre-selected for real players (split view and `?gender=` may prefill).
+- **Language** — the English / हिन्दी toggle (`lobby.language`).
+- **Name** — 1–16 characters (`lobby.name`).
+- **Live preview** (`AvatarPreview.tsx`), large, on the left half of the screen:
+  - Flyer: the 3D `FlyerAvatar` (§F9.8) on a slow turntable in a small canvas, under the night-calm rig, waving once when the gender changes.
+  - Tower: the animated 2D `TowerPortrait` (headset, a blink every 3–5 s, mic boom bob), swapping with a quick card-flip when the gender changes.
+  - Caption under it: `char.flyer_caption` / `char.tower_caption`.
+- **Join** sends `join {name, role, lang, gender, token?}`. Afterwards, changing role, gender or language sends `update_player`.
+
+### F8.3 Room lobby (`/r/:code`, status LOBBY, after `joined`)
 
 - Top: the room code large (Baloo 2 800, 72 px, letter-spaced), the share link `{origin}/r/CODE` with Copy, and a QR code (`qrcode.react`, 160 px).
-- Join form (before `joined`): name (1–16 chars), two **role cards** (Flyer: cockpit icon, "You're in the cockpit"; Tower: manual icon, "You have the manual"; a role taken by someone else is disabled with "Taken"), a language toggle **English / हिन्दी**, and **Join**.
-- After joining: a player list (name, role, language, ready, connected dot), my **Ready** toggle, and the block message from `room_state.block_reason` (`lobby.block_*`). Changing role or language sends `update_player`.
+- The two players shown as **character cards** side by side: portrait (`FlyerPortrait` / `TowerPortrait` in their chosen gender), name, role, language, ready check, connected dot. An empty slot shows a dashed silhouette with `lobby.waiting_partner`.
+- My **Ready** toggle, an "edit character" button (back to §F8.2 fields inline), and the block message from `room_state.block_reason` (`lobby.block_*`). Changing role, gender or language sends `update_player`.
 - Setup tip card: "Sit back to back. No peeking at each other's screens."
 - **Mic check (real mode only, before Ready):** "Allow microphone" → `mic.init()` (§F16.1); then a live level meter (12 bars), "Say something to test your mic", turning into "Mic works!" once the level passes 0.15 for 300 ms. If denied → `lobby.mic_denied`, and Ready is disabled. In mock mode show `lobby.mock_note` instead.
 - The first click anywhere in the lobby unlocks the `AudioContext` (§F16.3).
@@ -1199,7 +1342,10 @@ All dimensions in meters. Colors come from the `stations.json` palette. Labels a
 | `Runway` | A group: strip plane 60 × 1200 (#2A2A2E); center dashes (instanced boxes 1 × 0.02 × 12 every 30 m, white); two rows of edge lights (instanced emissive spheres r 0.4, #FFF4D6, every 30 m at x ±28); an approach light bar (10 emissive spheres in a row before the threshold). States: `hidden` (invisible); `far` (visible at z −600, y −40, edge lights faded in); `rolling` (under the plane at y −1.2, dashes and lights stream past +Z at 60 m/s using modulo offsets); `stopped` (stream speed 0). | `world.runway`, timelines |
 | `ExteriorPlane` | At world (0, 50, −300): capsule fuselage (r 0.9, length 6, cream) along Z; rounded-box wings (12 × 0.15 × 1.6) with teal tips; two nacelles with spinning propellers at x ±2.6; tail fin; a teal #2EC4B6 stripe (thin box); a row of round windows (dark spheres). It mirrors `propeller_stopped` and `WingFire`. Its landing-lights cones show when `landing_lights` is on. | `world.*` |
 
-### F9.8 Characters (`scene/characters/Pilot.tsx`)
+### F9.8 Characters (`scene/characters/Pilot.tsx`, `FlyerAvatar.tsx`, `FirstPersonHands.tsx`)
+
+**The captain (NPC, `Pilot.tsx`, not selectable):**
+
 
 - Body: capsule (r 0.18, length 0.45), navy #1F2A44, sitting in the left seat. Arms: two capsules. Head: sphere r 0.14, skin #F1C27D. Cap: cylinder navy with a black visor box and a small gold badge. Mustache: two small dark-brown (#4A2E1F) capsules angled out.
 - Animations (procedural, `useFrame`):
@@ -1209,6 +1355,23 @@ All dimensions in meters. Colors come from the `stations.json` palette. Labels a
   - snore: the pilot's chest swell syncs with the `snore` sfx (every 3–4 s, quiet);
   - `seat_back`: the seat and pilot group translate +0.4 m in Z (`elastic.out(1, 0.5)` in the `p1_seat` timeline);
   - `awake`: head lifts, looks left and right, a "?" pops above (scale 0 → 1, `back.out`).
+
+**The Flyer's character (`FlyerAvatar.tsx`), male or female from the Flyer player's `gender`:**
+
+- Sits in the right seat (x +0.5, z 0.3), the same toy proportions as the captain (capsule body r 0.17 × 0.42, sphere head r 0.135, skin #E0AC69), seat belt across the chest (a flat dark strap).
+- **Male:** short tousled dark-brown hair (#3B2A20) built from 4–5 flattened spheres, a teal hoodie (#2EC4B6) with a lighter hood rim, round glasses (two torus rings).
+- **Female:** dark hair (#2B1D16) with a high ponytail (a capsule swinging on a spring), a coral bomber jacket (#E07A5F) with cream cuffs, small round earrings.
+- Both are original, friendly, non-stereotyped toy designs, clearly distinguishable at a glance, and must read well in silhouette in `WIDE_INTERIOR`.
+- **Visibility:** rendered in all third-person shots (`WIDE_INTERIOR`, `PILOT`, exterior window views of the cockpit) and in the lobby preview. **Hidden in first-person shots** (when the camera is within 0.25 m of the Flyer's eye position) so the camera never sees inside the head.
+- **Poses:** `idle` (breathing, small looks around), `panic` (hands on cheeks, used in the prologue when the captain slumps), `brace` (gripping the armrests, `p3_touchdown`), `cheer` (both arms up with a bounce, `landing`).
+
+**First-person hands (`FirstPersonHands.tsx`):** in first-person shots, the Flyer's two mitten hands with sleeves in the character's outfit color (teal hoodie / coral jacket) rest at the bottom edge of the frame. When the Flyer clicks a control, the nearer hand does a quick 180 ms "poke" toward the click point and back (no IK, just a tween toward the hit point projected onto the panel); hidden during cinematics.
+
+**Portraits (`ui/avatars/`):** flat 2D SVG busts in the same toy style, used in the DOM:
+
+- `FlyerPortrait` (male / female, matching the 3D model's hair, outfit and glasses or earrings).
+- `TowerPortrait` (male / female): an air-traffic controller with a headset and mic boom and a navy vest with a teal "ATC" badge; male with short dark hair, female with a low bun. Neither has a mustache, so they're never confused with the captain.
+- States: `idle`, `talking` (the mic boom glows and the mouth flaps at ~6 Hz while that player holds the channel), `happy` (deck screen).
 
 ### F9.9 World → scene mapping (summary)
 
@@ -1293,7 +1456,7 @@ An absolutely positioned DOM layer over the canvas. Baloo 2. All text in the Fly
 | Top left | Signal: 3 bars (filled = `signal_level`: phase 1 → 3 bars, 2 → 2, 3 → 1) + the label (`signal.N`) + the phase name. Phase 3: the bars glitch (random 1-frame jitter every 2–5 s). |
 | Top center | Progress pips, one per action (`total_actions`): done = filled teal, current = pulsing white ring, upcoming = hollow. |
 | Top right | Fuel: `{n}s` (tabular numbers) + a thin bar (green #30A46C > 50%, amber #F5C518 > 20 s, red #E5484D ≤ 20 s and pulsing). The 3D fuel dial on the front panel mirrors it. |
-| Bottom center | Subtitle stack: the last 3 Tower utterances, newest at the bottom, older ones at 60% and 35% opacity, each with a small TOWER tag (§F13). Newest line 26 px. |
+| Bottom center | Subtitle stack: the last 3 Tower utterances, newest at the bottom, older ones at 60% and 35% opacity, each with a small TOWER tag and the Tower's portrait (§F13). Newest line 26 px. |
 | Above subtitles | While transmitting: my live partial caption (italic, 18 px, white 80%). After sending: "You: …" echo in grey for 3 s. |
 | Bottom right | `PTTIndicator` (real mode) or `MockTalkBox` + `QuickReplies` (mock). |
 | Bottom left (phase 3) | `Lifelines`: three dots (filled = left) + "Tap a subtitle to decode it". |
@@ -1301,7 +1464,7 @@ An absolutely positioned DOM layer over the canvas. Baloo 2. All text in the Fly
 | Corner (top right, small) | `Settings` (volume slider, mute). |
 | Full screen | `Overlays` (§F20): flash, red vignette pulse, skip button during cinematics, crash/retry, paused, reconnecting. |
 
-`PTTIndicator` states: **idle** (mic icon, `ptt.idle`, plus the on-screen hold button), **transmitting** (red pulsing ring, `ptt.transmitting`, tiny level meter), **busy** (amber, `ptt.busy_tower` when the partner holds the channel). It ignores clicks when busy.
+`PTTIndicator` shows the partner's small portrait in the busy state (`talking`). States: **idle** (mic icon, `ptt.idle`, plus the on-screen hold button), **transmitting** (red pulsing ring, `ptt.transmitting`, tiny level meter), **busy** (amber, `ptt.busy_tower` when the partner holds the channel). It ignores clicks when busy.
 
 
 ## F12. Tower screen (`ui/TowerScreen.tsx`)
@@ -1316,7 +1479,7 @@ A dark slate desk (#1E222B with a subtle noise texture via an SVG filter), decor
 | --- | --- | --- |
 | Left | 30% | `Radar` (square, max 320 px), then the fuel bar with seconds, signal bars + label, phase title |
 | Center | 45% | `ManualCard`: the open ring-bound manual (two-page spread), or `ManualCover` when `card` is null |
-| Right | 25% | Subtitles from the Flyer (last 5), `Lifelines` (phase 3), `PTTIndicator` + partial caption (or `MockTalkBox`), `Settings` |
+| Right | 25% | My `TowerPortrait` (top, 96 px, `talking` while I transmit), subtitles from the Flyer (last 5), `Lifelines` (phase 3), `PTTIndicator` + partial caption (or `MockTalkBox`), `Settings` |
 
 A CSS screen-shake class (`translate` jitter, 0.6 s) is applied to the whole screen by the `p2_intro` Tower timeline.
 
@@ -1386,7 +1549,7 @@ The Tower doesn't render the 3D scene. Each cinematic has a 2D Tower timeline (�
 
 **Line rendering:**
 
-- A rounded bar (rgba(10,12,18,0.55), backdrop blur 4 px) with the tag pill (tiny, uppercase, slate) and the segments in order.
+- A rounded bar (rgba(10,12,18,0.55), backdrop blur 4 px) with the speaker's small round portrait (28 px, the partner's `FlyerPortrait` / `TowerPortrait` in their gender, from `room_state`), the tag pill (tiny, uppercase, slate) and the segments in order.
 - `plain` segment → a text span (white, preserving spaces).
 - `keyword` segment → `<KeywordChip>`: **one style for every keyword**: `background: rgba(43,47,58,0.78); color: #fff; border-bottom: 2px solid rgba(255,255,255,0.7); border-radius: .45em; padding: 0 .3em;`. **Never vary it by concept.**
 - `gloss` (when non-null) → immediately after the chip: `[gloss]` in a muted yellow #E9D98B, 0.7 em, `margin-left: .2em`.
@@ -1433,8 +1596,8 @@ Times in seconds from the start. They follow the build spec shot lists, plus the
 
 **`prologue` (12 s; demo 6 s = every time ×0.5)**
 
-1. 0–3 `cut(EXT_CHASE)`. The toy plane cruises at night over moonlit clouds; `engine_hum` on. FADE logo fades in 0.5–1.0, holds, fades out 2.0–2.5.
-2. 3 `cut(WIDE_INTERIOR)`. The pilot yawns and stretches (arms up 3.2–4.2); at 5.0 he slumps onto the yoke. Camera `rollTo(6, 1)` from 5.0 as the plane dips.
+1. 0–3 `cut(EXT_CHASE)`. The toy plane cruises at night over moonlit clouds; `engine_hum` on. WINGIN' IT! logo fades in 0.5–1.0, holds, fades out 2.0–2.5.
+2. 3 `cut(WIDE_INTERIOR)`. The pilot yawns and stretches (arms up 3.2–4.2); at 5.0 he slumps onto the yoke while the Flyer's character in the right seat turns to him and goes `panic` (5.2). Camera `rollTo(6, 1)` from 5.0 as the plane dips.
 3. 6 the `alarm_master` loop starts; `setLightRig("night_alarm", 0.3)`.
 4. 7 `whip(FLYER_DEFAULT)` (0.5 s); "Zzz" starts above the pilot. `rollTo(0, 1.5)`.
 5. 8.5 `sfx("radio_crackle")`.
@@ -1488,7 +1651,7 @@ Times in seconds from the start. They follow the build spec shot lists, plus the
 **`p3_touchdown` (6 s)**
 
 1. 0–2 `FLYER_DEFAULT`: the runway slides from z −600, y −40 to under the plane (y −1.2), `power2.in`; the approach lights streak past.
-2. 2 touchdown: camera bump −0.08 m and back in 200 ms; `sfx("screech")`; sparks (orange additive particles, 0.6 s) under both side windows; `shakeFor(0.6, 1.0)`.
+2. 2 touchdown (the Flyer's character, if visible in any later wide shot, is in `brace` until 4): camera bump −0.08 m and back in 200 ms; `sfx("screech")`; sparks (orange additive particles, 0.6 s) under both side windows; `shakeFor(0.6, 1.0)`.
 3. 2–5 the runway streams past at 60 m/s; rain lightens (rain_light); `restShake = 0`.
 4. 5–6 `moveTo(FRONT, 1.0)`. The runway keeps streaming until C8 succeeds.
 - End: `runway = rolling`, turbulence 0, rain_light.
@@ -1497,7 +1660,7 @@ Times in seconds from the start. They follow the build spec shot lists, plus the
 
 1. 0–3 `FLYER_DEFAULT`: the runway stream decelerates to 0 (`power3.out`); `sfx("squeal")`; nose dip `pitchTo(4, 0.4)` then settle to 0 over 1 s; engines spool down (`engine_hum` fades); the rain stops; clouds part; `setLightRig("dawn", 2.5)`; the sky cross-fades to dawn.
 2. 3–5 `cut(EXT_FRONT_LOW)`: the plane stopped on the runway at sunrise, a wisp of smoke from the damaged engine (`damaged_side`).
-3. 5–7 `cut(WIDE_INTERIOR)`: the pilot wakes, lifts his head, looks around; a "?" pops above him.
+3. 5–7 `cut(WIDE_INTERIOR)`: the Flyer's character does `cheer`; the pilot wakes, lifts his head, looks around; a "?" pops above him.
 - End = the "After landing" world.
 
 **`ending` (6 s; demo 4 s)** — a slow orbit around the exterior plane at dawn (along the `EXT_CHASE` path, 60°); title `end.landed` + `end.fuel_left` + `end.total_time` from params; last 0.8 s fade to cream (the deck appears when the server sends `deck` and status `DECK`).
@@ -1661,7 +1824,7 @@ Keep the overall volume low: two laptops play sound in the same room while the p
 
 Shown when status is `DECK` and `store.deck` is set. In the player's own language.
 
-- **Header:** `deck.header` with N = `learned_count` (the N big, teal). Under it, the **mission report**: `deck.report` (Baloo 2, 20 px, Devanagari for a Hindi player); while `report_pending`, show `deck.report_loading` with a typing animation, replaced on `deck_report`.
+- **Header:** the partner's portrait (`happy`, 120 px, in `partner_gender`) next to `deck.header` with N = `learned_count` (the N big, teal). Under it, the **mission report**: `deck.report` (Baloo 2, 20 px, Devanagari for a Hindi player); while `report_pending`, show `deck.report_loading` with a typing animation, replaced on `deck_report`.
 - **Card grid** (4 columns at 1440 px, 3 at 1280 px): learned words first, then a `deck.still_learning` divider and the rest greyed (40% opacity, no badges). Each card:
   - the partner-language word large (`word`, Latin, Baloo 2 800, 40 px),
   - its meaning in the player's language (`meaning`, Devanagari when `meaning_script === "deva"`),
@@ -1696,6 +1859,33 @@ A right-side drawer (400 px, monospace, dark), rendering `store.dev` (`dev_state
 - **Exposure table:** per player, concept × heard / glossed / understood / spoken (20 rows).
 - **Last utterance:** transcript, matches (start, end, concepts, side), segments as sent, latency; plus the latency sparkline (last 20, target line at 1500 ms).
 - **Buttons and hotkeys** (hotkeys only while the panel is enabled and no input has focus): complete action (**N**), fail action (**F**), go to phase 1/2/3 (**1**, **2**, **3**), skip cinematic (**K**), set seed, force a var (dropdown of var + value), +60 s fuel, bots (Tower / Flyer), "send Devanagari" toggle.
+
+### F18.5 Scene sandbox and cinematic scrubber (visual QA)
+
+These routes exist so 3D and cinematic work can be checked frame by frame without a server or a second player. They use **the same components and timelines** as the real game (no forks, no copies), fed from `dev/fixtures.ts`. Only compiled when `VITE_DEV_MODE=1`.
+
+- **`/dev/scene?world=<preset>&shot=<SHOT>&lamps=<list>&fps=1`**
+  - `world` presets: `lobby`, `p1_start`, `p1_calm`, `p2_start`, `p2_half`, `p2_extinguished`, `p3_start`, `p3_runway`, `p3_rolling`, `landed` (the §A11 table plus the effects in between). `fire_side=left|right` picks the side.
+  - `shot` = any §F10.1 shot id (default: the station shot of that preset).
+  - `lamps=OH_MASTER_LAMP:red:blink:ring,FP_GEAR_LAMP_3:red` overrides object states.
+  - `fps=1` shows an FPS / draw-call readout (`renderer.info`).
+  - Arrow keys step through the shot list; `O` toggles OrbitControls for inspection only.
+- **`/dev/cinematic?id=<id>&t=<seconds>&role=flyer|tower&lang=en|hi&fire_side=left&demo=0&retry=0&play=0`**
+  - Builds the timeline locally (start from the preset world before that cinematic), then seeks to `t` paused, or plays from `t` with `play=1`.
+  - A scrubber bar: a range slider over the full duration, play/pause, ±0.1 s step, jump to the hero beat (§F0.5), and the current camera shot, light rig and time readout.
+- **`window.__wingin`** (dev builds only, from `dev/debugHooks.ts`):
+  ```ts
+  interface WinginDebug {
+    ready: Promise<void>;                        // resolves after the first rendered frame with fonts loaded
+    setWorld(preset: string, opts?: { fire_side?: Side }): Promise<void>;
+    setShot(shot: string): Promise<void>;        // cut, then wait 2 frames
+    seek(id: CinematicId, t: number, params?: Record<string, string | number | boolean>): Promise<void>;
+    stats(): { fps: number; calls: number; triangles: number };
+  }
+  ```
+  Playwright (the e2e suite or the Playwright MCP browser) navigates to these routes, awaits `__wingin.ready`, sets the frame, and screenshots.
+
+**Visual QA loop:** for every 3D or cinematic change, open the relevant sandbox URL in a real GPU-backed Chrome (the project's Playwright MCP server, `.mcp.json`), take a 1440 × 900 screenshot, look at it, compare it with §F0 and the shot list, fix, and repeat. The frames in §F0.6 are the minimum set for M3.
 
 ## F19. Demo mode (presenter)
 
@@ -1737,7 +1927,8 @@ A right-side drawer (400 px, monospace, dark), rendering `store.dev` (`dev_state
 
 | Test | Checks |
 | --- | --- |
-| `strings.test.ts` | every key has non-empty `en` and `hi`; every `ToastKey` and error code is mapped |
+| `strings.test.ts` | every key has non-empty `en` and `hi`; every `ToastKey` and error code is mapped; gendered keys have both `m` and `f` Hindi forms and `t()` picks by the right person's gender |
+| `characterSelect.test.tsx` | Join is disabled until role, gender, language and name are set; a taken role is disabled; `join` carries `gender`; `update_player` on change |
 | `clock.test.ts` | the best-RTT offset selection; `serverNow` |
 | `store.test.ts` | the reducer for every S2C type (snapshots), bounce handling, subtitle trimming, translation reveal, rejoin `history` |
 | `subtitles.test.tsx` | segments render in order; every keyword chip has the **same** class list whatever the concept; glosses in brackets; no Devanagari rendered from Latin segments; `twice` → one chip |
@@ -1753,15 +1944,16 @@ A right-side drawer (400 px, monospace, dark), rendering `store.dev` (`dev_state
 2. Manual mock play: the Tower clicks quick-say, the Flyer clicks the right control → the step ticks; a wrong control → buzzer, fuel −10, "Flyer used" on the Tower.
 3. Refresh the Flyer iframe mid-phase → it rejoins and the same action is active.
 4. Phase 3 lifeline: click a Tower subtitle on the Flyer → the translation appears; the dots go 3 → 2.
+5. **`visual.spec.ts`** (headed Chrome, 1440 × 900): for every frame in §F0.6, open `/dev/scene` or `/dev/cinematic`, await `__wingin.ready`, set the frame, and save a PNG to `client/e2e/__screenshots__/` (gitignored) for review. Assert no console errors and `stats().fps ≥ 30`. **No pixel-diff assertions** (WebGL output differs across GPUs); the screenshots are for human or agent review.
 
 ## F23. Frontend milestones (aligned with build spec §18)
 
 | Milestone | Frontend scope | Done when |
 | --- | --- | --- |
 | **M0 Scaffold** | Vite app, Tailwind, fonts, router, `protocol.ts`, the content imports, compose service | `npm run dev` serves the landing page |
-| **M1 Playable mock** | Socket + store, landing/lobby, the cockpit shell with all three stations from `stations.json` (no effects), parts with interaction and bounce, the Tower screen with the manual card and progress, `MockTalkBox`, quick-say, quick replies, plain subtitles, `/dev/split`, simple cinematics (camera moves + title cards) | One person finishes the whole game in split view |
+| **M1 Playable mock** | Socket + store, home page, character select (role, gender, language, name; placeholder portraits are fine), lobby, the cockpit shell with all three stations from `stations.json` (no effects), parts with interaction and bounce, the Tower screen with the manual card and progress, `MockTalkBox`, quick-say, quick replies, plain subtitles, `/dev/split`, simple cinematics (camera moves + title cards) | One person finishes the whole game in split view |
 | **M2 Language engine UI** | Keyword chips + glosses, phase 3 lifelines, translation reveal, the dev panel exposure table, toasts | Subtitles visibly fade across the three phases |
-| **M3 Look & feel** | Light rigs, sky, clouds, wing fire, rain, lightning, runway, the exterior plane, the pilot, every Flyer and Tower timeline, action feedback, all procedural sounds | The full game in split view looks and sounds like the shot lists |
+| **M3 Look & feel** | Final 3D Flyer characters + first-person hands + 2D portraits (both genders), light rigs, sky, clouds, wing fire, rain, lightning, runway, the exterior plane, the pilot, every Flyer and Tower timeline, action feedback, all procedural sounds | The full game in split view looks and sounds like the shot lists, and every frame in the §F0.6 visual acceptance set has been captured and checked against §F0 |
 | **M4 Real speech** | Mic init + level meter, worklet, pre-roll, PTT (Space + button), channel states, partial captions, ducking | Two people on two laptops play by voice |
 | **M5 Word deck** | The deck screen, clip playback, the report with loading, play again / swap roles | The end screen plays the partner's real voice |
 | **M6 Deploy** | Amplify (or S3 + CloudFront / Caddy) build with `VITE_WS_URL`/`VITE_API_URL` | The checklist passes on HTTPS |
@@ -1783,4 +1975,6 @@ A right-side drawer (400 px, monospace, dark), rendering `store.dev` (`dev_state
 - [ ] The Tower never shows the fire side or any lamp color; the Flyer never shows the manual.
 - [ ] The word deck lists learned words first, plays the partner's voice, shows the report (or its loading state) and the stats; Play again and Swap roles work.
 - [ ] Demo room: DEMO badge, N/P presenter keys, 300 s fuel, short prologue, phase 2 auto-play.
+- [ ] The home page offers Start / Join / How to play; character select requires a gender; both players' portraits (in their genders) show in the lobby, on subtitles, on the PTT busy state and on the deck; the Flyer's 3D character matches their gender; Hindi strings about a person use the right gender.
+- [ ] Every frame in the §F0.6 visual acceptance set matches the §F0 color script and shot rules (no clipping, readable labels, glowing lamps, subtitles clear of controls).
 - [ ] The deployed build works over HTTPS/WSS with two laptops in one room.
