@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "palette": {
+    "red": "#E5484D", "green": "#30A46C", "blue": "#3E63DD", "yellow": "#F5C518",
+    "white": "#D9D9E0", "grey": "#8B8D98"
+  },
+  "stations": [
+    {
+      "id": "overhead", "phase": 1,
+      "name": {"en": "Overhead panel", "hi": "ओवरहेड पैनल"},
+      "grid": {"cols": 7, "rows": 4},
+      "controls": [
+        {"id": "OH_GREEN_LAMP",  "type": "Lamp", "label": null, "color": "green", "row": 0, "col": 0, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "green light", "hi": "हरी लाइट"}},
+        {"id": "OH_MASTER_LAMP", "type": "Lamp", "size": "big", "label": null, "color": "white", "row": 0, "col": 3, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "big center light", "hi": "बड़ी बीच वाली लाइट"}},
+        {"id": "OH_AP_SCREEN",   "type": "Screen", "label": null, "color": "grey", "row": 0, "col": 5, "default": {"kind": "screen", "on": false}, "manual_name": {"en": "autopilot screen", "hi": "ऑटोपायलट स्क्रीन"}},
+        {"id": "OH_AP_LAMP",     "type": "Lamp", "label": null, "color": "white", "row": 0, "col": 6, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "right light", "hi": "दाईं लाइट"}},
+        {"id": "OH_BTN_1", "type": "PushButton", "label": "1", "color": "white", "row": 1, "col": 0, "default": {"kind": "button"}, "manual_name": {"en": "button one", "hi": "एक नंबर बटन"}},
+        {"id": "OH_BTN_2", "type": "PushButton", "label": "2", "color": "white", "row": 1, "col": 1, "default": {"kind": "button"}, "manual_name": {"en": "button two", "hi": "दो नंबर बटन"}},
+        {"id": "OH_BTN_3", "type": "PushButton", "label": "3", "color": "white", "row": 1, "col": 2, "default": {"kind": "button"}, "manual_name": {"en": "button three", "hi": "तीन नंबर बटन"}},
+        {"id": "OH_BTN_4", "type": "PushButton", "label": "4", "color": "white", "row": 1, "col": 3, "default": {"kind": "button"}, "manual_name": {"en": "button four", "hi": "चार नंबर बटन"}},
+        {"id": "OH_BTN_RED",   "type": "PushButton", "label": null, "color": "red",   "row": 1, "col": 4, "default": {"kind": "button"}, "manual_name": {"en": "red button",   "hi": "लाल बटन"}},
+        {"id": "OH_BTN_GREEN", "type": "PushButton", "label": null, "color": "green", "row": 1, "col": 5, "default": {"kind": "button"}, "manual_name": {"en": "green button", "hi": "हरा बटन"}},
+        {"id": "OH_BTN_BLUE",  "type": "PushButton", "label": null, "color": "blue",  "row": 1, "col": 6, "default": {"kind": "button"}, "manual_name": {"en": "blue button",  "hi": "नीला बटन"}},
+        {"id": "OH_SW_1", "type": "ToggleSwitch", "label": "1", "color": "grey", "row": 2, "col": 0, "default": {"kind": "toggle", "value": "on"},  "manual_name": {"en": "switch one",   "hi": "एक नंबर स्विच"}},
+        {"id": "OH_SW_2", "type": "ToggleSwitch", "label": "2", "color": "grey", "row": 2, "col": 2, "default": {"kind": "toggle", "value": "off"}, "manual_name": {"en": "switch two",   "hi": "दो नंबर स्विच"}},
+        {"id": "OH_SW_3", "type": "ToggleSwitch", "label": "3", "color": "grey", "row": 2, "col": 4, "default": {"kind": "toggle", "value": "on"},  "manual_name": {"en": "switch three", "hi": "तीन नंबर स्विच"}},
+        {"id": "OH_SW_4", "type": "ToggleSwitch", "label": "4", "color": "grey", "row": 2, "col": 6, "default": {"kind": "toggle", "value": "on"},  "manual_name": {"en": "switch four",  "hi": "चार नंबर स्विच"}},
+        {"id": "OH_HANDLE_1", "type": "PullHandle", "label": "1", "color": "grey", "row": 3, "col": 0, "default": {"kind": "handle", "value": "in"}, "manual_name": {"en": "lever one",   "hi": "एक नंबर लीवर"}},
+        {"id": "OH_HANDLE_2", "type": "PullHandle", "label": "2", "color": "grey", "row": 3, "col": 2, "default": {"kind": "handle", "value": "in"}, "manual_name": {"en": "lever two",   "hi": "दो नंबर लीवर"}},
+        {"id": "OH_HANDLE_3", "type": "PullHandle", "label": "3", "color": "grey", "row": 3, "col": 4, "default": {"kind": "handle", "value": "in"}, "manual_name": {"en": "lever three", "hi": "तीन नंबर लीवर"}},
+        {"id": "OH_HANDLE_4", "type": "PullHandle", "label": "4", "color": "grey", "row": 3, "col": 6, "default": {"kind": "handle", "value": "in"}, "manual_name": {"en": "lever four",  "hi": "चार नंबर लीवर"}}
+      ],
+      "parts": [
+        {"id": "OH_MASTER_LAMP", "members": ["OH_MASTER_LAMP"], "name": {"en": "big center light", "hi": "बड़ी बीच वाली लाइट"}},
+        {"id": "OH_GREEN_LAMP",  "members": ["OH_GREEN_LAMP"],  "name": {"en": "green light", "hi": "हरी लाइट"}},
+        {"id": "OH_AP_LAMP",     "members": ["OH_AP_LAMP"],     "name": {"en": "right light", "hi": "दाईं लाइट"}}
+      ]
+    },
+    {
+      "id": "pedestal", "phase": 2,
+      "name": {"en": "Center pedestal", "hi": "पेडेस्टल"},
+      "grid": {"cols": 4, "rows": 4},
+      "controls": [
+        {"id": "PD_FIRE_LAMP_L", "type": "Lamp", "label": "←", "color": "red", "row": 0, "col": 0, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "left fire light",  "hi": "बाईं आग वाली लाइट"}},
+        {"id": "PD_FIRE_LAMP_R", "type": "Lamp", "label": "→", "color": "red", "row": 0, "col": 3, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "right fire light", "hi": "दाईं आग वाली लाइट"}},
+        {"id": "PD_FIRE_HANDLE_L", "type": "PullHandle", "label": "←", "color": "red", "row": 1, "col": 0, "default": {"kind": "handle", "value": "in"}, "manual_name": {"en": "left red lever",  "hi": "बायाँ लाल लीवर"}},
+        {"id": "PD_EXT_BTN", "type": "PushButton", "size": "big", "label": null, "color": "red", "row": 1, "col": 1, "span": 2, "default": {"kind": "button"}, "manual_name": {"en": "red button", "hi": "लाल बटन"}},
+        {"id": "PD_FIRE_HANDLE_R", "type": "PullHandle", "label": "→", "color": "red", "row": 1, "col": 3, "default": {"kind": "handle", "value": "in"}, "manual_name": {"en": "right red lever", "hi": "दायाँ लाल लीवर"}},
+        {"id": "PD_FUEL_SW_L", "type": "ToggleSwitch", "label": "←", "color": "yellow", "row": 2, "col": 0, "default": {"kind": "toggle", "value": "on"}, "manual_name": {"en": "left yellow switch",  "hi": "बायाँ पीला स्विच"}},
+        {"id": "PD_PUMP_GREEN",  "type": "ToggleSwitch", "style": "mushroom", "label": null, "color": "green",  "row": 2, "col": 1, "default": {"kind": "toggle", "value": "off"}, "manual_name": {"en": "green pump",  "hi": "हरा पंप"}},
+        {"id": "PD_PUMP_YELLOW", "type": "ToggleSwitch", "style": "mushroom", "label": null, "color": "yellow", "row": 2, "col": 2, "default": {"kind": "toggle", "value": "off"}, "manual_name": {"en": "yellow pump", "hi": "पीला पंप"}},
+        {"id": "PD_FUEL_SW_R", "type": "ToggleSwitch", "label": "→", "color": "yellow", "row": 2, "col": 3, "default": {"kind": "toggle", "value": "on"}, "manual_name": {"en": "right yellow switch", "hi": "दायाँ पीला स्विच"}},
+        {"id": "PD_LEVER_1", "type": "UpDownLever", "label": "1", "color": "grey", "row": 3, "col": 0, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever one",   "hi": "एक नंबर लीवर"}},
+        {"id": "PD_LEVER_2", "type": "UpDownLever", "label": "2", "color": "grey", "row": 3, "col": 1, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever two",   "hi": "दो नंबर लीवर"}},
+        {"id": "PD_LEVER_3", "type": "UpDownLever", "label": "3", "color": "grey", "row": 3, "col": 2, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever three", "hi": "तीन नंबर लीवर"}},
+        {"id": "PD_LEVER_4", "type": "UpDownLever", "label": "4", "color": "grey", "row": 3, "col": 3, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever four",  "hi": "चार नंबर लीवर"}}
+      ],
+      "parts": [
+        {"id": "PD_FIRE_LAMPS", "members": ["PD_FIRE_LAMP_L", "PD_FIRE_LAMP_R"], "name": {"en": "burning engine", "hi": "आग वाला इंजन"}},
+        {"id": "WING_FIRE",     "members": ["PD_FIRE_LAMP_L", "PD_FIRE_LAMP_R"], "name": {"en": "the fire", "hi": "आग"}}
+      ]
+    },
+    {
+      "id": "front", "phase": 3,
+      "name": {"en": "Front panel", "hi": "फ्रंट पैनल"},
+      "grid": {"cols": 8, "rows": 3},
+      "controls": [
+        {"id": "FP_GEAR_LAMP_1", "type": "Lamp", "label": null, "color": "white", "row": 0, "col": 0, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "light 1", "hi": "लाइट 1"}},
+        {"id": "FP_GEAR_LAMP_2", "type": "Lamp", "label": null, "color": "white", "row": 0, "col": 1, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "light 2", "hi": "लाइट 2"}},
+        {"id": "FP_GEAR_LAMP_3", "type": "Lamp", "label": null, "color": "white", "row": 0, "col": 2, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "light 3", "hi": "लाइट 3"}},
+        {"id": "FP_WARN_LAMP",   "type": "Lamp", "label": null, "color": "white", "row": 0, "col": 4, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "warning light", "hi": "चेतावनी लाइट"}},
+        {"id": "FP_FIRE_LAMP",   "type": "Lamp", "label": null, "color": "red",   "row": 0, "col": 5, "default": {"kind": "lamp", "color": null, "blinking": false, "attention": false}, "manual_name": {"en": "fire light", "hi": "आग वाली लाइट"}},
+        {"id": "FP_FUEL_GAUGE",  "type": "FuelGauge", "label": null, "color": "white", "row": 0, "col": 7, "rowspan": 2, "default": {"kind": "gauge"}, "manual_name": {"en": "fuel gauge", "hi": "फ्यूल मीटर"}},
+        {"id": "FP_BTN_1", "type": "PushButton", "label": "1", "color": "white", "row": 1, "col": 0, "default": {"kind": "button"}, "manual_name": {"en": "button one",   "hi": "एक नंबर बटन"}},
+        {"id": "FP_BTN_2", "type": "PushButton", "label": "2", "color": "white", "row": 1, "col": 1, "default": {"kind": "button"}, "manual_name": {"en": "button two",   "hi": "दो नंबर बटन"}},
+        {"id": "FP_BTN_3", "type": "PushButton", "label": "3", "color": "white", "row": 1, "col": 2, "default": {"kind": "button"}, "manual_name": {"en": "button three", "hi": "तीन नंबर बटन"}},
+        {"id": "FP_BTN_RED",   "type": "PushButton", "label": null, "color": "red",   "row": 1, "col": 4, "default": {"kind": "button"}, "manual_name": {"en": "red button",   "hi": "लाल बटन"}},
+        {"id": "FP_BTN_GREEN", "type": "PushButton", "label": null, "color": "green", "row": 1, "col": 5, "default": {"kind": "button"}, "manual_name": {"en": "green button", "hi": "हरा बटन"}},
+        {"id": "FP_LAND_SW", "type": "ToggleSwitch", "label": null, "color": "yellow", "row": 1, "col": 6, "default": {"kind": "toggle", "value": "off"}, "manual_name": {"en": "yellow switch", "hi": "पीला स्विच"}},
+        {"id": "FP_LEVER_1", "type": "UpDownLever", "label": "1", "color": "grey", "row": 2, "col": 0, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever one",   "hi": "एक नंबर लीवर"}},
+        {"id": "FP_LEVER_2", "type": "UpDownLever", "label": "2", "color": "grey", "row": 2, "col": 1, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever two",   "hi": "दो नंबर लीवर"}},
+        {"id": "FP_LEVER_3", "type": "UpDownLever", "label": "3", "color": "grey", "row": 2, "col": 2, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever three", "hi": "तीन नंबर लीवर"}},
+        {"id": "FP_LEVER_4", "type": "UpDownLever", "label": "4", "color": "grey", "row": 2, "col": 3, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever four",  "hi": "चार नंबर लीवर"}},
+        {"id": "FP_FLAP_L", "type": "NotchLever", "label": "←", "color": "grey", "row": 2, "col": 4, "default": {"kind": "notch", "value": 0}, "manual_name": {"en": "left lever",  "hi": "बायाँ लीवर"}},
+        {"id": "FP_FLAP_R", "type": "NotchLever", "label": "→", "color": "grey", "row": 2, "col": 5, "default": {"kind": "notch", "value": 0}, "manual_name": {"en": "right lever", "hi": "दायाँ लीवर"}},
+        {"id": "FP_BRAKE", "type": "PullHandle", "size": "big", "label": null, "color": "red", "row": 2, "col": 6, "default": {"kind": "handle", "value": "in"}, "manual_name": {"en": "red lever", "hi": "लाल लीवर"}},
+        {"id": "FP_ENGINE_SW", "type": "ToggleSwitch", "size": "big", "style": "guarded", "label": null, "color": "grey", "row": 2, "col": 7, "default": {"kind": "toggle", "value": "on"}, "manual_name": {"en": "engine switch", "hi": "इंजन स्विच"}}
+      ],
+      "parts": [
+        {"id": "FP_GEAR_LAMPS", "members": ["FP_GEAR_LAMP_1", "FP_GEAR_LAMP_2", "FP_GEAR_LAMP_3"], "name": {"en": "the three lights", "hi": "तीन लाइटें"}},
+        {"id": "FP_WARN_LAMP",  "members": ["FP_WARN_LAMP"], "name": {"en": "warning light", "hi": "चेतावनी लाइट"}},
+        {"id": "FP_FIRE_LAMP",  "members": ["FP_FIRE_LAMP"], "name": {"en": "fire light", "hi": "आग वाली लाइट"}}
+      ]
+    }
+  ]
+}

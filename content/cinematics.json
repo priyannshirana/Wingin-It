@@ -1,0 +1,19 @@
+{
+  "lead_ms": 300,
+  "cinematics": {
+    "prologue":         {"kind": "state",    "duration_ms": 12000, "demo_duration_ms": 6000, "skippable": true},
+    "p1_intro":         {"kind": "state",    "duration_ms": 1200,  "retry_duration_ms": 3200, "skippable": true},
+    "p1_seat":          {"kind": "in_phase", "duration_ms": 3000,  "skippable": true},
+    "p1_outro":         {"kind": "state",    "duration_ms": 6000,  "skippable": true},
+    "p2_intro":         {"kind": "state",    "duration_ms": 9000,  "skippable": true},
+    "p2_extinguish":    {"kind": "in_phase", "duration_ms": 3000,  "skippable": true},
+    "p2_outro":         {"kind": "state",    "duration_ms": 8000,  "skippable": true},
+    "p3_intro":         {"kind": "state",    "duration_ms": 7000,  "skippable": true},
+    "lightning_strike": {"kind": "event",    "duration_ms": 1500,  "skippable": true},
+    "p3_runway_reveal": {"kind": "in_phase", "duration_ms": 4000,  "skippable": true},
+    "p3_touchdown":     {"kind": "in_phase", "duration_ms": 6000,  "skippable": true},
+    "landing":          {"kind": "state",    "duration_ms": 7000,  "skippable": true},
+    "ending":           {"kind": "state",    "duration_ms": 6000,  "demo_duration_ms": 4000, "skippable": true},
+    "crash":            {"kind": "state",    "duration_ms": 5000,  "skippable": false}
+  }
+}

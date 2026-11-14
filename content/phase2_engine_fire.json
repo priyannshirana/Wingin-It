@@ -1,0 +1,113 @@
+{
+  "phase": 2, "id": "engine_fire",
+  "name": {"en": "Engine Fire", "hi": "इंजन में आग"},
+  "station": "pedestal", "fuel_s": 150, "signal": "weak",
+  "phase_vars": [
+    {"var": "FIRE_SIDE", "roll_at": "phase_start",
+     "options": [{"value": "LEFT",  "weight": 1, "lamps": {"PD_FIRE_LAMP_L": "red"}, "world": {"fire_side": "left"}},
+                 {"value": "RIGHT", "weight": 1, "lamps": {"PD_FIRE_LAMP_R": "red"}, "world": {"fire_side": "right"}}]}
+  ],
+  "actions": [
+    {
+      "id": "P2_B1",
+      "title": {"en": "Pull the fire handle", "hi": "फ़ायर हैंडल खींचो"},
+      "observe": {"var": "FIRE_SIDE", "part": "PD_FIRE_LAMPS", "property": "side",
+                  "attention": ["PD_FIRE_LAMP_L", "PD_FIRE_LAMP_R"]},
+      "keep_lamp": true,
+      "ask": {"hi": "आग कौन से इंजन में है — बायाँ या दायाँ?", "hi_roman": "Aag kaun se engine mein hai — baayan ya daayan?", "en": "Which engine has the fire — left or right?"},
+      "branches": [
+        {"when": "LEFT",
+         "say": {"hi": "बायाँ लाल लीवर खींचो — दायाँ नहीं!", "hi_roman": "Baayan laal lever kheencho — daayan nahi!", "en": "Pull the left red lever — not right!"},
+         "expect": [{"object": "PD_FIRE_HANDLE_L", "verb": "pull"}]},
+        {"when": "RIGHT",
+         "say": {"hi": "दायाँ लाल लीवर खींचो — बायाँ नहीं!", "hi_roman": "Daayan laal lever kheencho — baayan nahi!", "en": "Pull the right red lever — not left!"},
+         "expect": [{"object": "PD_FIRE_HANDLE_R", "verb": "pull"}]}
+      ],
+      "flyer_examples": {"en": ["Right! The right engine!", "Left! It's the left one!"], "hi": ["दायाँ! दायाँ इंजन!", "बायाँ! बायाँ वाला!"], "hi_roman": ["Daayan! Daayan engine!", "Baayan! Baayan wala!"]},
+      "hint": {"en": "Which side? The Flyer can see it from the window.", "hi": "कौन सी तरफ़? फ़्लायर को खिड़की से आग दिखती है।"},
+      "sticky": {"en": "You can't see the fire — ask!", "hi": "तुम्हें आग नहीं दिखती — पूछो!"},
+      "on_start": [],
+      "on_success": ["sfx:clunk", "fx:lamp_flicker:PD_FIRE_LAMP_{FIRE_SIDE.LR}"]
+    },
+    {
+      "id": "P2_B2",
+      "title": {"en": "Cut the fuel", "hi": "ईंधन काटो"},
+      "branch_on": "FIRE_SIDE",
+      "branches": [
+        {"when": "LEFT",
+         "say": {"hi": "बायाँ पीला स्विच बंद करो।", "hi_roman": "Baayan peela switch band karo.", "en": "Turn the left yellow switch off."},
+         "expect": [{"object": "PD_FUEL_SW_L", "verb": "toggle", "value": "off"}]},
+        {"when": "RIGHT",
+         "say": {"hi": "दायाँ पीला स्विच बंद करो।", "hi_roman": "Daayan peela switch band karo.", "en": "Turn the right yellow switch off."},
+         "expect": [{"object": "PD_FUEL_SW_R", "verb": "toggle", "value": "off"}]}
+      ],
+      "flyer_examples": {"en": ["Yellow switch is off."], "hi": ["पीला स्विच बंद।"], "hi_roman": ["Peela switch band."]},
+      "hint": {"en": "The fire side — you found it in step 1.", "hi": "आग वाली तरफ़ — कदम 1 में पता चला था।"},
+      "sticky": {"en": "Same side as the fire!", "hi": "आग वाली तरफ़ का स्विच!"},
+      "on_start": [],
+      "on_success": ["sfx_stop:fuel_hiss", "world:fuel_hiss=false", "world:fire_level=half"]
+    },
+    {
+      "id": "P2_B3",
+      "title": {"en": "Fire the extinguisher", "hi": "आग बुझाओ"},
+      "observe": {"var": "STILL_BURNING", "object": "PD_FIRE_LAMP_{FIRE_SIDE.LR}", "part": "WING_FIRE", "property": "burning",
+                  "options": [{"value": "YES", "weight": 7, "lamp": "red"},
+                              {"value": "NO",  "weight": 3, "lamp": null, "world": {"fire_level": "smoke"}}]},
+      "ask": {"hi": "आग अभी भी है — हाँ या नहीं?", "hi_roman": "Aag abhi bhi hai — haan ya nahi?", "en": "Is the fire still there — yes or no?"},
+      "branches": [
+        {"when": "YES",
+         "say": {"hi": "लाल बटन दो बार दबाओ।", "hi_roman": "Laal button do baar dabao.", "en": "Press the red button two times."},
+         "expect": [{"object": "PD_EXT_BTN", "verb": "press", "count": 2}]},
+        {"when": "NO",
+         "say": {"hi": "लाल बटन एक बार दबाओ।", "hi_roman": "Laal button ek baar dabao.", "en": "Press the red button one time."},
+         "expect": [{"object": "PD_EXT_BTN", "verb": "press", "count": 1}]}
+      ],
+      "flyer_examples": {"en": ["Yes, still burning!", "No, the fire is out."], "hi": ["हाँ, अभी भी!", "नहीं, आग नहीं है।"], "hi_roman": ["Haan, abhi bhi!", "Nahi, aag nahi hai."]},
+      "hint": {"en": "Still burning? Ask, then pick the count.", "hi": "आग अभी भी है? पूछो, फिर गिनती चुनो।"},
+      "sticky": {"en": "The big round button", "hi": "बड़ा गोल बटन"},
+      "on_start": [],
+      "on_success": ["cin:p2_extinguish", "sfx_stop:fire_bell", "world:fire_bell=false", "world:fire_level=wisp",
+                     "world:light_rig=night_calm", "lamp:PD_FIRE_LAMP_{FIRE_SIDE.LR}=off"]
+    },
+    {
+      "id": "P2_B4",
+      "title": {"en": "Shut the burning engine", "hi": "जलता इंजन बंद करो"},
+      "branch_on": "FIRE_SIDE",
+      "branches": [
+        {"when": "LEFT",
+         "say": {"hi": "एक नंबर लीवर नीचे करो।", "hi_roman": "Ek number lever neeche karo.", "en": "Move lever one down."},
+         "expect": [{"object": "PD_LEVER_1", "verb": "move_down"}]},
+        {"when": "RIGHT",
+         "say": {"hi": "दो नंबर लीवर नीचे करो।", "hi_roman": "Do number lever neeche karo.", "en": "Move lever two down."},
+         "expect": [{"object": "PD_LEVER_2", "verb": "move_down"}]}
+      ],
+      "flyer_examples": {"en": ["Lever one is down."], "hi": ["एक नंबर लीवर नीचे।"], "hi_roman": ["Ek number lever neeche."]},
+      "hint": {"en": "Lever 1 = left engine, lever 2 = right engine.", "hi": "लीवर 1 = बायाँ इंजन, लीवर 2 = दायाँ इंजन।"},
+      "sticky": {"en": "Remember the fire side?", "hi": "आग वाली तरफ़ याद है?"},
+      "on_start": [],
+      "on_success": ["world:propeller_stopped={FIRE_SIDE.lower}", "world:engine_hum=one_engine", "fx:yaw:{FIRE_SIDE.lower}"]
+    },
+    {
+      "id": "P2_B5",
+      "title": {"en": "Start the backup pump", "hi": "बैकअप पंप चालू करो"},
+      "say": {"hi": "हरा पंप चालू करो — पीला नहीं!", "hi_roman": "Hara pump chalu karo — peela nahi!", "en": "Turn the green pump on — not yellow!"},
+      "expect": [{"object": "PD_PUMP_GREEN", "verb": "toggle", "value": "on"}],
+      "flyer_examples": {"en": ["Green pump on!"], "hi": ["हरा पंप चालू!"], "hi_roman": ["Hara pump chalu!"]},
+      "hint": {"en": "There are two pumps — pick the right color.", "hi": "दो पंप हैं — सही रंग चुनो।"},
+      "sticky": {"en": "Not the yellow one!", "hi": "पीला वाला नहीं!"},
+      "on_start": [],
+      "on_success": ["world:engine_hum=steady"]
+    },
+    {
+      "id": "P2_B6",
+      "title": {"en": "Start the descent", "hi": "नीचे उतरना शुरू करो"},
+      "say": {"hi": "तीन नंबर लीवर नीचे करो — चार नहीं!", "hi_roman": "Teen number lever neeche karo — chaar nahi!", "en": "Move lever three down — not four!"},
+      "expect": [{"object": "PD_LEVER_3", "verb": "move_down"}],
+      "flyer_examples": {"en": ["Three is down. We're going down!"], "hi": ["तीन नीचे। हम नीचे जा रहे हैं!"], "hi_roman": ["Teen neeche. Hum neeche ja rahe hain!"]},
+      "hint": {"en": "Don't touch lever 4.", "hi": "लीवर 4 को मत छूना।"},
+      "sticky": {"en": "Down gently.", "hi": "धीरे से नीचे।"},
+      "on_start": [],
+      "on_success": []
+    }
+  ]
+}

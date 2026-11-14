@@ -1,0 +1,27 @@
+{
+  "verbs": {
+    "press":      {"hi": "दबाओ",    "en": "press"},
+    "pull":       {"hi": "खींचो",    "en": "pull"},
+    "toggle_on":  {"hi": "चालू करो", "en": "turn on"},
+    "toggle_off": {"hi": "बंद करो",  "en": "turn off"},
+    "move_down":  {"hi": "नीचे करो", "en": "move down"},
+    "move_up":    {"hi": "ऊपर करो",  "en": "move up"}
+  },
+  "count_words": {
+    "hi": {"1": "एक", "2": "दो", "3": "तीन", "4": "चार"},
+    "en": {"1": "one", "2": "two", "3": "three", "4": "four"}
+  },
+  "times_template": {"hi": "{n} बार", "en": "{n} times"},
+  "rule_template": {"hi": "{object} {count} {verb}", "en": "{verb} {object} {count}"},
+  "properties": {
+    "color":     {"hi": "रंग?",       "en": "color?"},
+    "lit":       {"hi": "चालू है?",    "en": "on?"},
+    "side":      {"hi": "कौन सा?",    "en": "which one?"},
+    "burning":   {"hi": "अभी भी है?", "en": "still there?"},
+    "all_green": {"hi": "तीनों हरी?",  "en": "all three green?"}
+  },
+  "value_prefix_branch_on": {"FIRE_SIDE": {"hi": "आग:", "en": "fire:"}},
+  "known_from": {"hi": "यह आपने कदम {n} में पता किया", "en": "You found this out in step {n}"},
+  "own_words": {"hi": "अपने शब्दों में पूछो", "en": "Ask in your own words"},
+  "own_words_say": {"hi": "अपने शब्दों में बोलो", "en": "Say it in your own words"}
+}

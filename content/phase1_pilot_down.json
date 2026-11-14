@@ -1,0 +1,121 @@
+{
+  "phase": 1, "id": "pilot_down",
+  "name": {"en": "Pilot Down", "hi": "पायलट बेहोश"},
+  "station": "overhead", "fuel_s": 150, "signal": "strong",
+  "phase_vars": [],
+  "actions": [
+    {
+      "id": "P1_A1",
+      "title": {"en": "Silence the master alarm", "hi": "मास्टर अलार्म बंद करो"},
+      "observe": {"var": "MASTER_COLOR", "object": "OH_MASTER_LAMP", "part": "OH_MASTER_LAMP", "property": "color",
+                  "options": [{"value": "RED", "weight": 1, "lamp": "red"},
+                              {"value": "BLUE", "weight": 1, "lamp": "blue"}]},
+      "ask": {"hi": "कौन सी लाइट जल रही है — लाल या नीली?",
+              "hi_roman": "Kaun si light jal rahi hai — laal ya neeli?",
+              "en": "Which light is on — red or blue?"},
+      "branches": [
+        {"when": "RED",
+         "say": {"hi": "एक नंबर बटन दबाओ — तीन नहीं!", "hi_roman": "Ek number button dabao — teen nahi!", "en": "Press button one — not three!"},
+         "expect": [{"object": "OH_BTN_1", "verb": "press", "count": 1}]},
+        {"when": "BLUE",
+         "say": {"hi": "तीन नंबर बटन दबाओ — एक नहीं!", "hi_roman": "Teen number button dabao — ek nahi!", "en": "Press button three — not one!"},
+         "expect": [{"object": "OH_BTN_3", "verb": "press", "count": 1}]}
+      ],
+      "flyer_examples": {"en": ["The red one!", "Blue!"], "hi": ["लाल वाली!", "नीली!"], "hi_roman": ["Laal wali!", "Neeli!"]},
+      "hint": {"en": "Find out the color first, then check the rule.", "hi": "पहले रंग पता करो, फिर नियम देखो।"},
+      "sticky": {"en": "Wrong button = 10 s of fuel gone!", "hi": "गलत बटन = 10 सेकंड ईंधन गया!"},
+      "on_start": [],
+      "on_success": ["sfx_stop:alarm_master", "world:alarm=false", "world:light_rig=night_calm"]
+    },
+    {
+      "id": "P1_A2",
+      "title": {"en": "Power the autopilot", "hi": "ऑटोपायलट को बिजली दो"},
+      "say": {"hi": "दो नंबर स्विच चालू करो।", "hi_roman": "Do number switch chalu karo.", "en": "Turn switch two on."},
+      "expect": [{"object": "OH_SW_2", "verb": "toggle", "value": "on"}],
+      "flyer_examples": {"en": ["Switch two is on."], "hi": ["दो चालू हो गया।"], "hi_roman": ["Do chalu ho gaya."]},
+      "hint": {"en": "Nothing to ask — just have it done.", "hi": "कुछ पूछना नहीं है — बस करवाओ।"},
+      "sticky": {"en": "Switch up = on", "hi": "स्विच ऊपर = चालू"},
+      "on_start": [],
+      "on_success": ["world:ap_screen=true"]
+    },
+    {
+      "id": "P1_A3",
+      "title": {"en": "Slide the pilot back", "hi": "पायलट को पीछे खिसकाओ"},
+      "say": {"hi": "तीन नंबर लीवर खींचो — चार नहीं!", "hi_roman": "Teen number lever kheencho — chaar nahi!", "en": "Pull lever three — not four!"},
+      "expect": [{"object": "OH_HANDLE_3", "verb": "pull"}],
+      "flyer_examples": {"en": ["Pulled! The pilot moved!"], "hi": ["खींच दिया! पायलट हिल गया!"], "hi_roman": ["Kheench diya! Pilot hil gaya!"]},
+      "hint": {"en": "The levers are in the bottom row.", "hi": "लीवर सबसे नीचे वाली कतार में हैं।"},
+      "sticky": {"en": "The pilot is asleep — let him snore.", "hi": "पायलट सो रहा है, सोने दो।"},
+      "on_start": [],
+      "on_success": ["cin:p1_seat", "world:seat_back=true"]
+    },
+    {
+      "id": "P1_A4",
+      "title": {"en": "Check the green light", "hi": "हरी लाइट जाँचो"},
+      "observe": {"var": "GREEN_LIT", "object": "OH_GREEN_LAMP", "part": "OH_GREEN_LAMP", "property": "lit",
+                  "options": [{"value": "YES", "weight": 1, "lamp": "green"},
+                              {"value": "NO", "weight": 1, "lamp": null}]},
+      "ask": {"hi": "हरी लाइट चालू है — हाँ या नहीं?", "hi_roman": "Hari light chalu hai — haan ya nahi?", "en": "Is the green light on — yes or no?"},
+      "branches": [
+        {"when": "YES",
+         "say": {"hi": "एक नंबर स्विच बंद करो।", "hi_roman": "Ek number switch band karo.", "en": "Turn switch one off."},
+         "expect": [{"object": "OH_SW_1", "verb": "toggle", "value": "off"}]},
+        {"when": "NO",
+         "say": {"hi": "तीन नंबर स्विच बंद करो।", "hi_roman": "Teen number switch band karo.", "en": "Turn switch three off."},
+         "expect": [{"object": "OH_SW_3", "verb": "toggle", "value": "off"}]}
+      ],
+      "flyer_examples": {"en": ["No, it's off.", "Yes, it's green!"], "hi": ["नहीं!", "हाँ, हरी है!"], "hi_roman": ["Nahi!", "Haan, hari hai!"]},
+      "hint": {"en": "The answer is yes or no.", "hi": "जवाब हाँ या नहीं में होगा।"},
+      "sticky": {"en": "Dark light = no", "hi": "बुझी लाइट = नहीं"},
+      "on_start": ["world:warning_beep=true"],
+      "on_success": ["sfx_stop:warning_beep", "world:warning_beep=false"]
+    },
+    {
+      "id": "P1_A5",
+      "title": {"en": "Reset the radio", "hi": "रेडियो रीसेट करो"},
+      "say": {"hi": "नीला बटन दो बार दबाओ।", "hi_roman": "Neela button do baar dabao.", "en": "Press the blue button two times."},
+      "expect": [{"object": "OH_BTN_BLUE", "verb": "press", "count": 2}],
+      "flyer_examples": {"en": ["Blue, twice. Done."], "hi": ["नीला, दो बार। हो गया।"], "hi_roman": ["Neela, do baar. Ho gaya."]},
+      "hint": {"en": "The count matters.", "hi": "गिनती ज़रूरी है।"},
+      "sticky": {"en": "Too many presses count as wrong!", "hi": "ज़्यादा दबाया तो गलत!"},
+      "on_start": [],
+      "on_success": ["both:static_dip", "both:signal_flash"]
+    },
+    {
+      "id": "P1_A6",
+      "title": {"en": "Autopilot light", "hi": "ऑटोपायलट लाइट"},
+      "observe": {"var": "AP_COLOR", "object": "OH_AP_LAMP", "part": "OH_AP_LAMP", "property": "color",
+                  "options": [{"value": "GREEN", "weight": 1, "lamp": "green"},
+                              {"value": "RED", "weight": 1, "lamp": "red"}]},
+      "keep_lamp": true,
+      "ask": {"hi": "कौन सी लाइट जल रही है — हरी या लाल?", "hi_roman": "Kaun si light jal rahi hai — hari ya laal?", "en": "Which light is on — green or red?"},
+      "branches": [
+        {"when": "GREEN",
+         "say": {"hi": "हरा बटन तीन बार दबाओ।", "hi_roman": "Hara button teen baar dabao.", "en": "Press the green button three times."},
+         "expect": [{"object": "OH_BTN_GREEN", "verb": "press", "count": 3}]},
+        {"when": "RED",
+         "say": {"hi": "लाल बटन दो बार दबाओ।", "hi_roman": "Laal button do baar dabao.", "en": "Press the red button two times."},
+         "expect": [{"object": "OH_BTN_RED", "verb": "press", "count": 2}]}
+      ],
+      "flyer_examples": {"en": ["Green!", "It's red!"], "hi": ["हरी है!", "लाल है!"], "hi_roman": ["Hari hai!", "Laal hai!"]},
+      "hint": {"en": "Ask the color. Each color has its own count.", "hi": "रंग पूछो। हर रंग की गिनती अलग है।"},
+      "sticky": {"en": "Have them count slowly.", "hi": "धीरे-धीरे गिनवाओ।"},
+      "on_start": [],
+      "on_success": ["lamp:OH_AP_LAMP=green", "sfx:chime_soft"]
+    },
+    {
+      "id": "P1_A7",
+      "title": {"en": "Engage the autopilot", "hi": "ऑटोपायलट चालू करो"},
+      "say": {"hi": "चार नंबर स्विच बंद करो, फिर एक नंबर लीवर खींचो। ऑटोपायलट चालू? हाँ?",
+              "hi_roman": "Chaar number switch band karo, phir ek number lever kheencho. Autopilot chalu? Haan?",
+              "en": "Turn switch four off, then pull lever one. Autopilot on? Yes?"},
+      "expect": [{"object": "OH_SW_4", "verb": "toggle", "value": "off"},
+                 {"object": "OH_HANDLE_1", "verb": "pull"}],
+      "flyer_examples": {"en": ["Yes! Autopilot is on!"], "hi": ["हाँ! चालू!"], "hi_roman": ["Haan! Chalu!"]},
+      "hint": {"en": "Two things, in this order.", "hi": "दो काम, इसी क्रम में।"},
+      "sticky": {"en": "Switch first, then lever!", "hi": "पहले स्विच, फिर लीवर!"},
+      "on_start": [],
+      "on_success": []
+    }
+  ]
+}

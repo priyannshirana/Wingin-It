@@ -1,0 +1,135 @@
+{
+  "phase": 3, "id": "storm_landing",
+  "name": {"en": "Storm Landing", "hi": "तूफ़ान में लैंडिंग"},
+  "station": "front", "fuel_s": 180, "signal": "lost",
+  "phase_vars": [
+    {"var": "GEAR_OK", "roll_at": "effect",
+     "options": [{"value": "YES", "weight": 1, "lamps": {"FP_GEAR_LAMP_1": "green", "FP_GEAR_LAMP_2": "green", "FP_GEAR_LAMP_3": "green"}},
+                 {"value": "NO",  "weight": 1, "lamps": {"FP_GEAR_LAMP_1": "green", "FP_GEAR_LAMP_2": "green", "FP_GEAR_LAMP_3": "red"}}]}
+  ],
+  "actions": [
+    {
+      "id": "P3_C1",
+      "title": {"en": "Lower the landing gear", "hi": "लैंडिंग गियर नीचे करो"},
+      "say": {"hi": "चार नंबर लीवर नीचे करो।", "hi_roman": "Chaar number lever neeche karo.", "en": "Move lever four down."},
+      "expect": [{"object": "FP_LEVER_4", "verb": "move_down"}],
+      "flyer_examples": {"en": ["Lever four is down."], "hi": ["चार नंबर लीवर नीचे।"], "hi_roman": ["Chaar number lever neeche."]},
+      "hint": {"en": "The gear lever is the last of the four.", "hi": "गियर का लीवर चारों में आख़िरी है।"},
+      "sticky": {"en": "Expect a loud clunk!", "hi": "धड़ाम की आवाज़ आएगी!"},
+      "on_start": [],
+      "on_success": ["sfx:clunk", "fx:shake:0.5:0.4", "roll:GEAR_OK", "show:GEAR_OK"]
+    },
+    {
+      "id": "P3_C2",
+      "title": {"en": "Confirm the gear", "hi": "गियर पक्का करो"},
+      "observe": {"var": "GEAR_OK", "part": "FP_GEAR_LAMPS", "property": "all_green",
+                  "attention": ["FP_GEAR_LAMP_1", "FP_GEAR_LAMP_2", "FP_GEAR_LAMP_3"]},
+      "keep_lamp": true,
+      "ask": {"hi": "तीन हरी लाइट चालू हैं — हाँ या नहीं?", "hi_roman": "Teen hari light chalu hain — haan ya nahi?", "en": "Are three green lights on — yes or no?"},
+      "branches": [
+        {"when": "YES",
+         "say": {"hi": "हरा बटन एक बार दबाओ।", "hi_roman": "Hara button ek baar dabao.", "en": "Press the green button one time."},
+         "expect": [{"object": "FP_BTN_GREEN", "verb": "press", "count": 1}]},
+        {"when": "NO",
+         "say": {"hi": "लाल बटन दो बार दबाओ।", "hi_roman": "Laal button do baar dabao.", "en": "Press the red button two times."},
+         "expect": [{"object": "FP_BTN_RED", "verb": "press", "count": 2}]}
+      ],
+      "flyer_examples": {"en": ["No! Two green, one red!", "Yes, three green!"], "hi": ["नहीं, एक लाल है!", "हाँ, तीन हरी!"], "hi_roman": ["Nahi, ek laal hai!", "Haan, teen hari!"]},
+      "hint": {"en": "All three lights matter.", "hi": "तीनों लाइटें देखनी हैं।"},
+      "sticky": {"en": "Any red = no", "hi": "एक भी लाल = नहीं"},
+      "on_start": [],
+      "on_success": ["lamp:FP_GEAR_LAMP_1=green", "lamp:FP_GEAR_LAMP_2=green", "lamp:FP_GEAR_LAMP_3=green"]
+    },
+    {
+      "id": "P3_C3",
+      "title": {"en": "Set the flaps", "hi": "फ़्लैप्स सेट करो"},
+      "say": {"hi": "बायाँ लीवर दो बार नीचे करो, दायाँ लीवर एक बार!", "hi_roman": "Baayan lever do baar neeche karo, daayan lever ek baar!", "en": "Move the left lever down two times, and the right lever one time!"},
+      "unordered": true,
+      "expect": [{"object": "FP_FLAP_L", "verb": "move_down", "count": 2},
+                 {"object": "FP_FLAP_R", "verb": "move_down", "count": 1}],
+      "flyer_examples": {"en": ["Left two, right one. Done."], "hi": ["बायाँ दो, दायाँ एक। हो गया।"], "hi_roman": ["Baayan do, daayan ek. Ho gaya."]},
+      "hint": {"en": "Two levers, different counts. Any order.", "hi": "दो लीवर, अलग-अलग गिनती। क्रम कोई भी।"},
+      "sticky": {"en": "Count each click.", "hi": "हर खटका गिनो।"},
+      "on_start": [],
+      "on_success": ["sfx:motor_whirr", "fx:pitch_dip"]
+    },
+    {
+      "id": "P3_C4",
+      "title": {"en": "Landing lights", "hi": "लैंडिंग लाइट"},
+      "say": {"hi": "पीला स्विच चालू करो।", "hi_roman": "Peela switch chalu karo.", "en": "Turn the yellow switch on."},
+      "expect": [{"object": "FP_LAND_SW", "verb": "toggle", "value": "on"}],
+      "flyer_examples": {"en": ["Yellow switch on. I see the runway!"], "hi": ["पीला स्विच चालू। रनवे दिख रहा है!"], "hi_roman": ["Peela switch chalu. Runway dikh raha hai!"]},
+      "hint": {"en": "You need light to find the runway.", "hi": "रनवे ढूँढने के लिए रोशनी चाहिए।"},
+      "sticky": {"en": "There's only one yellow switch.", "hi": "पीला स्विच एक ही है।"},
+      "on_start": [],
+      "on_success": ["cin:p3_runway_reveal", "world:landing_lights=true", "world:fog=0.012", "world:runway=far"]
+    },
+    {
+      "id": "P3_C5",
+      "title": {"en": "Lightning strike", "hi": "बिजली गिरी!"},
+      "observe": {"var": "WARN_COLOR", "object": "FP_WARN_LAMP", "part": "FP_WARN_LAMP", "property": "color",
+                  "options": [{"value": "BLUE", "weight": 1, "lamp": "blue"},
+                              {"value": "RED",  "weight": 1, "lamp": "red"}]},
+      "ask": {"hi": "कौन सी लाइट जल रही है — नीली या लाल?", "hi_roman": "Kaun si light jal rahi hai — neeli ya laal?", "en": "Which light is on — blue or red?"},
+      "branches": [
+        {"when": "BLUE",
+         "say": {"hi": "एक नंबर बटन दबाओ — तीन नहीं!", "hi_roman": "Ek number button dabao — teen nahi!", "en": "Press button one — not three!"},
+         "expect": [{"object": "FP_BTN_1", "verb": "press", "count": 1}]},
+        {"when": "RED",
+         "say": {"hi": "तीन नंबर बटन दबाओ — एक नहीं!", "hi_roman": "Teen number button dabao — ek nahi!", "en": "Press button three — not one!"},
+         "expect": [{"object": "FP_BTN_3", "verb": "press", "count": 1}]}
+      ],
+      "flyer_examples": {"en": ["Blue!", "Red! It's red!"], "hi": ["नीली!", "लाल! लाल है!"], "hi_roman": ["Neeli!", "Laal! Laal hai!"]},
+      "hint": {"en": "Ask the warning light's color.", "hi": "चेतावनी लाइट का रंग पूछो।"},
+      "sticky": {"en": "The light blinks after the flash.", "hi": "चमक के बाद लाइट टिमटिमाएगी।"},
+      "on_start": ["event:lightning_strike"],
+      "on_success": ["fx:flicker_stop", "sfx:chime_soft"]
+    },
+    {
+      "id": "P3_C6",
+      "title": {"en": "Fire scare", "hi": "आग का डर"},
+      "observe": {"var": "FIRE_BACK", "object": "FP_FIRE_LAMP", "part": "FP_FIRE_LAMP", "property": "lit",
+                  "options": [{"value": "YES", "weight": 1, "lamp": "red", "world": {"fire_level": "flicker"}},
+                              {"value": "NO",  "weight": 1, "lamp": null}]},
+      "ask": {"hi": "आग है — हाँ या नहीं?", "hi_roman": "Aag hai — haan ya nahi?", "en": "Is there a fire — yes or no?"},
+      "branches": [
+        {"when": "YES",
+         "say": {"hi": "लाल बटन दो बार दबाओ!", "hi_roman": "Laal button do baar dabao!", "en": "Press the red button two times!"},
+         "expect": [{"object": "FP_BTN_RED", "verb": "press", "count": 2}]},
+        {"when": "NO",
+         "say": {"hi": "हरा बटन एक बार दबाओ।", "hi_roman": "Hara button ek baar dabao.", "en": "Press the green button one time."},
+         "expect": [{"object": "FP_BTN_GREEN", "verb": "press", "count": 1}]}
+      ],
+      "flyer_examples": {"en": ["Yes, fire!", "No fire."], "hi": ["हाँ, आग!", "आग नहीं।"], "hi_roman": ["Haan, aag!", "Aag nahi."]},
+      "hint": {"en": "Check the fire light.", "hi": "आग वाली लाइट देखो।"},
+      "sticky": {"en": "Dark light = no fire", "hi": "बुझी लाइट = आग नहीं"},
+      "on_start": [],
+      "on_success": ["fx:burst:snuff", "world:fire_level=wisp"]
+    },
+    {
+      "id": "P3_C7",
+      "title": {"en": "Throttles to idle", "hi": "थ्रॉटल आइडल पर"},
+      "say": {"hi": "एक नंबर और दो नंबर लीवर नीचे करो।", "hi_roman": "Ek number aur do number lever neeche karo.", "en": "Move lever one and lever two down."},
+      "unordered": true,
+      "expect": [{"object": "FP_LEVER_1", "verb": "move_down"},
+                 {"object": "FP_LEVER_2", "verb": "move_down"}],
+      "flyer_examples": {"en": ["One and two are down."], "hi": ["एक और दो नीचे।"], "hi_roman": ["Ek aur do neeche."]},
+      "hint": {"en": "Two levers, any order.", "hi": "दो लीवर, कोई भी क्रम।"},
+      "sticky": {"en": "Runway coming up!", "hi": "रनवे आ रहा है!"},
+      "on_start": [],
+      "on_success": ["cin:p3_touchdown", "world:runway=rolling", "world:turbulence=0", "world:weather=rain_light"]
+    },
+    {
+      "id": "P3_C8",
+      "title": {"en": "Brake and shut down", "hi": "ब्रेक और इंजन बंद"},
+      "say": {"hi": "लाल लीवर खींचो! फिर इंजन बंद करो!", "hi_roman": "Laal lever kheencho! Phir engine band karo!", "en": "Pull the red lever! Then turn the engine off!"},
+      "expect": [{"object": "FP_BRAKE", "verb": "pull"},
+                 {"object": "FP_ENGINE_SW", "verb": "toggle", "value": "off"}],
+      "flyer_examples": {"en": ["Brake pulled. Engine off!"], "hi": ["ब्रेक खींचा। इंजन बंद!"], "hi_roman": ["Brake kheencha. Engine band!"]},
+      "hint": {"en": "Brake first, then the engine.", "hi": "पहले ब्रेक, फिर इंजन।"},
+      "sticky": {"en": "Big red lever = brake", "hi": "बड़ा लाल लीवर = ब्रेक"},
+      "on_start": [],
+      "on_success": []
+    }
+  ]
+}

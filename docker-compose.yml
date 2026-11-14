@@ -1,0 +1,15 @@
+services:
+  server:
+    build: { context: ., dockerfile: server/Dockerfile }
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment: { MOCK_SPEECH: "1", DEV_MODE: "1", DEMO_MODE: "0", ALLOWED_ORIGINS: "http://localhost:5173" }
+    volumes: [ "./server/app:/app/app", "./content:/app/content" ]
+    ports: [ "8000:8000" ]
+  client:
+    image: node:20
+    working_dir: /client
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment: { VITE_DEV_MODE: "1", VITE_PROXY_TARGET: "http://server:8000" }
+    volumes: [ "./client:/client", "./content:/content:ro" ]
+    ports: [ "5173:5173" ]
+    depends_on: [ server ]
