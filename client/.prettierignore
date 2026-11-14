@@ -1,0 +1,8 @@
+dist
+node_modules
+test-results
+playwright-report
+e2e/__screenshots__
+package-lock.json
+public/fonts
+src/fonts.css

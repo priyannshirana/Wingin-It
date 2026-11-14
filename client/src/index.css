@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* Design tokens: the spec palette (§F0.2, §F8, §F11, §F12, §F13, stations.json). */
+@theme {
+  --font-sans: "Baloo 2", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Baloo 2", ui-sans-serif, system-ui, sans-serif;
+  --font-hand: "Kalam", "Baloo 2", cursive;
+
+  /* Brand */
+  --color-cream: #f2e8d5;
+  --color-teal: #2ec4b6;
+  --color-coral: #e07a5f;
+  --color-night: #0b1026;
+  --color-night-hi: #2a3a6a;
+  --color-moon: #f2f4ff;
+
+  /* Object palette (stations.json) */
+  --color-lamp-red: #e5484d;
+  --color-lamp-green: #30a46c;
+  --color-lamp-blue: #3e63dd;
+  --color-lamp-yellow: #f5c518;
+  --color-lamp-white: #d9d9e0;
+  --color-lamp-grey: #8b8d98;
+
+  /* Cockpit slate */
+  --color-slate: #2b2f3a;
+  --color-slate-edge: #3d4352;
+  --color-outline: #1b1d24;
+
+  /* Tower desk + manual (§F12) */
+  --color-desk: #1e222b;
+  --color-page-left: #f7f0e0;
+  --color-page-right: #fbf6ea;
+  --color-ink: #1f1f1f;
+  --color-pencil: #c2410c;
+  --color-pencil-grey: #555555;
+  --color-sticky: #fff1a8;
+  --color-highlighter: #ffe066;
+  --color-wrong-ink: #c81e1e;
+  --color-tab-1: #2ec4b6;
+  --color-tab-2: #f97316;
+  --color-tab-3: #3e63dd;
+
+  /* Radar (§F12.2) */
+  --color-radar: #0b1a14;
+  --color-radar-line: #1f4d3a;
+
+  /* Subtitles (§F13) */
+  --color-gloss: #e9d98b;
+
+  /* Logo: cream with a teal extruded drop shadow (§F8.1) */
+  --text-shadow-extrude:
+    0 3px 0 var(--color-teal), 0 6px 0 var(--color-teal), 0 9px 0 var(--color-teal),
+    0 14px 18px rgb(0 0 0 / 0.35);
+
+  /* Motion (§F8.1 logo float) */
+  --animate-float: float 2s ease-in-out infinite;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-night font-sans text-cream antialiased;
+    margin: 0;
+  }
+}
