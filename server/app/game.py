@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import secrets
@@ -28,9 +29,12 @@ from app.actions import (
     verb_valid,
 )
 from app.constants import (
+    CROSSOVER_BONUS_S,
     FUEL_BROADCAST_MS,
     HISTORY_SIZE,
     IN_PHASE_RESUME_DELAY_MS,
+    LIFELINE_WAIT_MS,
+    LIFELINE_WINDOW,
     LIFELINES_PER_PLAYER,
     NEXT_ACTION_DELAY_MS,
     PRESS_DEBOUNCE_MS,
@@ -40,7 +44,7 @@ from app.constants import (
 from app.content import CinematicKind, Content, Effect, Option, Step, expand, parse_effect
 from app.fuel import FuelClock
 from app.language import subtitles
-from app.language.exposure import CreditEvent, PlayerStats
+from app.language.exposure import CreditEvent, PlayerStats, record_shown, understood_concepts
 from app.language.lexicon import taken_indices
 from app.language.normalize import gaps, nfc, tokenize
 from app.logging_setup import log_event
@@ -55,6 +59,7 @@ from app.protocol import (
     CinematicSkip,
     Crash,
     DeckMsg,
+    ErrorCode,
     ErrorMsg,
     FlyerView,
     Fx,
@@ -65,6 +70,7 @@ from app.protocol import (
     LampColor,
     LampState,
     Lang,
+    LifelineMsg,
     Lifelines,
     ManualCard,
     ManualCardMsg,
@@ -82,6 +88,7 @@ from app.protocol import (
     Status,
     Toast,
     ToastKey,
+    TranslationMsg,
     Used,
     UtteranceEcho,
     UtteranceMsg,
@@ -101,6 +108,7 @@ from app.rooms import (
     send_role,
 )
 from app.speech.base import Utterance, WordItem
+from app.speech.translate import TranslateError, Translator
 from app.world import (
     apply_world,
     lamp_state,
@@ -1090,7 +1098,7 @@ def on_action_success(room: Room, *, dev: bool = False) -> None:
             color = None
         g.objects[oid] = lamp_state(color)
         send_object_state(room, oid, bounce=False)
-    credit_understood(room, run)
+    credit_understood(room)
     has_cin = any(e.kind in ("cin", "event") for e in run.on_success)
     deferred = [e for e in run.on_success if has_cin and e.kind in ("world", "lamp")]
     immediate = [e for e in run.on_success if e not in deferred and e.kind not in ("cin", "event")]
@@ -1644,19 +1652,181 @@ def release_channel_of(room: Room, role: Role) -> None:
 
 def record_exposure(room: Room, utt: Utterance, listener: Player, level: int) -> None:
     """Exposure counters and credit events for the listener (§B11.6, §B11.7)."""
-    del room, utt, listener, level
+    if level < 1:
+        return  # level 0 glosses like level 1 but counts no exposure
+    shown = record_shown(listener.stats, utt.segments_for_listener)
+    g = room.game
+    for concept, glossed in shown:
+        (utt.glossed_concepts if glossed else utt.unglossed_concepts).add(concept)
+        if g is not None and room.status == "PLAYING":
+            g.action_log.append(CreditEvent(utt.id, listener.id, concept, glossed))
 
 
 def credit_crossover(room: Room, utt: Utterance, speaker: Player) -> None:
-    """Spoken / crossover credit for partner-language words (§B11.7)."""
-    del room, utt, speaker
+    """Spoken / crossover: partner-language words already shown to the speaker (§B11.7)."""
+    g = room.game
+    if g is None or room.status != "PLAYING" or not utt.listener_matches:
+        return
+    paid = g.crossover_paid.setdefault(speaker.id, set())
+    listener_lang = utt.listener_lang or ("hi" if utt.lang == "en" else "en")
+    bonus = False
+    for m in utt.listener_matches:
+        for c in m.concepts:
+            if c not in speaker.stats.shown:
+                continue
+            speaker.stats.spoken[c] += 1
+            if c in paid:
+                continue
+            paid.add(c)
+            g.fuel.add(float(CROSSOVER_BONUS_S))
+            bonus = True
+            word = room.svc.lexicon.display(c, listener_lang)
+            toast(
+                room,
+                set(ALL_ROLES),
+                "crossover",
+                "toast.crossover",
+                {"word": word},
+                text=f"CROSSOVER! +{CROSSOVER_BONUS_S}s ({word})",
+            )
+            log_event(log, "crossover", room=room.code, game=g.id, role=speaker.role)
+    if bonus:
+        broadcast_game_state(room)
 
 
-def credit_understood(room: Room, run: ActionRun) -> None:
-    """Understood credit on action success, phases 2–3 (§B11.7)."""
-    del room, run
+def credit_understood(room: Room) -> None:
+    """Understood credit on action success, phases 2–3, once per concept per action."""
+    g = room.game
+    if g is None or g.phase not in (2, 3):
+        return
+    for p in room.players.values():
+        lifelined = {u.id for u in room.utterances if p.id in u.lifelined_by}
+        for c in understood_concepts(g.action_log, p.id, lifelined):
+            p.stats.understood[c] += 1
+
+
+def translator_for(room: Room) -> Translator | None:
+    """Mock rooms use the authored-line index; real rooms the AWS translator (§B14.1)."""
+    if room.mock_speech or room.svc.settings.mock_speech:
+        return room.svc.mock_translator
+    return room.svc.translator or room.svc.mock_translator
 
 
 def start_translation(room: Room, utt: Utterance) -> None:
-    """Background translation for lifelines and the deck (§B14.1)."""
-    del room, utt
+    """Background translation for lifelines and the deck; skipped without a listener."""
+    if utt.listener_lang is None:
+        utt.translation_status = "failed"
+        utt.translation_event.set()
+        return
+    tr = translator_for(room)
+    if tr is None:
+        utt.translation_status = "failed"
+        utt.translation_event.set()
+        return
+    room.spawn(translate_in_background(room, tr, utt))
+
+
+async def translate_in_background(room: Room, tr: Translator, utt: Utterance) -> None:
+    """`pending` → call → `ready` / `failed`, then set the event (§B14.1)."""
+    dst = utt.listener_lang or "en"
+    try:
+        text = await tr.translate(utt.transcript, utt.lang, dst)
+        utt.translation = text
+        utt.translation_status = "ready"
+    except (TranslateError, TimeoutError, OSError) as exc:
+        utt.translation_status = "failed"
+        log_event(log, "translate_fail", level=logging.WARNING, room=room.code, err=str(exc))
+    finally:
+        utt.translation_event.set()
+
+
+# --------------------------------------------------------------------- lifelines (§B14.2)
+
+
+def _lifeline_target(room: Room, p: Player, utterance_id: str) -> Utterance | ErrorCode:
+    g = room.game
+    if g is None or room.status != "PLAYING" or g.phase != 3:
+        return "lifeline_not_available"
+    partner = room.partner(p)
+    if partner is None:
+        return "lifeline_not_available"
+    theirs = [u for u in room.utterances if u.speaker_id == partner.id]
+    recent = theirs[-LIFELINE_WINDOW:]
+    utt = next((u for u in recent if u.id == utterance_id), None)
+    if utt is None:
+        return "lifeline_not_available"
+    return utt
+
+
+def _send_translation(room: Room, p: Player, utt: Utterance) -> None:
+    send(
+        p,
+        TranslationMsg(
+            type="translation",
+            utterance_id=utt.id,
+            text=utt.translation or "",
+            lang=p.lang,
+            lifelines_left=p.lifelines,
+        ),
+    )
+
+
+def _deliver_lifeline(room: Room, p: Player, utt: Utterance) -> None:
+    g = _game(room)
+    p.lifelines -= 1
+    utt.lifelined_by.add(p.id)
+    g.phase_stats.setdefault(3, PhaseStats()).lifelines_used[p.id] += 1
+    _send_translation(room, p, utt)
+    broadcast_game_state(room)
+    log_event(log, "lifeline", room=room.code, game=g.id, role=p.role, left=p.lifelines)
+
+
+def _lifeline_step(room: Room, p: Player, utterance_id: str) -> Utterance | None:
+    """Checks under the lock; returns the utterance to wait for, or None when done."""
+    target = _lifeline_target(room, p, utterance_id)
+    if isinstance(target, str):
+        send(p, ErrorMsg(type="error", code=target, message="lifeline not available"))
+        return None
+    utt = target
+    if p.id in utt.lifelined_by:
+        _send_translation(room, p, utt)  # the "show" link: free
+        return None
+    if p.lifelines <= 0:
+        send(p, ErrorMsg(type="error", code="no_lifelines", message="no lifelines left"))
+        return None
+    if utt.translation_status == "ready":
+        _deliver_lifeline(room, p, utt)
+        return None
+    if utt.translation_status == "failed":
+        send(p, ErrorMsg(type="error", code="translation_failed", message="translation failed"))
+        return None
+    return utt
+
+
+async def handle_lifeline(room: Room, p: Player, msg: LifelineMsg) -> None:
+    """`lifeline`: decrement only after a translation is delivered (§B14.2).
+
+    The room lock is held only around the checks; it is released while waiting for a
+    pending translation, then re-acquired and everything is re-checked.
+    """
+    async with room.lock:
+        utt = _lifeline_step(room, p, msg.utterance_id)
+        room.after_handle()
+    if utt is None:
+        return
+    with contextlib.suppress(TimeoutError):
+        await room.clock.wait(utt.translation_event.wait(), LIFELINE_WAIT_MS / 1000)
+    async with room.lock:
+        if utt.translation_status != "ready":
+            target = _lifeline_target(room, p, msg.utterance_id)
+            if not isinstance(target, str) and p.id not in utt.lifelined_by:
+                send(
+                    p,
+                    ErrorMsg(
+                        type="error", code="translation_failed", message="translation not ready"
+                    ),
+                )
+                room.after_handle()
+                return
+        _lifeline_step(room, p, msg.utterance_id)
+        room.after_handle()

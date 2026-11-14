@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.content import Content
-from app.language.normalize import norm_line
+from app.language.lexicon import Lexicon
+from app.language.normalize import gaps, norm_line, tokenize
 from app.protocol import Lang
 
 
@@ -54,3 +55,49 @@ def build_line_index(content: Content) -> tuple[dict[str, LinePair], list[str]]:
             elif norm_line(old.en) != norm_line(en) or norm_line(old.hi) != norm_line(hi):
                 conflicts.append(f"{key!r}: {old.en!r}/{old.hi!r} vs {en!r}/{hi!r}")
     return index, conflicts
+
+
+class TranslateError(Exception):
+    """A translation that could not be produced."""
+
+
+class MockTranslator:
+    """Authored-line index lookup, else keyword substitution (§B14.1)."""
+
+    def __init__(self, content: Content, lexicon: Lexicon) -> None:
+        self.lexicon = lexicon
+        self.index, _ = build_line_index(content)
+
+    async def translate(self, text: str, src: Lang, dst: Lang) -> str:
+        return self.translate_sync(text, src, dst)
+
+    def translate_sync(self, text: str, src: Lang, dst: Lang) -> str:
+        """The same lookup without awaiting (tests, validator)."""
+        if src == dst:
+            return text
+        pair = self.index.get(norm_line(text))
+        if pair is not None:
+            return pair.en if dst == "en" else pair.hi
+        return self.substitute(text, src, dst)
+
+    def substitute(self, text: str, src: Lang, dst: Lang) -> str:
+        """Replace each speaker-side keyword with its `dst` form, keep the rest."""
+        toks = tokenize(text)
+        gs = gaps(text, toks)
+        starts = {m.start: m for m in self.lexicon.match(toks, src)}
+        out = gs[0]
+        i = 0
+        while i < len(toks):
+            m = starts.get(i)
+            if m is not None:
+                forms = []
+                for cid in m.concepts:
+                    c = self.lexicon.concept(cid)
+                    forms.append(c.hi.display_deva if dst == "hi" else c.en.display)
+                out += " ".join(forms)
+                i = m.end
+            else:
+                out += toks[i].raw
+                i += 1
+            out += gs[i]
+        return out

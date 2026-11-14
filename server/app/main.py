@@ -63,6 +63,7 @@ from app.rooms import (
     send_conn,
     send_error,
 )
+from app.speech.translate import MockTranslator
 
 log = logging.getLogger("wingin.main")
 DEV_CODE = re.compile(r"^[A-Z]{4}$")
@@ -92,8 +93,8 @@ def build_services(settings: Settings, clock: Clock | None = None) -> Services:
 
 
 def wire_speech(svc: Services) -> None:
-    """Translator and speech-session factory (mock in M1)."""
-    del svc
+    """Translators and the speech-session factory (§B13.1, §B14.1)."""
+    svc.mock_translator = MockTranslator(svc.content, svc.lexicon)
 
 
 def create_app(settings: Settings | None = None, clock: Clock | None = None) -> FastAPI:
@@ -383,8 +384,11 @@ async def handle_async(room: Room, conn: Connection, msg: LifelineMsg | PttEndMs
         if p is None:
             send_error(conn, "not_joined", "join first")
             return
-        send_error(conn, "not_allowed_now", "not available yet")
-        room.after_handle()
+        if isinstance(msg, PttEndMsg):
+            send_error(conn, "not_allowed_now", "not transmitting")
+            room.after_handle()
+            return
+    await game.handle_lifeline(room, p, msg)
 
 
 def handle_ptt_start(room: Room, conn: Connection, msg: PttStartMsg) -> None:

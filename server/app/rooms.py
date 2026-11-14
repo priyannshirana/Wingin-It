@@ -210,6 +210,7 @@ class Services:
     lexicon: Lexicon
     clock: Clock
     translator: Translator | None = None
+    mock_translator: Translator | None = None
     open_session: SessionFactory | None = None
     # Any: optional M5 services (reporter, persister) typed in their own modules.
     extras: dict[str, Any] = field(default_factory=dict)

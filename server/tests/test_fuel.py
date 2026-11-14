@@ -133,3 +133,21 @@ async def test_dev_add_fuel(make_room: MakeRoom) -> None:
     f0 = fuel(t)
     await t.dev("add_fuel", seconds=20)
     assert fuel(t) == pytest.approx(f0 + 20, abs=0.01)
+
+
+async def test_exposure_kept_after_retry(make_room: MakeRoom) -> None:
+    t = await make_room(seed=3)
+    t.until_active()
+    await t.say("tower", "Teen number button dabao")
+    flyer = t.room.players["flyer"]
+    heard = flyer.stats.heard["THREE"]
+    assert heard == 1
+    g = t.room.game
+    assert g is not None
+    g.fuel.add(-1000)
+    t.advance(200)
+    await t.flyer.send({"type": "retry"})
+    await t.tower.send({"type": "retry"})
+    t.until_active()
+    assert flyer.stats.heard["THREE"] == heard
+    assert flyer.stats.glossed["THREE"] == 1
