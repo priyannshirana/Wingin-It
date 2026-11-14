@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
@@ -47,6 +48,7 @@ class SpeechSession(Protocol):
 
 PartialCallback = Callable[[str], Awaitable[None]]
 SessionFactory = Callable[[Lang, PartialCallback], Awaitable[SpeechSession]]
+SESSION_OPEN_TIMEOUT_S = 5.0
 
 
 @dataclass(slots=True, eq=False)
@@ -84,3 +86,63 @@ class Utterance:
     created_at_ms: int = 0
     released_at: float | None = None
     latency_ms: int | None = None
+
+
+class SpeechError(RuntimeError):
+    """A speech session that could not be opened or used."""
+
+
+@dataclass(slots=True, eq=False)
+class Transmission:
+    """One push-to-talk transmission holding the radio channel (§B13.2)."""
+
+    role: Role
+    player_id: str
+    lang: Lang
+    token: int
+    started_at: float
+    buffer: bytearray = field(default_factory=bytearray)
+    frames: asyncio.Queue[bytes | None] = field(default_factory=asyncio.Queue)
+    feeder: asyncio.Task[None] | None = None
+    session: SpeechSession | None = None
+    failed: str | None = None
+    last_partial_ms: float = -1e12
+
+
+async def run_feeder(
+    tx: Transmission, factory: SessionFactory, on_partial: PartialCallback
+) -> None:
+    """Open the session, then feed queued frames in order until the sentinel."""
+    try:
+        tx.session = await asyncio.wait_for(factory(tx.lang, on_partial), SESSION_OPEN_TIMEOUT_S)
+    except (SpeechError, TimeoutError, OSError) as exc:
+        tx.failed = repr(exc)
+        return
+    while True:
+        frame = await tx.frames.get()
+        if frame is None:
+            return
+        await tx.session.feed(frame)
+
+
+async def finish_transmission(tx: Transmission, timeout_s: float) -> TranscriptResult:
+    """Wait for the feeder, then the final transcript (≤ timeout)."""
+    tx.frames.put_nowait(None)
+    try:
+        if tx.feeder is not None:
+            await asyncio.wait_for(tx.feeder, timeout_s)
+        if tx.session is None:
+            return TranscriptResult(transcript="", items=[], ok=False, error=tx.failed)
+        return await asyncio.wait_for(tx.session.finish(timeout_s), timeout_s + 1.0)
+    except (SpeechError, TimeoutError, OSError) as exc:
+        return TranscriptResult(transcript="", items=[], ok=False, error=repr(exc))
+
+
+async def abort_transmission(tx: Transmission) -> None:
+    """Drop a transmission: stop feeding and abort its session."""
+    tx.frames.put_nowait(None)
+    if tx.feeder is not None and not tx.feeder.done():
+        tx.feeder.cancel()
+    if tx.session is not None:
+        with contextlib.suppress(SpeechError, TimeoutError, OSError):
+            await asyncio.wait_for(tx.session.abort(), SESSION_OPEN_TIMEOUT_S)

@@ -28,7 +28,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["amazon_transcribe.*", "boto3.*", "botocore.*"]
+module = ["amazon_transcribe.*", "awscrt.*", "boto3.*", "botocore.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

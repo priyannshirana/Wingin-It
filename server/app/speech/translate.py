@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
+from app.constants import TRANSLATE_TIMEOUT_S
 from app.content import Content
 from app.language.lexicon import Lexicon
 from app.language.normalize import gaps, norm_line, tokenize
@@ -101,3 +103,38 @@ class MockTranslator:
                 i += 1
             out += gs[i]
         return out
+
+
+class AwsTranslator:
+    """Amazon Translate in a worker thread with a 5 s timeout (§B14.1)."""
+
+    def __init__(self, region: str, terminology: str = "", client: Any = None) -> None:
+        self.region = region
+        self.terminology = terminology
+        # Any: a boto3 `translate` client (created lazily off the event loop).
+        self._client: Any = client
+
+    def _call(self, text: str, src: Lang, dst: Lang) -> str:
+        if self._client is None:
+            import boto3
+
+            self._client = boto3.client("translate", region_name=self.region)
+        resp = self._client.translate_text(
+            Text=text,
+            SourceLanguageCode=src,
+            TargetLanguageCode=dst,
+            TerminologyNames=[self.terminology] if self.terminology else [],
+        )
+        return str(resp["TranslatedText"])
+
+    async def translate(self, text: str, src: Lang, dst: Lang) -> str:
+        if src == dst:
+            return text
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self._call, text, src, dst), TRANSLATE_TIMEOUT_S
+            )
+        except (BotoCoreError, ClientError, KeyError) as exc:
+            raise TranslateError(repr(exc)) from exc

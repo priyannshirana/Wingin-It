@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from fastapi import WebSocket
 
     from app.game import Game
-    from app.speech.base import SessionFactory, Utterance
+    from app.speech.base import SessionFactory, Transmission, Utterance
     from app.speech.translate import Translator
 
 log = logging.getLogger("wingin.rooms")
@@ -253,8 +253,7 @@ class Room:
     latencies_ms: deque[int] = field(default_factory=lambda: deque(maxlen=20))
     last_utterance: Utterance | None = None
     pending_force: dict[str, str] = field(default_factory=dict)
-    # Any: per-room speech state owned by app.speech (open session, buffer, timers).
-    speech: dict[str, Any] = field(default_factory=dict)
+    transmission: Transmission | None = None
 
     # --------------------------------------------------------------- timers (§B1)
 

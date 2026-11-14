@@ -19,17 +19,29 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from app import VERSION, dev, game
 from app.config import HI_STREAMING_REGIONS, Settings, get_settings
 from app.constants import (
+    BYTES_PER_SECOND,
+    MAX_FRAME_BYTES,
     MAX_TEXT_FRAME_BYTES,
+    MAX_UTTERANCE_BUFFER_S,
+    MAX_UTTERANCE_MS,
+    MIN_UTTERANCE_MS,
+    PARTIAL_MIN_INTERVAL_MS,
     RATE_LIMITED_NOTICE_GAP_MS,
     RATE_SAY_TEXT_MIN_GAP_MS,
     ROOM_CLEANUP_INTERVAL_S,
+    TRANSCRIBE_FINAL_TIMEOUT_MS,
 )
 from app.content import load_content, load_validator
 from app.language.lexicon import Lexicon
+from app.language.normalize import gaps, nfc, tokenize
+from app.language.romanize import display_line
 from app.logging_setup import log_event, setup_logging
 from app.protocol import (
     C2S,
+    CaptionPartial,
+    ChannelMsg,
     DevMsg,
+    ErrorMsg,
     InteractMsg,
     JoinMsg,
     LifelineMsg,
@@ -45,25 +57,31 @@ from app.protocol import (
     SkipCinematicMsg,
     SwapRolesMsg,
     UpdatePlayerMsg,
+    UtteranceDropped,
     Welcome,
     parse_c2s,
 )
 from app.rooms import (
     Clock,
     Connection,
+    Player,
     RealClock,
     Registry,
     Room,
     Services,
+    broadcast_all,
     handle_join,
     handle_ready,
     handle_update_player,
     on_disconnect,
     room_state_msg,
+    send,
     send_conn,
     send_error,
 )
-from app.speech.translate import MockTranslator
+from app.speech.base import Transmission, abort_transmission, finish_transmission, run_feeder
+from app.speech.transcribe_aws import aws_session_factory
+from app.speech.translate import AwsTranslator, MockTranslator
 
 log = logging.getLogger("wingin.main")
 DEV_CODE = re.compile(r"^[A-Z]{4}$")
@@ -94,7 +112,11 @@ def build_services(settings: Settings, clock: Clock | None = None) -> Services:
 
 def wire_speech(svc: Services) -> None:
     """Translators and the speech-session factory (§B13.1, §B14.1)."""
+    s = svc.settings
     svc.mock_translator = MockTranslator(svc.content, svc.lexicon)
+    if not s.mock_speech:
+        svc.translator = AwsTranslator(s.aws_region, s.translate_terminology)
+        svc.open_session = aws_session_factory(s)
 
 
 def create_app(settings: Settings | None = None, clock: Clock | None = None) -> FastAPI:
@@ -356,7 +378,7 @@ def dispatch(room: Room, conn: Connection, msg: C2S) -> None:
         case ReadyMsg():
             handle_ready(room, p, msg)
         case PttStartMsg():
-            handle_ptt_start(room, conn, msg)
+            handle_ptt_start(room, p)
         case SayTextMsg():
             game.handle_say_text(room, p, msg)
         case InteractMsg():
@@ -378,31 +400,143 @@ def dispatch(room: Room, conn: Connection, msg: C2S) -> None:
 
 
 async def handle_async(room: Room, conn: Connection, msg: LifelineMsg | PttEndMsg) -> None:
-    """Handlers that await slow work release the room lock while waiting."""
+    """Handlers that await slow work; they release the room lock while waiting."""
     async with room.lock:
         p = room.player_by_id(conn.player_id)
         if p is None:
             send_error(conn, "not_joined", "join first")
             return
-        if isinstance(msg, PttEndMsg):
+        tx = room.transmission
+        if isinstance(msg, PttEndMsg) and (tx is None or tx.player_id != p.id):
             send_error(conn, "not_allowed_now", "not transmitting")
             room.after_handle()
             return
+    if isinstance(msg, PttEndMsg):
+        if tx is not None:
+            await end_transmission(room, tx)
+        return
     await game.handle_lifeline(room, p, msg)
 
 
-def handle_ptt_start(room: Room, conn: Connection, msg: PttStartMsg) -> None:
-    """Push-to-talk start (real speech arrives in M4)."""
-    del msg
-    if room.mock_speech:
-        send_error(conn, "mock_only", "mock rooms use say_text")
+# -------------------------------------------------------------- push-to-talk (§B13.2)
+
+
+def handle_ptt_start(room: Room, p: Player) -> None:
+    """Grant the radio channel and open a Transcribe stream (lock held, no awaits)."""
+    if room.status == "DECK":
+        send(p, ErrorMsg(type="error", code="not_allowed_now", message="game over"))
         return
-    send_error(conn, "not_allowed_now", "speech not available")
+    holder = room.channel_holder
+    if holder is not None and holder != p.role:
+        send(p, ErrorMsg(type="error", code="channel_busy", message="channel busy"))
+        return
+    if holder == p.role:
+        return  # already transmitting
+    if room.mock_speech:
+        send(p, ErrorMsg(type="error", code="mock_only", message="mock rooms use say_text"))
+        return
+    factory = room.svc.open_session
+    if factory is None:
+        send(p, ErrorMsg(type="error", code="transcribe_failed", message="speech unavailable"))
+        return
+    room.channel_holder = p.role
+    room.channel_token += 1
+    tx = Transmission(
+        role=p.role,
+        player_id=p.id,
+        lang=p.lang,
+        token=room.channel_token,
+        started_at=room.clock.monotonic(),
+    )
+    room.transmission = tx
+    broadcast_all(room, ChannelMsg(type="channel", busy_by=p.role))
+
+    async def on_partial(text: str) -> None:
+        send_partial(room, tx, text)
+
+    tx.feeder = room.spawn(run_feeder(tx, factory, on_partial))
+
+    def force_end() -> None:
+        if room.transmission is tx:
+            room.spawn(end_transmission(room, tx))
+
+    room.schedule(MAX_UTTERANCE_MS + 500, force_end, key=lambda: room.channel_token, notify=False)
+
+
+def send_partial(room: Room, tx: Transmission, text: str) -> None:
+    """`caption_partial` to the speaker: romanized like the echo, throttled to 5/s."""
+    now = room.clock.monotonic() * 1000
+    if room.transmission is not tx or now - tx.last_partial_ms < PARTIAL_MIN_INTERVAL_MS:
+        return
+    tx.last_partial_ms = now
+    speaker = room.player_by_id(tx.player_id)
+    toks = tokenize(text)
+    lexicon = room.svc.lexicon
+    shown = display_line(toks, gaps(text, toks), tx.lang, lexicon.match(toks, tx.lang), lexicon)
+    send(speaker, CaptionPartial(type="caption_partial", text=shown))
 
 
 async def handle_audio(room: Room, conn: Connection, data: bytes) -> None:
-    """Binary audio frame (real speech arrives in M4)."""
-    del room, conn, data
+    """Binary frame: accepted only from the channel holder, size-checked (§A5, §B17)."""
+    async with room.lock:
+        tx = room.transmission
+        p = room.player_by_id(conn.player_id)
+        if tx is None or p is None or tx.player_id != p.id:
+            return  # not holding the channel: drop silently
+        if len(data) % 2 or len(data) > MAX_FRAME_BYTES or not data:
+            return
+        if not conn.audio_bucket.allow(room.clock.monotonic()):
+            _rate_limited(room, conn)
+            return
+        if len(tx.buffer) + len(data) > MAX_UTTERANCE_BUFFER_S * BYTES_PER_SECOND:
+            return
+        tx.buffer += data
+        tx.frames.put_nowait(data)
+
+
+async def end_transmission(room: Room, tx: Transmission) -> None:
+    """`ptt_end` (or the 12.5 s force end): release, transcribe, finalize (§B13.2)."""
+    async with room.lock:
+        if room.transmission is not tx:
+            return
+        room.transmission = None
+        room.channel_holder = None
+        room.channel_token += 1
+        broadcast_all(room, ChannelMsg(type="channel", busy_by=None))
+        speaker = room.player_by_id(tx.player_id)
+        duration_ms = len(tx.buffer) / BYTES_PER_SECOND * 1000
+        released_at = room.clock.monotonic()
+        too_short = duration_ms < MIN_UTTERANCE_MS
+        if too_short:
+            send(speaker, UtteranceDropped(type="utterance_dropped", reason="too_short"))
+        room.after_handle()
+    if too_short:
+        await abort_transmission(tx)
+        return
+    result = await finish_transmission(tx, TRANSCRIBE_FINAL_TIMEOUT_MS / 1000)
+    async with room.lock:
+        speaker = room.player_by_id(tx.player_id)
+        if speaker is None:
+            return
+        if not result.ok:
+            log_event(
+                log, "transcribe_fail", level=logging.WARNING, room=room.code, err=result.error
+            )
+            send(speaker, UtteranceDropped(type="utterance_dropped", reason="transcribe_failed"))
+            game.toast(room, {speaker.role}, "error", "toast.didnt_catch")
+        elif not result.transcript.strip():
+            send(speaker, UtteranceDropped(type="utterance_dropped", reason="no_speech"))
+        else:
+            game.finalize_utterance(
+                room,
+                speaker,
+                nfc(result.transcript),
+                tx.lang,
+                items=[i.model_copy(update={"token": nfc(i.token)}) for i in result.items],
+                pcm=bytes(tx.buffer),
+                released_at=released_at,
+            )
+        room.after_handle()
 
 
 app = create_app()

@@ -107,7 +107,7 @@ from app.rooms import (
     send,
     send_role,
 )
-from app.speech.base import Utterance, WordItem
+from app.speech.base import Utterance, WordItem, abort_transmission
 from app.speech.translate import TranslateError, Translator
 from app.world import (
     apply_world,
@@ -1640,15 +1640,15 @@ def history_msg(room: Room, p: Player) -> History:
 
 
 def release_channel_of(room: Room, role: Role) -> None:
-    """Free the radio channel if `role` holds it (disconnect / abort)."""
+    """Free the radio channel if `role` holds it, aborting its transmission (§B13.2)."""
     if room.channel_holder != role:
         return
+    tx = room.transmission
     room.channel_holder = None
     room.channel_token += 1
-    session = room.speech.pop("session", None)
-    room.speech.pop("buffer", None)
-    if session is not None:
-        room.spawn(session.abort())
+    room.transmission = None
+    if tx is not None:
+        room.spawn(abort_transmission(tx))
     broadcast_all(room, ChannelMsg(type="channel", busy_by=None))
 
 
