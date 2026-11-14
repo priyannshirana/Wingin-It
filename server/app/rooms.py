@@ -49,7 +49,9 @@ from app.protocol import (
 if TYPE_CHECKING:
     from fastapi import WebSocket
 
+    from app.deck import Reporter
     from app.game import Game
+    from app.persistence import Persister
     from app.speech.base import SessionFactory, Transmission, Utterance
     from app.speech.translate import Translator
 
@@ -212,8 +214,8 @@ class Services:
     translator: Translator | None = None
     mock_translator: Translator | None = None
     open_session: SessionFactory | None = None
-    # Any: optional M5 services (reporter, persister) typed in their own modules.
-    extras: dict[str, Any] = field(default_factory=dict)
+    reporter: Reporter | None = None
+    persister: Persister | None = None
 
 
 # ----------------------------------------------------------------------------------- room

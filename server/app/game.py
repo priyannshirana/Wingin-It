@@ -1208,9 +1208,12 @@ def enter_ending(room: Room) -> None:
     set_status(room, "ENDING")
     g.total_time_s = round(room.clock.monotonic() - g.started_at, 1)
     g.ended_wall = datetime.now(UTC)
-    from app import deck
+    from app import deck, persistence
 
     deck.prepare(room)
+    persister = room.svc.persister
+    if persister is not None:
+        room.spawn(persister.save(persistence.game_item(room)))
     fuel_left = g.phase_stats[3].fuel_left_s if 3 in g.phase_stats else 0.0
     params: CinematicParams = {"fuel_left_s": fuel_left, "total_time_s": g.total_time_s}
     play(room, "ending", params, lambda: enter_deck(room))

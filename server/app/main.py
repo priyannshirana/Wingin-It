@@ -32,10 +32,12 @@ from app.constants import (
     TRANSCRIBE_FINAL_TIMEOUT_MS,
 )
 from app.content import load_content, load_validator
+from app.deck import BedrockReporter
 from app.language.lexicon import Lexicon
 from app.language.normalize import gaps, nfc, tokenize
 from app.language.romanize import display_line
 from app.logging_setup import log_event, setup_logging
+from app.persistence import DynamoPersister, NoopPersister
 from app.protocol import (
     C2S,
     CaptionPartial,
@@ -114,6 +116,9 @@ def wire_speech(svc: Services) -> None:
     """Translators and the speech-session factory (§B13.1, §B14.1)."""
     s = svc.settings
     svc.mock_translator = MockTranslator(svc.content, svc.lexicon)
+    svc.persister = DynamoPersister(s.ddb_table, s.aws_region) if s.ddb_table else NoopPersister()
+    if not s.mock_speech and s.bedrock_model_id:
+        svc.reporter = BedrockReporter(s.aws_region, s.bedrock_model_id)
     if not s.mock_speech:
         svc.translator = AwsTranslator(s.aws_region, s.translate_terminology)
         svc.open_session = aws_session_factory(s)

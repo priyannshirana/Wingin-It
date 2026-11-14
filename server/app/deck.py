@@ -1,17 +1,26 @@
-"""Word deck payload, stats and the mission report (§B15.1, §B15.3)."""
+"""Word deck payload, stats, clips and the mission report (§B15.1–§B15.3)."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+import asyncio
+import json
+import logging
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
+from app import audio
+from app.constants import BEDROCK_TIMEOUT_S
+from app.logging_setup import log_event
 from app.protocol import (
     DeckMsg,
+    DeckReport,
     DeckWord,
     LifelinesUsed,
     PhaseStatsOut,
     Stats,
 )
 from app.rooms import Player, Room, send
+
+log = logging.getLogger("wingin.deck")
 
 if TYPE_CHECKING:
     from app.game import Game
@@ -41,6 +50,7 @@ def build_words(room: Room, p: Player, q: Player) -> list[DeckWord]:
     """20 concepts, learned first by understood+spoken, then lexicon order (§B15.1)."""
     lexicon = room.svc.lexicon
     words: list[tuple[int, int, DeckWord]] = []
+    partner_utts = [u for u in room.utterances if u.speaker_id == q.id]
     for order, cid in enumerate(lexicon.order):
         c = lexicon.concept(cid)
         understood = p.stats.understood[cid]
@@ -54,7 +64,7 @@ def build_words(room: Room, p: Player, q: Player) -> list[DeckWord]:
             understood=understood,
             spoken=spoken,
             learned=learned,
-            clip_url=None,
+            clip_url=audio.make_clip(room.clips, partner_utts, cid),
         )
         score = understood + spoken if learned else -1
         words.append((-score, order, dw))
@@ -109,15 +119,92 @@ def template_report(room: Room, p: Player, words: list[DeckWord]) -> str:
     return TEMPLATES_SHORT[p.lang].format(**fields)
 
 
-def prepare(room: Room) -> None:
-    """Build every player's deck at ENDING start (§B15.1)."""
+PROMPT = (
+    "Write a 2–3 sentence, upbeat mission report for a co-op game where two people who "
+    "don't share a language landed a plane. Mention the names, fuel left and two or three "
+    "words the player learned. Language: {language}. Facts: {facts}. Use the players' "
+    "genders for pronouns and, in Hindi, for verb agreement."
+)
+LANGUAGE_NAME = {"hi": "Hindi (Devanagari script)", "en": "English"}
+
+
+class ReportError(Exception):
+    """The model call failed; the template is used instead."""
+
+
+class Reporter(Protocol):
+    """Writes one mission report from a prompt (§B15.3)."""
+
+    async def report(self, prompt: str) -> str: ...
+
+
+class BedrockReporter:
+    """Bedrock Converse, maxTokens 200, temperature 0.7, 5 s timeout (§B15.3)."""
+
+    def __init__(self, region: str, model_id: str, client: Any = None) -> None:
+        self.region = region
+        self.model_id = model_id
+        # Any: a boto3 `bedrock-runtime` client (created lazily off the event loop).
+        self._client: Any = client
+
+    def _call(self, prompt: str) -> str:
+        if self._client is None:
+            import boto3
+
+            self._client = boto3.client("bedrock-runtime", region_name=self.region)
+        resp = self._client.converse(
+            modelId=self.model_id,
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"maxTokens": 200, "temperature": 0.7},
+        )
+        return str(resp["output"]["message"]["content"][0]["text"]).strip()
+
+    async def report(self, prompt: str) -> str:
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(self._call, prompt), BEDROCK_TIMEOUT_S)
+        except (BotoCoreError, ClientError, KeyError, IndexError, TypeError) as exc:
+            raise ReportError(repr(exc)) from exc
+
+
+def report_prompt(room: Room, p: Player, words: list[DeckWord]) -> str:
+    """The §B15.3 prompt with the facts JSON."""
     g = _game(room)
+    flyer = room.players.get("flyer")
+    tower = room.players.get("tower")
+    facts = {
+        "flyer": flyer.name if flyer else "",
+        "flyer_gender": flyer.gender if flyer else "",
+        "tower": tower.name if tower else "",
+        "tower_gender": tower.gender if tower else "",
+        "fuel_left_s": g.phase_stats[3].fuel_left_s if 3 in g.phase_stats else 0.0,
+        "total_time_s": g.total_time_s,
+        "wrong_actions": sum(ps.wrong for ps in g.phase_stats.values()),
+        "learned_words": [w.word for w in words if w.learned][:3],
+    }
+    return PROMPT.format(
+        language=LANGUAGE_NAME[p.lang], facts=json.dumps(facts, ensure_ascii=False)
+    )
+
+
+def uses_bedrock(room: Room) -> bool:
+    """Bedrock when a model id is set and the room isn't mock (§B15.3)."""
+    s = room.svc.settings
+    return bool(s.bedrock_model_id) and room.svc.reporter is not None and not room.mock_speech
+
+
+def prepare(room: Room) -> None:
+    """Build every player's deck at ENDING start; start Bedrock calls now (§B15.1)."""
+    g = _game(room)
+    bedrock = uses_bedrock(room)
     for p in room.players.values():
         q = room.partner(p)
         if p.is_bot or q is None:
             continue
         words = build_words(room, p, q)
-        g.reports[p.id] = template_report(room, p, words)
+        template = template_report(room, p, words)
+        g.reports[p.id] = None if bedrock else template
         g.decks[p.id] = DeckMsg(
             type="deck",
             partner_name=q.name,
@@ -125,10 +212,32 @@ def prepare(room: Room) -> None:
             partner_gender=q.gender,
             learned_count=sum(1 for w in words if w.learned),
             words=words,
-            report=g.reports[p.id],
-            report_pending=False,
+            report=None if bedrock else template,
+            report_pending=bedrock,
             stats=build_stats(room, p, q),
         )
+        if bedrock:
+            room.spawn(_fetch_report(room, p, report_prompt(room, p, words), template))
+    log_event(log, "deck", room=room.code, game=g.id, bedrock=bedrock)
+
+
+async def _fetch_report(room: Room, p: Player, prompt: str, template: str) -> None:
+    g = room.game
+    reporter = room.svc.reporter
+    text = template
+    if reporter is not None:
+        try:
+            text = await reporter.report(prompt) or template
+        except (ReportError, TimeoutError) as exc:
+            log_event(log, "report_fallback", level=logging.WARNING, err=repr(exc))
+    async with room.lock:
+        if room.game is not g or g is None or p.id not in g.decks:
+            return
+        g.reports[p.id] = text
+        g.decks[p.id] = g.decks[p.id].model_copy(update={"report": text, "report_pending": False})
+        if room.status == "DECK":
+            send(p, DeckReport(type="deck_report", report=text))
+        room.after_handle()
 
 
 def send_deck(room: Room, p: Player) -> None:

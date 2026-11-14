@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+from starlette.websockets import WebSocketDisconnect
+
 from app.game import action_active
 from tests.conftest import Harness, MakeRoom, Table
 
@@ -538,3 +541,81 @@ async def test_template_effects_and_option_world(make_room: MakeRoom) -> None:
     await t.solve_current()
     assert "fx:burst:snuff" in fx_of(t, "flyer")
     assert world(t)["fire"]["level"] == "wisp"
+
+
+# ------------------------------------------------------------------ HTTP + WS endpoints
+
+
+def test_http_endpoints_and_ws_handshake() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from tests.conftest import make_settings
+
+    app = create_app(make_settings())
+    with TestClient(app) as client:
+        h = client.get("/health").json()
+        assert h == {
+            "ok": True,
+            "mock_speech": True,
+            "dev_mode": True,
+            "demo_mode": False,
+            "rooms": 0,
+            "version": "0.1.0",
+        }
+        code = client.post("/api/rooms", json={"demo": True, "seed": 9}).json()["code"]
+        assert len(code) == 4 and not set(code) & set("IO0123456789")
+        room = app.state.registry.get(code)
+        assert room.demo is True and room.seed_override == 9
+        assert client.get(f"/api/rooms/{code}").json() == {
+            "exists": True,
+            "status": "LOBBY",
+            "roles_taken": [],
+            "demo": True,
+        }
+        missing = client.get("/api/rooms/ZZZZ")
+        assert missing.status_code == 404 and missing.json() == {"exists": False}
+        assert client.post("/api/rooms", json={"bogus": 1}).status_code == 422
+        room.clips["c_deadbeef"] = b"RIFFxxxx"
+        clip = client.get("/clips/c_deadbeef.wav")
+        assert clip.status_code == 200 and clip.headers["content-type"] == "audio/wav"
+        assert clip.headers["cache-control"] == "private, max-age=3600"
+        assert client.get("/clips/c_nope.wav").status_code == 404
+        with client.websocket_connect(f"/ws/{code}") as ws:
+            assert ws.receive_json()["type"] == "welcome"
+            assert ws.receive_json()["type"] == "room_state"
+            ws.send_json({"type": "ping", "client_ms": 5})
+            assert ws.receive_json()["type"] == "pong"
+            ws.send_text("not json")
+            assert ws.receive_json()["code"] == "bad_message"
+            ws.send_json(
+                {"type": "join", "name": " <b>Sam</b> ", "role": "flyer", "lang": "en",
+                 "gender": "male"}
+            )  # fmt: skip
+            joined = ws.receive_json()
+            assert joined["type"] == "joined" and joined["name"] == "Sam"
+        with client.websocket_connect("/ws/TEST") as ws:  # Dev Mode: ad-hoc code
+            assert ws.receive_json()["room_code"] == "TEST"
+
+
+def test_overrides_ignored_without_dev_or_demo() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from tests.conftest import make_settings
+
+    app = create_app(make_settings(dev_mode=False))
+    with TestClient(app) as client:
+        code = client.post("/api/rooms", json={"demo": True, "seed": 9, "mock": False}).json()
+        room = app.state.registry.get(code["code"])
+        assert room.demo is False and room.seed_override is None and room.mock_speech is True
+        with client.websocket_connect("/ws/QQQQ") as ws:
+            assert ws.receive_json()["code"] == "room_not_found"
+        with (
+            pytest.raises(WebSocketDisconnect) as exc_info,
+            client.websocket_connect(
+                f"/ws/{code['code']}", headers={"origin": "https://evil.example"}
+            ),
+        ):
+            pass
+        assert exc_info.value.code == 4403
