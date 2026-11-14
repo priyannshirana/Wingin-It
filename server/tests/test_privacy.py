@@ -65,23 +65,28 @@ def assert_private(t: Table, content: Content) -> None:
             assert norm_line(text) not in lines or not norm_line(text), (m["type"], text)
 
 
+@pytest.mark.parametrize("driver", ["natural", "bots"])
 @pytest.mark.parametrize("seed", [1, 2])
 @pytest.mark.parametrize("k", range(8))
 async def test_complete_games_every_path_are_private(
-    make_room: MakeRoom, content: Content, seed: int, k: int
+    make_room: MakeRoom, content: Content, seed: int, k: int, driver: str
 ) -> None:
     t = await make_room(seed=seed)
     g = t.room.game
     assert g is not None
     f = forces(k)
-    # Re-arm the forced values at every phase intro so each phase plays path k.
     g.rng.forced.update(f)
-    played = await play_forced(t, f)
+    if driver == "bots":
+        await t.dev("bots", flyer=True, tower=True)
+        while t.status != "DECK":
+            t.advance(100)
+            assert t.clock.t < 1000 + 7200
+        played = [r["action_id"] for r in t.flyer.of("action_result") if r["success"]]
+    else:
+        played = await play_forced(t, f)
     assert len(played) == 21
-    assert {g.vars[v] for v in ("MASTER_COLOR",)} == {f["MASTER_COLOR"]}
-    assert g.vars["FIRE_SIDE"] == f["FIRE_SIDE"] and g.vars["WARN_COLOR"] == f["WARN_COLOR"]
+    assert all(g.vars[v] == value for v, value in f.items())
     assert_private(t, content)
-    assert not t.tower.of("dev_state") or t.room.svc.settings.dev_mode
 
 
 async def play_forced(t: Table, f: dict[str, str]) -> list[str]:

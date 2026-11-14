@@ -204,6 +204,7 @@ class Game:
     ended_wall: datetime | None = None
     # Player id -> deck payload / report (filled at ENDING, §B15).
     decks: dict[str, DeckMsg] = field(default_factory=dict)
+    auto_bots_prev: dict[Role, bool] | None = None
     reports: dict[str, str | None] = field(default_factory=dict)
 
 
@@ -367,6 +368,20 @@ def interactive_ids(room: Room) -> list[str]:
     return [c.id for c in station.controls if VERBS_FOR_TYPE[c.type]]
 
 
+def answer_line(room: Room, run: ActionRun, lang: Lang) -> QuickLine | None:
+    """The generated correct answer for an observed value: "Red!" / "Laal!" (§B16.2)."""
+    if run.action.observe is None or run.value is None:
+        return None
+    c = room.svc.content.concepts_by_id.get(run.value)
+    if c is None:
+        return None
+    if lang == "hi":
+        word = c.hi.display_roman.capitalize() + "!"
+        return QuickLine(label=word, text=word, alt_text=c.hi.display_deva + "!")
+    word = c.en.display.capitalize() + "!"
+    return QuickLine(label=word, text=word)
+
+
 def quick_replies(room: Room) -> list[QuickLine] | None:
     """Flyer quick replies, Mock/Dev only (§B16.2)."""
     if not room.quick_lines_enabled:
@@ -377,20 +392,9 @@ def quick_replies(room: Room) -> list[QuickLine] | None:
         return []
     lang = flyer_lang(room)
     out: list[QuickLine] = []
-    if run.action.observe is not None and run.value is not None:
-        c = room.svc.content.concepts_by_id.get(run.value)
-        if c is not None:
-            if lang == "hi":
-                out.append(
-                    QuickLine(
-                        label=c.hi.display_roman.capitalize() + "!",
-                        text=c.hi.display_roman.capitalize() + "!",
-                        alt_text=c.hi.display_deva + "!",
-                    )
-                )
-            else:
-                word = c.en.display.capitalize() + "!"
-                out.append(QuickLine(label=word, text=word))
+    answer = answer_line(room, run, lang)
+    if answer is not None:
+        out.append(answer)
     ex = run.action.flyer_examples
     for hi, roman, en in zip(ex.hi, ex.hi_roman, ex.en, strict=False):
         out.append(manual.quick_line(hi, roman, en, lang))

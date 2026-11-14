@@ -79,6 +79,8 @@ class ActionRun:
     succeeded: bool = False
     wrong_count: int = 0
     tokens: int = 0
+    bot_replied: bool = False
+    bot_acting: bool = False
 
     def __post_init__(self) -> None:
         if not self.done:
