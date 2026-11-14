@@ -287,3 +287,254 @@ async def test_disconnect_in_lobby_frees_slot_after_60s(harness: Harness) -> Non
     assert "flyer" in t.room.players
     harness.clock.advance(61_000)
     assert "flyer" not in t.room.players
+
+
+# ------------------------------------------------------- M3: world, effects, params, radar
+
+
+def world(t: Table) -> dict[str, Any]:
+    return t.last("flyer", "flyer_view")["world"]  # type: ignore[no-any-return]
+
+
+def fx_of(t: Table, role: str) -> list[str]:
+    return [e for m in t.clients[role].of("fx") for e in m["effects"]]  # type: ignore[index]
+
+
+async def test_world_table_at_phase_starts(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1, force={"FIRE_SIDE": "LEFT"})
+    w = world(t)
+    assert w["light_rig"] == "night_calm" and w["pilot"] == {
+        "slumped": False,
+        "seat_back": False,
+        "awake": True,
+    }
+    t.until_active()
+    w = world(t)
+    assert (w["light_rig"], w["alarm"], w["fog"], w["static_level"]) == (
+        "night_alarm",
+        True,
+        0.004,
+        0,
+    )
+    assert w["pilot"] == {"slumped": True, "seat_back": False, "awake": False}
+    await t.goto_phase(2)
+    w = world(t)
+    assert w["light_rig"] == "fire" and w["fire"] == {"side": "left", "level": "full"}
+    assert (w["fire_bell"], w["fuel_hiss"], w["ap_screen"], w["overhead_all_green"]) == (
+        True,
+        True,
+        True,
+        True,
+    )
+    assert w["pilot"]["seat_back"] is True and w["fog"] == 0.006 and w["static_level"] == 0.02
+    objs = t.last("flyer", "flyer_view")["objects"]
+    assert objs["PD_FIRE_LAMP_L"]["color"] == "red" and objs["PD_FIRE_LAMP_R"]["color"] is None
+    assert objs["OH_MASTER_LAMP"] == {
+        "kind": "lamp",
+        "color": "green",
+        "blinking": False,
+        "attention": False,
+    }
+    await t.goto_phase(3)
+    w = world(t)
+    assert w["light_rig"] == "storm" and w["weather"] == "storm"
+    assert w["fire"] == {"side": "left", "level": "wisp"} and w["propeller_stopped"] == "left"
+    assert (w["engine_hum"], w["fog"], w["turbulence"], w["static_level"]) == (
+        "one_engine",
+        0.035,
+        0.15,
+        0.04,
+    )
+
+
+async def test_landing_world_and_ending_params(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1, force={"FIRE_SIDE": "RIGHT"})
+    await t.play_to_deck()
+    w = world(t)
+    assert w["light_rig"] == "dawn" and w["weather"] == "clear_dawn" and w["runway"] == "stopped"
+    assert w["pilot"] == {"slumped": False, "seat_back": True, "awake": True}
+    assert w["landing_lights"] is True and w["engine_hum"] == "off"
+    assert w["propeller_stopped"] == "right"
+    landing_f = next(m for m in t.flyer.of("cinematic") if m["id"] == "landing")
+    landing_t = next(m for m in t.tower.of("cinematic") if m["id"] == "landing")
+    assert landing_f["params"] == {"damaged_side": "right"} and landing_t["params"] == {}
+    outro_f = next(m for m in t.flyer.of("cinematic") if m["id"] == "p2_outro")
+    assert outro_f["params"] == {"stopped_side": "right"}
+    p3 = next(m for m in t.flyer.of("cinematic") if m["id"] == "p3_intro")
+    assert p3["params"] == {"retry": False, "damaged_side": "right"}
+    ext = next(m for m in t.flyer.of("cinematic") if m["id"] == "p2_extinguish")
+    assert ext["params"] == {"fire_side": "right"}
+    assert next(m for m in t.tower.of("cinematic") if m["id"] == "p2_extinguish")["params"] == {}
+    end_f = next(m for m in t.flyer.of("cinematic") if m["id"] == "ending")
+    end_t = next(m for m in t.tower.of("cinematic") if m["id"] == "ending")
+    assert end_f["params"] == end_t["params"]
+    assert set(end_f["params"]) == {"fuel_left_s", "total_time_s"}
+
+
+async def test_effects_and_fx_routing(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1, force={"MASTER_COLOR": "RED", "FIRE_SIDE": "RIGHT"})
+    t.until_active()
+    t.clear()
+    await t.solve_current()  # P1_A1
+    assert "sfx_stop:alarm_master" in fx_of(t, "flyer") and not fx_of(t, "tower")
+    w = world(t)
+    assert w["alarm"] is False and w["light_rig"] == "night_calm"
+    lamp = [m for m in t.flyer.of("object_state") if m["object_id"] == "OH_MASTER_LAMP"][-1]
+    assert lamp["state"] == {"kind": "lamp", "color": None, "blinking": False, "attention": False}
+    await t.goto_action("P1_A5")
+    t.clear()
+    await t.solve_current()
+    assert fx_of(t, "flyer") == ["both:static_dip", "both:signal_flash"]
+    assert fx_of(t, "tower") == ["both:static_dip", "both:signal_flash"]
+    await t.goto_action("P2_B1")
+    t.clear()
+    await t.solve_current()
+    assert fx_of(t, "flyer") == ["sfx:clunk", "fx:lamp_flicker:PD_FIRE_LAMP_R"]
+    assert not fx_of(t, "tower")
+    kept = t.room.game.objects["PD_FIRE_LAMP_R"]  # type: ignore[union-attr]
+    assert kept.color == "red" and not kept.blinking and not kept.attention  # type: ignore[union-attr]
+
+
+async def test_deferred_effects_apply_at_cinematic_end(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1, force={"FIRE_SIDE": "LEFT", "STILL_BURNING": "YES"})
+    await t.goto_action("P2_B3")
+    t.clear()
+    await t.solve_current()
+    assert t.room.game.cinematic is not None  # type: ignore[union-attr]
+    assert "sfx_stop:fire_bell" in fx_of(t, "flyer")  # one-shots go now
+    assert t.room.game.world.fire_bell is True  # type: ignore[union-attr]  # world waits
+    t.advance(3400)
+    w = world(t)
+    assert w["fire_bell"] is False and w["fire"]["level"] == "wisp"
+    assert w["light_rig"] == "night_calm"
+    assert t.room.game.objects["PD_FIRE_LAMP_L"].color is None  # type: ignore[union-attr]
+
+
+async def test_observe_lamps_attention_and_blink(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1, force={"FIRE_SIDE": "RIGHT", "GREEN_LIT": "NO"})
+    await t.goto_action("P1_A4")
+    objs = t.last("flyer", "flyer_view")["objects"]
+    assert objs["OH_GREEN_LAMP"] == {
+        "kind": "lamp",
+        "color": None,
+        "blinking": False,
+        "attention": True,
+    }  # dark lamp still gets the ring
+    assert world(t)["warning_beep"] is True  # on_start effect
+    await t.goto_action("P2_B1")
+    objs = t.last("flyer", "flyer_view")["objects"]
+    assert objs["PD_FIRE_LAMP_R"] == {
+        "kind": "lamp",
+        "color": "red",
+        "blinking": True,
+        "attention": True,
+    }
+    assert (
+        objs["PD_FIRE_LAMP_L"]["attention"] is True and objs["PD_FIRE_LAMP_L"]["blinking"] is False
+    )
+
+
+async def test_gear_roll_and_show_then_observe(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1, force={"GEAR_OK": "NO"})
+    await t.goto_action("P3_C1")
+    await t.solve_current()
+    g = t.room.game
+    assert g is not None and g.vars["GEAR_OK"] == "NO"
+    assert g.objects["FP_GEAR_LAMP_3"].color == "red"  # type: ignore[union-attr]
+    assert g.objects["FP_GEAR_LAMP_1"].blinking is False  # type: ignore[union-attr]  # steady
+    t.until_active()
+    assert t.action_id == "P3_C2"
+    assert g.objects["FP_GEAR_LAMP_3"].attention is True  # type: ignore[union-attr]
+    assert g.run is not None and g.run.value == "NO" and g.run.steps[0].object == "FP_BTN_RED"
+
+
+async def test_lightning_event_then_lamp(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1, force={"WARN_COLOR": "BLUE"})
+    await t.goto_action("P3_C4")
+    await t.solve_current()
+    t.run_until(lambda: t.room.game is not None and t.room.game.cinematic is not None
+                and t.room.game.cinematic.id == "lightning_strike")  # fmt: skip
+    g = t.room.game
+    assert g is not None
+    assert g.objects["FP_WARN_LAMP"].color is None  # type: ignore[union-attr]  # not yet
+    assert t.last("flyer", "game_state")["action_active"] is False
+    await t.click("FP_BTN_1", "press")  # input locked during the event: ignored
+    assert not [r for r in t.flyer.of("action_result") if not r["success"]]
+    t.until_active()
+    assert g.objects["FP_WARN_LAMP"].color == "blue"  # type: ignore[union-attr]
+    assert g.objects["FP_WARN_LAMP"].blinking is True  # type: ignore[union-attr]
+
+
+def radar(t: Table) -> dict[str, Any]:
+    return t.last("tower", "game_state")["radar"]  # type: ignore[no-any-return]
+
+
+async def test_radar_states(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1)
+    assert radar(t)["blip"] == "green" and radar(t)["icon"] is None
+    t.until_active()
+    assert (radar(t)["blip"], radar(t)["icon"]) == ("red", "mayday")
+    await t.solve_current()  # A1
+    assert (radar(t)["blip"], radar(t)["icon"]) == ("amber", None)
+    assert radar(t)["progress"] == round(1 / 7, 3)
+    while t.status == "PLAYING":
+        if action_active(t.room):
+            await t.solve_current()
+        else:
+            t.advance(100)
+    assert t.status == "PHASE_OUTRO" and radar(t)["blip"] == "green"
+    t.until_active()
+    assert (radar(t)["blip"], radar(t)["icon"]) == ("red", "fire")
+    await t.goto_action("P2_B3")
+    await t.solve_current()
+    assert (radar(t)["blip"], radar(t)["icon"]) == ("amber", "smoke")
+    await t.tower.send({"type": "dev", "cmd": "goto_phase", "args": {"phase": 3}})
+    t.until_active()
+    r = radar(t)
+    assert (r["blip"], r["storm"], r["runway"], r["glide_path"], r["landed"]) == (
+        "amber",
+        True,
+        True,
+        True,
+        False,
+    )
+    await t.play_to_deck()
+    r = radar(t)
+    assert (r["blip"], r["storm"], r["runway"], r["glide_path"], r["landed"]) == (
+        "green",
+        False,
+        True,
+        False,
+        True,
+    )
+
+
+async def test_p2_outro_radar_storm(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1)
+    await t.goto_phase(2)
+    while t.status == "PLAYING":
+        if action_active(t.room):
+            await t.solve_current()
+        else:
+            t.advance(100)
+    r = radar(t)
+    assert t.status == "PHASE_OUTRO" and (r["blip"], r["icon"], r["storm"]) == (
+        "amber",
+        None,
+        True,
+    )
+
+
+async def test_template_effects_and_option_world(make_room: MakeRoom) -> None:
+    t = await make_room(seed=1, force={"FIRE_SIDE": "RIGHT", "FIRE_BACK": "YES"})
+    await t.goto_action("P2_B4")
+    t.clear()
+    await t.solve_current()
+    assert "fx:yaw:right" in fx_of(t, "flyer") and not fx_of(t, "tower")
+    w = world(t)
+    assert w["propeller_stopped"] == "right" and w["engine_hum"] == "one_engine"
+    await t.goto_action("P3_C6")
+    assert world(t)["fire"]["level"] == "flicker"  # YES brings the flame back
+    await t.solve_current()
+    assert "fx:burst:snuff" in fx_of(t, "flyer")
+    assert world(t)["fire"]["level"] == "wisp"

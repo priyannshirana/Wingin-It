@@ -291,6 +291,47 @@ class Table:
             ):
                 self.advance(1300)
 
+    async def play_naturally(self) -> None:
+        """Tower says the ask + the rolled branch line; the Flyer answers, then acts."""
+        g = self.room.game
+        assert g is not None and g.run is not None
+        run = g.run
+        a = run.action
+        tower = self.room.players["tower"]
+
+        def form(hi_roman: str, en: str, lang: str) -> str:
+            return hi_roman if lang == "hi" else en
+
+        if a.ask is not None:
+            await self.say("tower", form(a.ask.hi_roman, a.ask.en, tower.lang))
+            replies = self.flyer.last("flyer_view")["quick_replies"] or []
+            if replies:
+                await self.say("flyer", replies[0]["text"])
+        line = None
+        if a.branches is not None:
+            line = next(b.say for b in a.branches if b.when == run.value)
+        elif a.say is not None:
+            line = a.say
+        if line is not None:
+            await self.say("tower", form(line.hi_roman, line.en, tower.lang))
+        await self.solve_current()
+
+    async def play_to_deck(self, *, naturally: bool = False) -> list[str]:
+        from app.game import action_active
+
+        played: list[str] = []
+        while self.status != "DECK":
+            if action_active(self.room):
+                played.append(self.action_id or "")
+                if naturally:
+                    await self.play_naturally()
+                else:
+                    await self.solve_current()
+                continue
+            self.advance(100)
+            assert self.clock.t < 1000 + 7200, f"stuck in {self.status}"
+        return played
+
 
 @dataclass
 class Harness:

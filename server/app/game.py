@@ -584,6 +584,7 @@ def enter_phase_intro(room: Room, n: int, *, retry: bool = False) -> None:
         g.damaged_side = SIDE_OF[side]
         g.vars["DAMAGED_SIDE"] = side
     send_manual(room)
+    send_flyer_view(room)  # cinematic end / new station (§A9)
     params: CinematicParams = {"retry": retry}
     if n == 2:
         params["fire_side"] = SIDE_OF[g.phase_vars["FIRE_SIDE"]]
@@ -1221,6 +1222,7 @@ def enter_deck(room: Room) -> None:
     room.ticker = None
     broadcast_room_state(room)
     broadcast_game_state(room)
+    send_flyer_view(room)
     from app import deck
 
     deck.send_decks(room)
