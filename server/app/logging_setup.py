@@ -39,7 +39,7 @@ def setup_logging(level: str = "INFO") -> None:
 
 
 def log_event(
-    logger: logging.Logger, evt: str, level: int = logging.INFO, **fields: object
+    logger: logging.Logger, evt: str, *, level: int = logging.INFO, **fields: object
 ) -> None:
     """Log one structured event `{"evt": evt, ...fields}` (§B17)."""
     logger.log(level, evt, extra={"evt": evt, **fields})

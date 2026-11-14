@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
@@ -374,6 +375,7 @@ def load_validator(content_dir: Path) -> ModuleType:
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load validator from {path}")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses resolve annotations through sys.modules
     spec.loader.exec_module(module)
     return module
 

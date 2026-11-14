@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Protocol
 
 from app.content import Content
 from app.language.normalize import norm_line
+from app.protocol import Lang
+
+
+class Translator(Protocol):
+    """Full-sentence translation (§B14.1)."""
+
+    async def translate(self, text: str, src: Lang, dst: Lang) -> str: ...
 
 
 @dataclass(frozen=True, slots=True)
