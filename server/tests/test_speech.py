@@ -15,6 +15,7 @@ from botocore.exceptions import ClientError
 from app.config import Settings
 from app.main import handle_audio
 from app.protocol import Lang
+from app.rooms import wait_for
 from app.speech.base import PartialCallback, SpeechSession, WordItem
 from app.speech.transcribe_aws import Handler, stream_kwargs
 from app.speech.transcribe_mock import MockSession
@@ -110,6 +111,35 @@ async def test_aws_translator_with_fake_client() -> None:
     bad = AwsTranslator("us-east-1", "", client=FakeTranslateClient(fail=True))
     with pytest.raises(TranslateError):
         await bad.translate("x", "en", "hi")
+
+
+# --------------------------------------------------------------- wait_for (all Pythons)
+
+
+async def test_wait_for_keeps_a_cancel_that_races_the_result() -> None:
+    # 3.11's asyncio.wait_for returned the result and dropped this cancel (bpo-42130): a
+    # cancelled feeder lived on, and the event loop could never shut down.
+    async def opened() -> int:
+        return 1
+
+    async def feeder() -> None:
+        await wait_for(opened(), 5.0)
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(feeder())
+    await asyncio.sleep(0)
+    task.cancel()
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert task.cancelled()
+
+
+async def test_wait_for_non_positive_timeout() -> None:
+    done: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+    done.set_result(7)
+    assert await wait_for(done, 0) == 7
+    with pytest.raises(TimeoutError):
+        await wait_for(asyncio.Event().wait(), 0)
 
 
 # -------------------------------------------------------------- push-to-talk (§B13.2)

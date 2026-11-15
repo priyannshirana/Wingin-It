@@ -12,6 +12,7 @@ from app.content import Content
 from app.language.lexicon import Lexicon
 from app.language.normalize import gaps, norm_line, tokenize
 from app.protocol import Lang
+from app.rooms import wait_for
 
 
 class Translator(Protocol):
@@ -133,7 +134,7 @@ class AwsTranslator:
         from botocore.exceptions import BotoCoreError, ClientError
 
         try:
-            return await asyncio.wait_for(
+            return await wait_for(
                 asyncio.to_thread(self._call, text, src, dst), TRANSLATE_TIMEOUT_S
             )
         except (BotoCoreError, ClientError, KeyError) as exc:

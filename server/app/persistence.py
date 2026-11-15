@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from app.constants import DDB_TIMEOUT_S
 from app.logging_setup import log_event
+from app.rooms import wait_for
 
 if TYPE_CHECKING:
     from app.rooms import Room
@@ -63,7 +64,7 @@ class DynamoPersister:
         from botocore.exceptions import BotoCoreError, ClientError
 
         try:
-            await asyncio.wait_for(asyncio.to_thread(self._put, item), DDB_TIMEOUT_S)
+            await wait_for(asyncio.to_thread(self._put, item), DDB_TIMEOUT_S)
         except (BotoCoreError, ClientError, TimeoutError, OSError) as exc:
             log_event(log, "persist_fail", level=logging.WARNING, err=repr(exc))
 

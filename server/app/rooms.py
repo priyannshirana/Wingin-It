@@ -79,6 +79,26 @@ class Clock(Protocol):
     async def wait(self, aw: Awaitable[T], timeout_s: float) -> T: ...
 
 
+async def wait_for(aw: Awaitable[T], timeout_s: float) -> T:
+    """`asyncio.wait_for` with Python 3.12+ semantics on 3.11 too.
+
+    3.11's `wait_for` runs the awaitable in an extra Task and, when cancelled just as that
+    Task finishes, returns its result and swallows the cancellation (bpo-42130): a cancelled
+    feeder then keeps running forever. 3.12 rewrote it on `asyncio.timeout`; this is that code.
+    """
+    if timeout_s <= 0:
+        fut = asyncio.ensure_future(aw)
+        if fut.done():
+            return fut.result()
+        fut.cancel()
+        try:
+            return await fut
+        except asyncio.CancelledError as exc:
+            raise TimeoutError from exc
+    async with asyncio.timeout(timeout_s):
+        return await aw
+
+
 class RealClock:
     """Wall/monotonic time and the running asyncio loop's timers."""
 
@@ -92,7 +112,7 @@ class RealClock:
         return asyncio.get_running_loop().call_later(max(0.0, delay_s), cb)
 
     async def wait(self, aw: Awaitable[T], timeout_s: float) -> T:
-        return await asyncio.wait_for(aw, timeout_s)
+        return await wait_for(aw, timeout_s)
 
 
 # ---------------------------------------------------------------------------- rate limits

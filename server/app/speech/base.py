@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict
 from app.language.lexicon import Match
 from app.language.normalize import Token
 from app.protocol import Lang, Role, Segment
+from app.rooms import wait_for
 
 
 class WordItem(BaseModel):
@@ -114,7 +115,7 @@ async def run_feeder(
 ) -> None:
     """Open the session, then feed queued frames in order until the sentinel."""
     try:
-        tx.session = await asyncio.wait_for(factory(tx.lang, on_partial), SESSION_OPEN_TIMEOUT_S)
+        tx.session = await wait_for(factory(tx.lang, on_partial), SESSION_OPEN_TIMEOUT_S)
     except (SpeechError, TimeoutError, OSError) as exc:
         tx.failed = repr(exc)
         return
@@ -132,11 +133,11 @@ async def finish_transmission(tx: Transmission, timeout_s: float) -> TranscriptR
         deadline = asyncio.get_running_loop().time() + timeout_s
         if tx.feeder is not None:
             remaining = max(0.0, deadline - asyncio.get_running_loop().time())
-            await asyncio.wait_for(tx.feeder, remaining)
+            await wait_for(tx.feeder, remaining)
         if tx.session is None:
             return TranscriptResult(transcript="", items=[], ok=False, error=tx.failed)
         remaining = max(0.0, deadline - asyncio.get_running_loop().time())
-        return await asyncio.wait_for(tx.session.finish(remaining), remaining + 0.5)
+        return await wait_for(tx.session.finish(remaining), remaining + 0.5)
     except (SpeechError, TimeoutError, OSError) as exc:
         return TranscriptResult(transcript="", items=[], ok=False, error=repr(exc))
 
@@ -148,4 +149,4 @@ async def abort_transmission(tx: Transmission) -> None:
         tx.feeder.cancel()
     if tx.session is not None:
         with contextlib.suppress(SpeechError, TimeoutError, OSError):
-            await asyncio.wait_for(tx.session.abort(), SESSION_OPEN_TIMEOUT_S)
+            await wait_for(tx.session.abort(), SESSION_OPEN_TIMEOUT_S)

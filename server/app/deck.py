@@ -20,7 +20,7 @@ from app.protocol import (
     PhaseStatsOut,
     Stats,
 )
-from app.rooms import Player, Room, send
+from app.rooms import Player, Room, send, wait_for
 
 log = logging.getLogger("wingin.deck")
 
@@ -214,7 +214,7 @@ class BedrockReporter:
         from botocore.exceptions import BotoCoreError, ClientError
 
         try:
-            return await asyncio.wait_for(asyncio.to_thread(self._call, prompt), BEDROCK_TIMEOUT_S)
+            return await wait_for(asyncio.to_thread(self._call, prompt), BEDROCK_TIMEOUT_S)
         except (BotoCoreError, ClientError, KeyError, IndexError, TypeError) as exc:
             raise ReportError(repr(exc)) from exc
 

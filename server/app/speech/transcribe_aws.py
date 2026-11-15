@@ -18,6 +18,7 @@ from app.config import Settings
 from app.constants import SAMPLE_RATE
 from app.logging_setup import log_event
 from app.protocol import Lang
+from app.rooms import wait_for
 from app.speech.base import (
     PartialCallback,
     SessionFactory,
@@ -127,9 +128,7 @@ class AwsSession:
     async def start(self) -> None:
         client = TranscribeStreamingClient(region=self.settings.aws_region)
         kwargs = stream_kwargs(self.settings, self.lang)
-        self.stream = await asyncio.wait_for(
-            client.start_stream_transcription(**kwargs), START_TIMEOUT_S
-        )
+        self.stream = await wait_for(client.start_stream_transcription(**kwargs), START_TIMEOUT_S)
         self.handler = Handler(self.stream.output_stream, self.on_partial)
         self.reader = asyncio.create_task(self.handler.run())
 
@@ -137,7 +136,7 @@ class AwsSession:
         if self.stream is None or self.error:
             return
         try:
-            await asyncio.wait_for(
+            await wait_for(
                 self.stream.input_stream.send_audio_event(audio_chunk=pcm), FEED_TIMEOUT_S
             )
         except STREAM_ERRORS as exc:
@@ -150,10 +149,10 @@ class AwsSession:
             # Use a single deadline for the entire finish sequence.
             deadline = asyncio.get_running_loop().time() + timeout_s
             remaining = max(0.0, deadline - asyncio.get_running_loop().time())
-            await asyncio.wait_for(self.stream.input_stream.end_stream(), remaining)
+            await wait_for(self.stream.input_stream.end_stream(), remaining)
             remaining = max(0.0, deadline - asyncio.get_running_loop().time())
             with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(asyncio.shield(self.reader), remaining)
+                await wait_for(asyncio.shield(self.reader), remaining)
             if self.reader.done() and not self.reader.cancelled():
                 failure = self.reader.exception()
                 if failure is not None:
@@ -182,7 +181,7 @@ class AwsSession:
     async def abort(self) -> None:
         if self.stream is not None:
             with contextlib.suppress(*STREAM_ERRORS):
-                await asyncio.wait_for(self.stream.input_stream.end_stream(), END_TIMEOUT_S)
+                await wait_for(self.stream.input_stream.end_stream(), END_TIMEOUT_S)
         if self.reader is not None and not self.reader.done():
             self.reader.cancel()
 

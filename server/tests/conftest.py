@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import heapq
 import itertools
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 import orjson
 import pytest
@@ -22,6 +23,7 @@ from app.rooms import Connection, Registry, Room, Services, on_disconnect
 
 CONTENT_DIR = Path(__file__).resolve().parents[2] / "content"
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 # ------------------------------------------------------------------------------ fake clock
@@ -84,6 +86,24 @@ class FakeClock:
 
     def pending(self) -> int:
         return sum(1 for t in self._heap if not t.cancelled)
+
+
+class InlineExecutor(concurrent.futures.ThreadPoolExecutor):
+    """`asyncio.to_thread` work (fake boto3 clients) runs inline: done one loop hop later.
+
+    With real worker threads, whether a fake Bedrock reply lands within `settle()` depends
+    on OS thread scheduling — a race on a loaded CI runner.
+    """
+
+    def submit(  # type: ignore[override]
+        self, fn: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs
+    ) -> concurrent.futures.Future[T]:
+        fut: concurrent.futures.Future[T] = concurrent.futures.Future()
+        try:
+            fut.set_result(fn(*args, **kwargs))
+        except Exception as exc:
+            fut.set_exception(exc)
+        return fut
 
 
 # ----------------------------------------------------------------------------- fake socket
@@ -421,6 +441,7 @@ def make_room(harness_factory: Callable[..., Harness]) -> Iterator[MakeRoom]:
         start: bool = True,
         **settings: Any,
     ) -> Table:
+        asyncio.get_running_loop().set_default_executor(InlineExecutor())
         h = harness_factory(**settings)
         room = h.make(demo=demo, mock=mock, seed=seed)
         if force:
