@@ -114,7 +114,7 @@ describe("decode eligibility (§F13)", () => {
 });
 
 describe("decode → reveal → collapse to 'show' (§F13)", () => {
-  it("click sends one lifeline, spins, reveals for 6 s, then collapses to a free 'show'", () => {
+  it("click sends one lifeline, spins, pins the reveal, and once unpinned offers a free 'show'", () => {
     vi.useFakeTimers();
     phase3("flyer", "en");
     partnerLines(1);
@@ -143,6 +143,12 @@ describe("decode → reveal → collapse to 'show' (§F13)", () => {
     act(() => {
       vi.advanceTimersByTime(200);
     });
+    // Pinned: the translation outlives the 6 s reveal window until dismissed.
+    expect(screen.getByTestId("translation")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("unpin"));
+    act(() => {
+      vi.advanceTimersByTime(10); // the expired reveal collapses at once
+    });
     expect(screen.queryByTestId("translation")).toBeNull();
     const show = screen.getByTestId("lifeline-show");
     expect(show.textContent).toBe("show");
@@ -150,10 +156,7 @@ describe("decode → reveal → collapse to 'show' (§F13)", () => {
     fireEvent.click(show);
     expect(screen.getByTestId("translation").textContent).toBe("Which light is on?");
     expect(sent).toHaveLength(1); // re-opening is client-side only
-    act(() => {
-      vi.advanceTimersByTime(TRANSLATION_REVEAL_MS + 10);
-    });
-    expect(screen.getByTestId("lifeline-show")).toBeTruthy();
+    expect(screen.getByTestId("pin-marker")).toBeTruthy(); // re-opened = pinned again
   });
 
   it("a Hindi player's translation renders in Devanagari with lang=hi", () => {
@@ -289,5 +292,48 @@ describe("Lifelines dots + hint (§F13)", () => {
     act(() => useStore.getState().setCue("lifeline_dots_pop", true));
     render(<Lifelines />);
     expect(screen.getAllByTestId("lifeline-dot")[0]?.className).toContain("animate-pop");
+  });
+});
+
+describe("pinned lifelined line (§F13)", () => {
+  const decode = (id: string) => {
+    receive({
+      type: "translation",
+      utterance_id: id,
+      text: `tr-${id}`,
+      lang: "en",
+      lifelines_left: 2,
+    });
+  };
+
+  it("keeps the lifelined line and its translation pinned while newer lines arrive", () => {
+    phase3("tower", "hi");
+    partnerLines(1, "flyer");
+    render(<Subtitles stack={3} fontSize={20} />);
+    decode("u0");
+    for (const id of ["a", "b", "c", "d"]) {
+      receive(
+        utterance({ id, speaker_role: "flyer", segments: [{ text: `x #${id}`, kind: "plain" }] }),
+      );
+    }
+    expect(screen.getByTestId("pin-marker").textContent).toContain("पिन किया");
+    expect(screen.getByTestId("translation").textContent).toBe("tr-u0");
+    expect(screen.getAllByTestId("subtitle-line")).toHaveLength(3);
+    // another lifeline replaces it
+    decode("d");
+    expect(screen.getByTestId("translation").textContent).toBe("tr-d");
+  });
+
+  it("unpins on the x button and when the next step starts", () => {
+    phase3("flyer", "en");
+    partnerLines(2);
+    render(<Subtitles stack={3} fontSize={26} />);
+    decode("u0");
+    fireEvent.click(screen.getByTestId("unpin"));
+    expect(screen.queryByTestId("pin-marker")).toBeNull();
+    decode("u1");
+    expect(screen.getByTestId("pin-marker")).toBeTruthy();
+    receive(gameState({ phase: 3, lifelines_enabled: true, action_id: "P3_A2", action_index: 1 }));
+    expect(screen.queryByTestId("pin-marker")).toBeNull();
   });
 });

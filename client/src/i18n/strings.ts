@@ -131,6 +131,8 @@ export const STRINGS = {
   "sub.tag_tower": { en: "TOWER", hi: "टावर" },
   "sub.you": { en: "You:", hi: "आप:" },
   "lifeline.hint": { en: "Tap a subtitle to decode it", hi: "अनुवाद देखने के लिए सबटाइटल पर टैप करो" },
+  "sub.pinned": { en: "Pinned", hi: "पिन किया" },
+  "sub.unpin": { en: "Unpin this line", hi: "यह लाइन हटाओ" },
   "lifeline.show": { en: "show", hi: "दिखाओ" },
   "lifeline.decoding": { en: "Decoding…", hi: "अनुवाद हो रहा है…" },
   "cin.skip": { en: "Skip", hi: "छोड़ो" },

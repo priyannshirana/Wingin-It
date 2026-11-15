@@ -1662,6 +1662,7 @@ For the three big story moments (**takeoff** in the prologue, the **landing**, a
 - Lifeline dots: 3 circles, filled = remaining (`game.lifelines[me.role]`).
 - A subtitle is **decodable** when `lifeline_available` is true, it is one of the partner's last 3 lines, and it isn't already revealed. Hover shows a small "decode" icon and cursor; click → `{type: "lifeline", utterance_id}` and show `lifeline.decoding` under the line (spinner, up to ~3 s).
 - On `translation`: show `text` under that line (Baloo 2, 0.8 em, cream on dark, Devanagari for a Hindi player) for `TRANSLATION_REVEAL_MS` (6 s), then collapse it to a small `lifeline.show` link that re-opens it for free (client-side; no message).
+- **Pin (decided):** a lifelined line stays pinned (with its translation) at the top of the stack until dismissed (✕), the next step, or another lifeline.
 - With 0 lifelines left: clicks show `toast.no_lifelines`. On error `translation_failed`: clear the spinner and toast (the server didn't spend the lifeline).
 
 **My own speech:** `partial` (live caption while transmitting) and `echo` ("You: …" for 3 s) render above the stack in grey; no chips.

@@ -15,17 +15,20 @@ interface Props {
   fontSize: number;
   /** A line that just left the stack: drawn once more while it fades, never interactive. */
   leaving?: boolean;
+  /** The pinned lifelined line (§F13): translation stays open, small unpin button. */
+  onUnpin?: () => void;
 }
 
 /**
  * One partner line (§F13): a dark rounded bar with the speaker's portrait (in their gender), the
  * tag pill and the segments. In phase 3 a decodable line is clickable (one lifeline).
  */
-export function SubtitleRow({ item, opacity, fontSize, leaving = false }: Props) {
+export function SubtitleRow({ item, opacity, fontSize, leaving = false, onUnpin }: Props) {
   const t = useT();
   const lang = useStore(selectLang);
   const gender = useStore((s) => selectGenderOf(s, item.speaker_role)) ?? "male";
   const pending = useStore((s) => s.translations[item.id]?.pending === true);
+  const translation = useStore((s) => s.translations[item.id]);
   const revealed = useStore((s) => {
     const tr = s.translations[item.id];
     return tr !== undefined && !tr.pending && tr.openedAt !== 0;
@@ -55,17 +58,51 @@ export function SubtitleRow({ item, opacity, fontSize, leaving = false }: Props)
           <SubtitleLine
             segments={item.segments}
             lead={
-              <span
-                lang={lang}
-                data-testid="speaker-tag"
-                className="mr-2 inline-block rounded-md bg-slate px-1.5 py-[3px] align-[0.2em] font-display text-[11px] leading-none font-extrabold tracking-wider whitespace-nowrap text-cream/80 uppercase"
-              >
-                {t(item.speaker_role === "flyer" ? "sub.tag_flyer" : "sub.tag_tower")}
-              </span>
+              <>
+                {onUnpin && (
+                  <span
+                    data-testid="pin-marker"
+                    lang={lang}
+                    className="mr-2 inline-block rounded-md bg-gloss/90 px-1.5 py-[3px] align-[0.2em] font-display text-[11px] leading-none font-extrabold whitespace-nowrap text-night"
+                  >
+                    📌 {t("sub.pinned")}
+                  </span>
+                )}
+                <span
+                  lang={lang}
+                  data-testid="speaker-tag"
+                  className="mr-2 inline-block rounded-md bg-slate px-1.5 py-[3px] align-[0.2em] font-display text-[11px] leading-none font-extrabold tracking-wider whitespace-nowrap text-cream/80 uppercase"
+                >
+                  {t(item.speaker_role === "flyer" ? "sub.tag_flyer" : "sub.tag_tower")}
+                </span>
+              </>
             }
           />
-          {!leaving && <LifelineNote id={item.id} stale={stale} />}
+          {onUnpin
+            ? translation &&
+              !translation.pending && (
+                <p
+                  data-testid="translation"
+                  lang={lang}
+                  className="mt-1.5 rounded-xl bg-night/80 px-2.5 py-1 font-display text-[0.8em] leading-snug text-cream"
+                >
+                  {translation.text}
+                </p>
+              )
+            : !leaving && <LifelineNote id={item.id} stale={stale} />}
         </div>
+        {onUnpin && (
+          <button
+            type="button"
+            data-testid="unpin"
+            aria-label={t("sub.unpin")}
+            title={t("sub.unpin")}
+            className="pointer-events-auto flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/10 text-[13px] leading-none text-cream hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-gloss"
+            onClick={onUnpin}
+          >
+            ✕
+          </button>
+        )}
         {decodable && (
           <>
             <DecodeIcon />

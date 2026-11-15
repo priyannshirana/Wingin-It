@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { ECHO_MS } from "../config";
 import { useT } from "../i18n/useT";
-import { useStore } from "../state/store";
+import { useStore, type SubtitleItem } from "../state/store";
 import { SubtitleRow } from "./subtitles/SubtitleRow";
 import { useLeavingItems } from "./subtitles/useLeavingItems";
 import "./subtitles/subtitles.css";
@@ -23,7 +23,14 @@ const OLDER_SCALE = 0.8;
 // The partner's subtitle stack (§F13), newest at the bottom, plus my own partial / echo above.
 // One component for both screens: the Flyer passes stack 3 / 26 px, the Tower stack 5 / 20 px.
 export function Subtitles({ stack, fontSize }: Props) {
-  const items = useStore(useShallow((s) => s.subtitles.slice(-stack)));
+  const all = useStore((s) => s.subtitles);
+  const { pinned, unpin } = usePinnedLine(all);
+  // A pinned line takes one slot of the rolling stack so the block never grows taller.
+  const rollN = pinned ? stack - 1 : stack;
+  const items = useMemo(
+    () => all.filter((i) => i.id !== pinned?.id).slice(-rollN),
+    [all, pinned, rollN],
+  );
   const glitch = useStore((s) => s.cues.subtitle_glitch === true);
   const leaving = useLeavingItems(items);
   const opacities = OPACITY[stack].slice(-items.length);
@@ -34,6 +41,15 @@ export function Subtitles({ stack, fontSize }: Props) {
       data-testid="subtitles"
     >
       <MyLine />
+      {pinned && (
+        <SubtitleRow
+          key={`pin-${pinned.id}`}
+          item={pinned}
+          opacity={1}
+          fontSize={older}
+          onUnpin={unpin}
+        />
+      )}
       <div className="relative flex flex-col gap-2">
         {leaving.map((item) => (
           <div
@@ -80,4 +96,39 @@ function MyLine() {
     );
   }
   return null;
+}
+
+/**
+ * §F13: the most recently lifelined line stays pinned (local UI state) until dismissed, the next
+ * step starts, or another line is lifelined. History-restored translations (openedAt 0) don't pin.
+ */
+function usePinnedLine(all: SubtitleItem[]) {
+  const openedId = useStore((s) => {
+    let best: string | null = null;
+    let at = 0;
+    for (const [id, tr] of Object.entries(s.translations)) {
+      if (!tr.pending && tr.openedAt > at) {
+        at = tr.openedAt;
+        best = id;
+      }
+    }
+    return best === null ? null : `${best}@${at}`;
+  });
+  const actionId = useStore((s) => s.game?.action_id ?? null);
+  const [pin, setPin] = useState<{ item: SubtitleItem; key: string } | null>(null);
+  const [lastKey, setLastKey] = useState<string | null>(null);
+  const [lastAction, setLastAction] = useState(actionId);
+
+  // Derived-during-render updates (React's "adjust state on prop change" pattern).
+  if (openedId !== lastKey) {
+    setLastKey(openedId);
+    const id = openedId?.split("@")[0];
+    const item = all.find((i) => i.id === id) ?? (pin?.item.id === id ? pin?.item : undefined);
+    if (openedId !== null && item) setPin({ item, key: openedId });
+  }
+  if (actionId !== lastAction) {
+    setLastAction(actionId);
+    if (pin) setPin(null);
+  }
+  return { pinned: pin?.item ?? null, unpin: () => setPin(null) };
 }
