@@ -47,7 +47,7 @@ This is the complete brief for the **Python game server and the content pipeline
 
 ## A1. Product in one paragraph
 
-**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** sits in a first-person 3D toy cockpit. A **Tower** has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** sits in a first-person 3D toy cockpit. A **Tower** has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 160 s fuel), **Engine Fire** (Pedestal, 6 actions, 165 s), **Storm Landing** (Front panel, 8 actions, 195 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
 
 **Presentation is 3D-first and cinematic.** The Flyer's whole experience is a real-time 3D toy world with scripted camera cinematics between and inside phases; the Tower's 2D screen plays synchronized 2D cinematic beats on the same server clock. The server's job is to cue them exactly (`cinematic`, `fx`, `World`); the client's job is to make every cued frame look great (Frontend §F0).
 
@@ -554,7 +554,7 @@ interface DevState { type: "dev_state";
 | `GLOSS_THRESHOLD` | 2 (env) | Phase 2 gloss rule |
 | `SUBTITLES_FLYER` / `SUBTITLES_TOWER` | 3 / 5 | Visible subtitle stack size |
 | `LIFELINE_WINDOW` | 3 | Lifelines may target the partner's last 3 utterances |
-| Fuel per phase | 150 / 150 / 180 s (demo 300) | |
+| Fuel per phase | 160 / 165 / 195 s (demo 300) | |
 
 ## A15. Error codes
 
@@ -570,7 +570,7 @@ Clients map each code to a localized toast (Frontend §F7). The server's `messag
 both: join {name, role, lang, gender}, ready → server: room_state(can_start) → status PROLOGUE
 server → both: game_state{status:PROLOGUE}, cinematic{prologue}
 (28 s, demo 12 s, or double skip) → PHASE_INTRO(1): game_state, cinematic{p1_intro}, manual_card{null}
-(1.2 s) → PLAYING(1): world = phase-1 start; flyer_view; game_state{fuel 150, draining}
+(1.2 s) → PLAYING(1): world = phase-1 start; flyer_view; game_state{fuel 160, draining}
 → activate P1_A1 (see below)
 ```
 
@@ -643,7 +643,7 @@ socket closes mid-game → status PAUSED (paused_from = previous), fuel frozen, 
 → other player: room_state, game_state{PAUSED}, toast partner_left
 same player joins with token within 60 s → previous state resumes
    (if a cinematic was running, it is completed instantly: end state applied, state advances)
-60 s pass → game abandoned → room back to LOBBY, the absent slot freed, toast partner_gone
+60 s pass → the server closes the room (WebSocket close 1000, reason `partner_gone`)
 ```
 
 **End**
@@ -862,7 +862,7 @@ Read once at startup into a frozen `Settings` object (pydantic-settings or plain
 | `LOG_LEVEL` | `INFO` | |
 | `ROOM_IDLE_TTL_S` | `1800` | Delete a room this long after its last connection closes. |
 | `MAX_ROOMS` | `50` | `POST /api/rooms` returns 503 above this. |
-| `LOBBY_IDLE_S` / `ROOM_MAX_AGE_S` | `900` / `3600` | Close a room idle in LOBBY this long / any room this old (§B22). |
+| `ROOM_MAX_AGE_S` | `3600` | Close any room this old (§B22). |
 | `ROOMS_PER_IP` / `ROOMS_WINDOW_S` | `10` / `600` | `POST /api/rooms` per IP per window; over it: 429 `{"error":"rate_limited"}`. |
 | `WS_PER_IP` | `6` | Concurrent WebSockets per IP; over it the handshake is closed with 1008. |
 | `ROOM_GETS_PER_MIN_PER_IP` | `60` | `GET /api/rooms/{code}` per IP per minute (429). |
@@ -1253,7 +1253,7 @@ Step  = {object, verb, value?: "on"|"off", count?: int (default 1)}
 {
   "phase": 1, "id": "pilot_down",
   "name": {"en": "Pilot Down", "hi": "पायलट बेहोश"},
-  "station": "overhead", "fuel_s": 150, "signal": "strong",
+  "station": "overhead", "fuel_s": 160, "signal": "strong",
   "phase_vars": [],
   "actions": [
     {
@@ -1379,7 +1379,7 @@ Step  = {object, verb, value?: "on"|"off", count?: int (default 1)}
 {
   "phase": 2, "id": "engine_fire",
   "name": {"en": "Engine Fire", "hi": "इंजन में आग"},
-  "station": "pedestal", "fuel_s": 150, "signal": "weak",
+  "station": "pedestal", "fuel_s": 165, "signal": "weak",
   "phase_vars": [
     {"var": "FIRE_SIDE", "roll_at": "phase_start",
      "options": [{"value": "LEFT",  "weight": 1, "lamps": {"PD_FIRE_LAMP_L": "red"}, "world": {"fire_side": "left"}},
@@ -1497,7 +1497,7 @@ Step  = {object, verb, value?: "on"|"off", count?: int (default 1)}
 {
   "phase": 3, "id": "storm_landing",
   "name": {"en": "Storm Landing", "hi": "तूफ़ान में लैंडिंग"},
-  "station": "front", "fuel_s": 180, "signal": "lost",
+  "station": "front", "fuel_s": 195, "signal": "lost",
   "phase_vars": [
     {"var": "GEAR_OK", "roll_at": "effect",
      "options": [{"value": "YES", "weight": 1, "lamps": {"FP_GEAR_LAMP_1": "green", "FP_GEAR_LAMP_2": "green", "FP_GEAR_LAMP_3": "green"}},
@@ -1885,8 +1885,8 @@ Build it per role from `game` (identical for both roles: it contains no secrets)
 - `on_disconnect(player)`: mark disconnected. If status ∈ {PROLOGUE, PHASE_INTRO, PLAYING, PHASE_OUTRO, ENDING, CRASH} → `paused_from = status`, `status = PAUSED`, `gen += 1` (freezes every timer), `fuel.pause()`, release the radio channel if they held it (abort their Transcribe stream), toast `toast.partner_left` to the other player. Schedule `abandon()` after 60 s (guarded by a separate pause token).
 - If a cinematic was running when the pause began, remember it. **On resume** it is completed instantly (its `finish()` runs, applying the end state) **[ASSUMPTION]**. If the paused state was PLAYING with an active action, the action stays active and its partial press counts are reset. Any pending 1.5 s "next action" gap restarts in full.
 - Resume when every human player is connected again: `status = paused_from`, `fuel.resume()` if PLAYING, broadcast `game_state`, toast `toast.partner_back`.
-- `abandon()`: the game is dropped (persist nothing), `status = LOBBY`, the absent player removed, the present one set to not ready, toast `toast.partner_gone`.
-- In LOBBY and DECK a disconnect only marks the player disconnected; after 60 s the slot is freed. A slot freed in DECK also ends the finished game like `abandon()` (nothing more is persisted: the game was saved at ENDING): `status = LOBBY`, deck votes cleared, the remaining player set to not ready, `room_state` + `game_state` broadcast, toast `toast.partner_gone`. A new partner can then join the empty seat and both readying starts a new `Game` with a new seed.
+- `abandon()` (the 60 s timer): if at most one human is still connected, the room is closed right then (`gen` bumped, tasks cancelled, sockets closed 1000 with reason `partner_gone`, removed from the registry; the same mechanism as §B22). Nothing is persisted.
+- In LOBBY and DECK a disconnect only marks the player disconnected; after 60 s, with at most one human connected, the room is closed like `abandon()` (reason `partner_gone`). The game was already saved at ENDING.
 
 ### B8.5 Play again / swap roles (DECK only)
 
@@ -2521,7 +2521,7 @@ Test helpers (`conftest.py`): `FakeClock` (patches `monotonic` and the scheduler
 | `test_lifelines.py` | 3 per player in phase 3; refused in phases 1–2 and at 0; only the partner's last 3 utterances; decremented only when a translation is delivered; failure → `translation_failed` and not decremented; a second request on the same utterance is free |
 | `test_privacy.py` | play complete games (bots, every path, both seeds) and assert: no Tower message has type `flyer_view`/`object_state`; no Tower `cinematic.params` contains `fire_side`/`stopped_side`/`damaged_side`; no Tower `game_state`/`fx`/`toast` contains a rolled value; no Flyer message has type `manual_card` or contains any branch line text; `dev_state` is never sent with `DEV_MODE=0` |
 | `test_manual.py` | rule labels: "हरा बटन तीन बार दबाओ", "दो नंबर स्विच चालू करो", "बायाँ लाल लीवर खींचो"; English equivalents; count shown when siblings differ (B3 NO "लाल बटन एक बार दबाओ"); keywords highlighted, no glosses; `quick_say` present only in mock/dev |
-| `test_state_machine.py` | `join` without a valid `gender` is rejected (`bad_message`); `gender` appears in `room_state` and survives rejoin, play again and swap roles; LOBBY → PROLOGUE only with both ready and different languages; full sequence of states and cinematic ids; double skip; crash/retry; pause/resume within 60 s; abandon after 60 s; play again; swap roles keeps languages |
+| `test_state_machine.py` | `join` without a valid `gender` is rejected (`bad_message`); `gender` appears in `room_state` and survives rejoin, play again and swap roles; LOBBY → PROLOGUE only with both ready and different languages; full sequence of states and cinematic ids; double skip; crash/retry; pause/resume within 60 s; abandon after 60 s closes the room; play again; swap roles keeps languages |
 | `test_full_game_bots.py` | for every combination of variable values (forced) **and both language pairings** (Flyer en/Tower hi and Flyer hi/Tower en), bots finish the whole game; segments are Latin for both listeners, glosses are in the listener's language, the manual card is in the Tower's language; the deck is produced; mission report falls back to the template |
 | `test_mock_translate.py` | every authored line translates to its counterpart in both directions; the keyword-substitution fallback |
 | `test_deck.py` | learned = understood ≥ 1 or spoken ≥ 1; ordering; Hindi meanings in Devanagari; clips cut with padding and a valid WAV header |
@@ -2650,5 +2650,5 @@ Backend-only; no new wire messages. All numbers are env settings (§B3), in-memo
 - **Client IP.** Caddy sets `X-Forwarded-For`; uvicorn runs with `--proxy-headers --forwarded-allow-ips <docker private ranges>`, so `request.client.host` is the visitor and a direct hit cannot spoof it.
 - **Per IP.** Sliding windows: `POST /api/rooms` (429 `{"error":"rate_limited"}`), `GET /api/rooms/{code}` (429). Concurrent WebSockets are capped; over the cap the handshake is closed with 1008.
 - **Per connection.** Text token bucket 20 burst / 10 per s (§B17). Audio frames: bucket of 20 per s (2x real time of 10 frames/s), checked for every binary frame. Every rejected frame is a strike; 60 strikes within 5 s send `rate_limited` then close 1008.
-- **Rooms.** Max rooms 50. `Registry.sweep` (every 60 s) also closes a room idle in LOBBY for `LOBBY_IDLE_S` (no non-ping message or connect) and any room older than `ROOM_MAX_AGE_S`: `gen` bumped, tasks cancelled, sockets closed 1000 with reason `lobby_idle` / `room_expired`.
+- **Rooms.** Max rooms 50. `Registry.sweep` (every 60 s) also closes any room older than `ROOM_MAX_AGE_S`: `gen` bumped, tasks cancelled, sockets closed 1000 with reason `room_expired`.
 - **Daily AWS caps (UTC day, reset at midnight).** Transcribe: total streamed seconds (each transmission's duration) per day and per room; past a cap `ptt_start` returns error `transcribe_failed` (client shows its normal "didn't catch" toast; typed `say_text` still works where allowed). Translate: past the cap lifelines/deck translation use the authored-line (mock) translator only. Bedrock: past the cap the player gets the template report. A WARNING `daily_cap_hit` is logged once per cap per day.

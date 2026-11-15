@@ -1400,9 +1400,11 @@ def maybe_resume(room: Room) -> None:
 
 
 def abandon(room: Room) -> None:
-    """60 s without the partner: drop the game, back to LOBBY (§B8.4)."""
+    """60 s without the partner: close the room (§B8.4); else drop the game, back to LOBBY."""
     g = room.game
     if room.status != "PAUSED":
+        return
+    if room.close_if_partner_gone():
         return
     from app import bots
 

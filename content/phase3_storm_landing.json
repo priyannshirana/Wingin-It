@@ -1,7 +1,7 @@
 {
   "phase": 3, "id": "storm_landing",
   "name": {"en": "Storm Landing", "hi": "तूफ़ान में लैंडिंग"},
-  "station": "front", "fuel_s": 180, "signal": "lost",
+  "station": "front", "fuel_s": 195, "signal": "lost",
   "phase_vars": [
     {"var": "GEAR_OK", "roll_at": "effect",
      "options": [{"value": "YES", "weight": 1, "lamps": {"FP_GEAR_LAMP_1": "green", "FP_GEAR_LAMP_2": "green", "FP_GEAR_LAMP_3": "green"}},

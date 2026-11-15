@@ -23,7 +23,7 @@ GLOSS_THRESHOLD_DEFAULT: Final = 2
 SUBTITLES_FLYER: Final = 3
 SUBTITLES_TOWER: Final = 5
 LIFELINE_WINDOW: Final = 3
-FUEL_PER_PHASE_S: Final = {1: 150, 2: 150, 3: 180}
+FUEL_PER_PHASE_S: Final = {1: 160, 2: 165, 3: 195}
 DEMO_FUEL_S: Final = 300
 
 # Server-side derived values (§B7, §B8, §B10, §B13, §B16, §B17)

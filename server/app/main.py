@@ -348,7 +348,7 @@ async def _websocket_session(ws: WebSocket, raw_code: str, s: Settings, registry
 def on_connect(room: Room, conn: Connection) -> None:
     """Handshake: spectator until `join`; welcome + room_state (§A5)."""
     room.spectators.add(conn)
-    room.last_activity = room.last_input = room.clock.monotonic()
+    room.last_activity = room.clock.monotonic()
     send_conn(
         conn,
         Welcome(
@@ -418,7 +418,7 @@ async def handle_text(room: Room, conn: Connection, raw: str) -> None:
 
 def dispatch(room: Room, conn: Connection, msg: C2S) -> None:
     """Route a parsed message to its module (lock held, no awaits)."""
-    room.last_activity = room.last_input = room.clock.monotonic()
+    room.last_activity = room.clock.monotonic()
     if isinstance(msg, JoinMsg):
         handle_join(room, conn, msg)
         return

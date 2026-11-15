@@ -308,7 +308,7 @@ class Room:
     last_utterance: Utterance | None = None
     pending_force: dict[str, str] = field(default_factory=dict)
     transmission: Transmission | None = None
-    last_input: float = 0.0  # last non-ping client message or connect (lobby idle expiry, §B22)
+    closer: Callable[[str], None] | None = None  # set by Registry.create: close this room
     transcribe_s: float = 0.0  # Transcribe seconds used by this room (§B22)
 
     # --------------------------------------------------------------- timers (§B1)
@@ -418,6 +418,14 @@ class Room:
     def humans_connected(self) -> bool:
         humans = [p for p in self.players.values() if p.human]
         return all(p.conn is not None for p in humans)
+
+    def close_if_partner_gone(self) -> bool:
+        """60 s grace over with at most one human connected: close the room (§B8.4)."""
+        connected = sum(1 for p in self.players.values() if p.human and p.conn is not None)
+        if connected > 1 or self.closer is None:
+            return False
+        self.closer("partner_gone")
+        return True
 
     def any_human_connected(self) -> bool:
         return any(p.conn is not None for p in self.players.values() if p.human) or bool(
@@ -678,6 +686,8 @@ def on_disconnect(room: Room, conn: Connection) -> None:
 
     def free_slot() -> None:
         if p.conn is None and p.disconnected_at == stamp and room.status in ("LOBBY", "DECK"):
+            if room.close_if_partner_gone():
+                return
             if room.players.get(p.role) is p:
                 del room.players[p.role]
                 room.deck_votes.pop(p.role, None)  # a freed seat keeps no deck vote (§B8.5)
@@ -732,9 +742,13 @@ class Registry:
             voice=bool(voice),
             seed_override=seed,
             last_activity=self.svc.clock.monotonic(),
-            last_input=self.svc.clock.monotonic(),
         )
         self.rooms[room.code] = room
+
+        def _close(reason: str) -> None:
+            self.close_room(room, reason)
+
+        room.closer = _close
         log_event(
             log,
             "room_created",
@@ -749,7 +763,7 @@ class Registry:
         return self.rooms.get(code.upper())
 
     def sweep(self) -> list[str]:
-        """Delete expired rooms (§B7, §B22): no human for the idle TTL, idle lobby, or too old."""
+        """Delete expired rooms (§B7, §B22): no human for the idle TTL, or too old."""
         now = self.svc.clock.monotonic()
         cfg = self.svc.settings
         gone = []
@@ -757,8 +771,6 @@ class Registry:
             reason: str | None = None
             if now - room.created_at >= cfg.room_max_age_s:
                 reason = "room_expired"
-            elif room.status == "LOBBY" and now - room.last_input >= cfg.lobby_idle_s:
-                reason = "lobby_idle"
             elif room.any_human_connected():
                 room.last_activity = now
                 continue

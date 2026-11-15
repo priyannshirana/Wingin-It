@@ -101,31 +101,11 @@ async def test_audio_frames_beyond_double_real_time_dropped(make_room: MakeRoom)
     assert [m for m in t.flyer.of("error") if m["code"] == "rate_limited"]
 
 
-async def test_idle_lobby_closes_after_15_minutes(make_room: MakeRoom) -> None:
-    t = await make_room(seed=1, start=False)
-    reg = t.h.registry
-    t.clock.advance(14 * 60_000)
-    assert reg.sweep() == []
-    t.clock.advance(2 * 60_000)
-    assert reg.sweep() == [t.room.code]
-    assert t.room.code not in reg.rooms
-    assert t.room.gen > 0 and not t.room.tasks
-
-
-async def test_lobby_activity_keeps_room_alive(make_room: MakeRoom) -> None:
-    t = await make_room(seed=1, start=False)
-    t.clock.advance(14 * 60_000)
-    await t.flyer.send({"type": "update_player", "name": "Pilot"})
-    t.clock.advance(14 * 60_000)
-    assert t.h.registry.sweep() == []
-
-
 async def test_room_max_age_closes_playing_room(make_room: MakeRoom) -> None:
     t = await make_room(seed=1)
     assert t.room.status != "LOBBY"
     reg = t.h.registry
     t.clock.advance(59 * 60_000)
-    t.room.last_input = t.clock.t
     assert reg.sweep() == []
     t.clock.advance(2 * 60_000)
     assert reg.sweep() == [t.room.code]

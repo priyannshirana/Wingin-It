@@ -43,7 +43,7 @@ async def test_drains_only_in_playing_without_cinematic(make_room: MakeRoom) -> 
     assert t.last("flyer", "game_state")["fuel_draining"] is False
     t.until_active()
     start = fuel(t)
-    assert start == pytest.approx(150, abs=0.2)
+    assert start == pytest.approx(160, abs=0.2)
     t.advance(2000)
     assert fuel(t) == pytest.approx(start - 2, abs=0.01)
     await t.goto_action("P1_A3")
@@ -105,7 +105,7 @@ async def test_minus_ten_per_wrong_and_crash_at_zero(make_room: MakeRoom) -> Non
 async def test_crash_when_fuel_runs_out_by_time(make_room: MakeRoom) -> None:
     t = await make_room(seed=3)
     t.until_active()
-    t.advance(151_000)
+    t.advance(161_000)
     assert t.status == "CRASH"
 
 
@@ -121,7 +121,7 @@ async def test_retry_restores_full_fuel_and_lifelines(make_room: MakeRoom) -> No
     await t.flyer.send({"type": "retry"})
     await t.tower.send({"type": "retry"})
     t.until_active()
-    assert fuel(t) == pytest.approx(180, abs=0.5)
+    assert fuel(t) == pytest.approx(195, abs=0.5)
     gs = t.last("flyer", "game_state")
     assert gs["lifelines"] == {"flyer": 3, "tower": 3} and gs["lifelines_enabled"] is True
     assert gs["action_id"] == "P3_C1" and gs["attempt"] == 2

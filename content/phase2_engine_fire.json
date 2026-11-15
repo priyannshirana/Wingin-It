@@ -1,7 +1,7 @@
 {
   "phase": 2, "id": "engine_fire",
   "name": {"en": "Engine Fire", "hi": "इंजन में आग"},
-  "station": "pedestal", "fuel_s": 150, "signal": "weak",
+  "station": "pedestal", "fuel_s": 165, "signal": "weak",
   "phase_vars": [
     {"var": "FIRE_SIDE", "roll_at": "phase_start",
      "options": [{"value": "LEFT",  "weight": 1, "lamps": {"PD_FIRE_LAMP_L": "red"}, "world": {"fire_side": "left"}},

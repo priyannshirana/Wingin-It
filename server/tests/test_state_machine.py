@@ -260,18 +260,15 @@ async def test_rejoin_during_cinematic_resends_original_start(make_room: MakeRoo
     assert t2.last("cinematic_skip")["id"] == "prologue"
 
 
-async def test_abandon_after_60s(make_room: MakeRoom) -> None:
+async def test_abandon_after_60s_closes_room(make_room: MakeRoom) -> None:
     t = await make_room(seed=3)
     t.until_active()
     await t.disconnect("flyer")
     t.advance(59_000)
     assert t.status == "PAUSED"
     t.advance(1_500)
-    assert t.status == "LOBBY"
-    assert "flyer" not in t.room.players
-    assert t.last("tower", "toast")["key"] == "toast.partner_gone"
-    assert t.room.players["tower"].ready is False
-    assert t.room.game is None
+    assert t.room.code not in t.h.registry.rooms
+    assert t.room.gen > 0 and not t.room.tasks
 
 
 async def test_play_again_new_seed_same_roles(make_room: MakeRoom) -> None:
@@ -319,69 +316,16 @@ async def test_deck_vote_switch_to_play_again_clears_swap(make_room: MakeRoom) -
     assert t.room.players["flyer"].lang == "en"
 
 
-@pytest.mark.parametrize("vote", ["play_again", "swap_roles"])
-async def test_freed_seat_drops_its_deck_vote(make_room: MakeRoom, vote: str) -> None:
-    """§B8.4/§B8.5: a freed seat keeps no vote; the partner is back in LOBBY, votes refused."""
-    t = await make_room(seed=3)
-    await play_to_deck(t)
-    await t.flyer.send({"type": vote})
-    await t.disconnect("flyer")
-    t.advance(61_000)
-    assert "flyer" not in t.room.players
-    assert t.status == "LOBBY" and t.room.game is None
-    assert t.room.deck_votes == {}
-    assert t.last("tower", "room_state")["play_again_votes"] == []
-    await t.tower.send({"type": vote})
-    assert t.last("tower", "error")["code"] == "not_allowed_now"
-    assert t.status == "LOBBY" and t.room.game is None
-    assert t.last("tower", "room_state")["play_again_votes"] == []
-
-
-async def test_bot_toggle_on_empty_seat_is_not_a_deck_vote(make_room: MakeRoom) -> None:
-    """§B8.5: after a freed seat, a bot toggle never revives the old game's deck vote."""
-    t = await make_room(seed=3)
-    await play_to_deck(t)
-    await t.disconnect("flyer")
-    t.advance(61_000)
-    assert "flyer" not in t.room.players and t.status == "LOBBY"
-    await t.tower.send({"type": "dev", "cmd": "bots", "args": {"flyer": True}})
-    assert t.room.bots["flyer"] is True
-    # In LOBBY the toggle seats a virtual Flyer (§B16.1); the Tower is not ready yet.
-    assert t.room.players["flyer"].is_bot and t.status == "LOBBY"
-    await t.tower.send({"type": "play_again"})
-    assert t.last("tower", "error")["code"] == "not_allowed_now"
-    assert t.status == "LOBBY" and t.room.game is None
-
-
-async def test_deck_seat_freed_sends_partner_to_lobby(make_room: MakeRoom) -> None:
-    """§B8.4: Flyer gone 60 s in DECK → Tower in LOBBY, not ready; a new Flyer starts fresh."""
+async def test_deck_partner_gone_60s_closes_room(make_room: MakeRoom) -> None:
+    """§B8.4: Flyer gone 60 s in DECK closes the room (partner_gone)."""
     t = await make_room(seed=None)
     await play_to_deck(t)
-    old = t.room.game
-    assert old is not None
-    old_flyer = t.room.players["flyer"].id
     await t.disconnect("flyer")
     t.advance(59_000)
-    assert t.status == "DECK" and "flyer" in t.room.players
-    t.clear()
+    assert t.status == "DECK" and t.room.code in t.h.registry.rooms
     t.advance(2_000)
-    assert t.status == "LOBBY" and t.room.game is None
-    assert t.room.players["tower"].ready is False
-    assert t.last("tower", "toast")["key"] == "toast.partner_gone"
-    rs = t.last("tower", "room_state")
-    assert rs["status"] == "LOBBY" and rs["play_again_votes"] == []
-    assert [p["role"] for p in rs["players"]] == ["tower"]
-    assert rs["players"][0]["ready"] is False
-    assert rs["can_start"] is False and rs["block_reason"] == "missing_player"
-    assert t.last("tower", "game_state")["status"] == "LOBBY"
-    # A new partner can take the empty Flyer seat; both ready → a brand-new game.
-    await t.join("flyer", "en", gender="female", ready=True)
-    assert t.status == "LOBBY"
-    await t.tower.send({"type": "ready"})
-    assert t.status == "PROLOGUE"
-    assert t.room.game is not None and t.room.game is not old
-    assert t.room.game.id != old.id and t.room.game.seed != old.seed
-    assert t.room.players["flyer"].id != old_flyer
+    assert t.room.code not in t.h.registry.rooms
+    assert not t.room.tasks
 
 
 async def test_virtual_bot_copies_the_humans_deck_vote(harness: Harness) -> None:
@@ -420,13 +364,15 @@ async def test_virtual_bot_copies_the_humans_deck_vote(harness: Harness) -> None
     assert t.flyer.last("joined")["role"] == "tower"
 
 
-async def test_disconnect_in_lobby_frees_slot_after_60s(harness: Harness) -> None:
+async def test_disconnect_in_lobby_closes_room_after_60s(harness: Harness) -> None:
     t = Table(harness, harness.make())
     await t.join("flyer", "en", ready=False)
     await t.disconnect("flyer")
     assert "flyer" in t.room.players
-    harness.clock.advance(61_000)
-    assert "flyer" not in t.room.players
+    harness.clock.advance(59_000)
+    assert t.room.code in harness.registry.rooms
+    harness.clock.advance(2_000)
+    assert t.room.code not in harness.registry.rooms
 
 
 # ------------------------------------------------------- M3: world, effects, params, radar

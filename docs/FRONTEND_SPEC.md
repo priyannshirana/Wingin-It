@@ -53,7 +53,7 @@ This is the complete brief for the **browser client** of *Wingin' it!*: the lobb
 
 ## A1. Product in one paragraph
 
-**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** sits in a first-person 3D toy cockpit. A **Tower** has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** sits in a first-person 3D toy cockpit. A **Tower** has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 160 s fuel), **Engine Fire** (Pedestal, 6 actions, 165 s), **Storm Landing** (Front panel, 8 actions, 195 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
 
 **Presentation is 3D-first and cinematic.** The Flyer's whole experience is a real-time 3D toy world with scripted camera cinematics between and inside phases; the Tower's 2D screen plays synchronized 2D cinematic beats on the same server clock. The server's job is to cue them exactly (`cinematic`, `fx`, `World`); the client's job is to make every cued frame look great (Frontend §F0).
 
@@ -560,7 +560,7 @@ interface DevState { type: "dev_state";
 | `GLOSS_THRESHOLD` | 2 (env) | Phase 2 gloss rule |
 | `SUBTITLES_FLYER` / `SUBTITLES_TOWER` | 3 / 5 | Visible subtitle stack size |
 | `LIFELINE_WINDOW` | 3 | Lifelines may target the partner's last 3 utterances |
-| Fuel per phase | 150 / 150 / 180 s (demo 300) | |
+| Fuel per phase | 160 / 165 / 195 s (demo 300) | |
 
 ## A15. Error codes
 
@@ -576,7 +576,7 @@ Clients map each code to a localized toast (Frontend §F7). The server's `messag
 both: join {name, role, lang, gender}, ready → server: room_state(can_start) → status PROLOGUE
 server → both: game_state{status:PROLOGUE}, cinematic{prologue}
 (28 s, demo 12 s, or double skip) → PHASE_INTRO(1): game_state, cinematic{p1_intro}, manual_card{null}
-(1.2 s) → PLAYING(1): world = phase-1 start; flyer_view; game_state{fuel 150, draining}
+(1.2 s) → PLAYING(1): world = phase-1 start; flyer_view; game_state{fuel 160, draining}
 → activate P1_A1 (see below)
 ```
 
@@ -649,7 +649,7 @@ socket closes mid-game → status PAUSED (paused_from = previous), fuel frozen, 
 → other player: room_state, game_state{PAUSED}, toast partner_left
 same player joins with token within 60 s → previous state resumes
    (if a cinematic was running, it is completed instantly: end state applied, state advances)
-60 s pass → game abandoned → room back to LOBBY, the absent slot freed, toast partner_gone
+60 s pass → the server closes the room (WebSocket close 1000, reason `partner_gone`)
 ```
 
 **End**

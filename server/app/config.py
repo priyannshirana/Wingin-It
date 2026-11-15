@@ -66,7 +66,6 @@ class Settings:
     log_level: str = "INFO"
     room_idle_ttl_s: int = 1800
     max_rooms: int = 50
-    lobby_idle_s: int = 900
     room_max_age_s: int = 3600
     rooms_per_ip: int = 10
     rooms_window_s: int = 600
@@ -104,7 +103,6 @@ class Settings:
             log_level=e.get("LOG_LEVEL", "INFO").strip().upper() or "INFO",
             room_idle_ttl_s=_int(e, "ROOM_IDLE_TTL_S", 1800),
             max_rooms=_int(e, "MAX_ROOMS", 50),
-            lobby_idle_s=_int(e, "LOBBY_IDLE_S", 900),
             room_max_age_s=_int(e, "ROOM_MAX_AGE_S", 3600),
             rooms_per_ip=_int(e, "ROOMS_PER_IP", 10),
             rooms_window_s=_int(e, "ROOMS_WINDOW_S", 600),

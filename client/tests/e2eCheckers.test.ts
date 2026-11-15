@@ -828,13 +828,13 @@ describe("fake server: the judge (§B9.3)", () => {
 });
 
 describe("fake server: fuel, crash and retry (§B10, §B8.2)", () => {
-  it("has 150 / 150 / 180 s per phase and matching fuel_max_s", () => {
+  it("has 160 / 165 / 195 s per phase and matching fuel_max_s", () => {
     const r = toAction();
-    expect(lastGame(r)).toMatchObject({ fuel_s: 150, fuel_max_s: 150 });
+    expect(lastGame(r)).toMatchObject({ fuel_s: 160, fuel_max_s: 160 });
     toPhase(r, 2);
-    expect(lastGame(r)).toMatchObject({ fuel_s: 150, fuel_max_s: 150 });
+    expect(lastGame(r)).toMatchObject({ fuel_s: 165, fuel_max_s: 165 });
     toPhase(r, 3);
-    expect(lastGame(r)).toMatchObject({ fuel_s: 180, fuel_max_s: 180 });
+    expect(lastGame(r)).toMatchObject({ fuel_s: 195, fuel_max_s: 195 });
   });
 
   it("drains during the gap and not during an in-phase cinematic", () => {
@@ -856,7 +856,7 @@ describe("fake server: fuel, crash and retry (§B10, §B8.2)", () => {
 
   it("crashes at 0: crash, the 5 s crash cinematic (not skippable), retry votes, retry", () => {
     const r = toAction();
-    r.tower.dev("add_fuel", { seconds: -146 });
+    r.tower.dev("add_fuel", { seconds: -156 });
     expect(lastGame(r)?.fuel_s).toBe(4);
     const m = mark(r);
     vi.advanceTimersByTime(4100);
@@ -885,13 +885,13 @@ describe("fake server: fuel, crash and retry (§B10, §B8.2)", () => {
       params: { retry: true },
     });
     untilActive(r);
-    expect(lastGame(r)).toMatchObject({ fuel_s: 150, lifelines: { flyer: 3, tower: 3 } });
+    expect(lastGame(r)).toMatchObject({ fuel_s: 160, lifelines: { flyer: 3, tower: 3 } });
     expect(r.game.violations).toEqual([]);
   });
 
   it("a wrong action that takes the last fuel also crashes", () => {
     const r = toAction();
-    r.tower.dev("add_fuel", { seconds: -145 });
+    r.tower.dev("add_fuel", { seconds: -155 });
     r.flyer.interact("OH_BTN_BLUE");
     expect(lastGame(r)).toMatchObject({ status: "CRASH", fuel_s: 0 });
   });

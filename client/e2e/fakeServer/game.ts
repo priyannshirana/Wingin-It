@@ -73,8 +73,8 @@ import { subtitleText } from "./subtitles";
 export const PRESS_DEBOUNCE_MS = 1200;
 export const NEXT_ACTION_DELAY_MS = 1500;
 export const WRONG_PENALTY_S = 10;
-/** Fuel per phase (§A14: 150 / 150 / 180 s). */
-export const FUEL_S: Record<PhaseNo, number> = { 1: 150, 2: 150, 3: 180 };
+/** Fuel per phase (§A14: 160 / 165 / 195 s). */
+export const FUEL_S: Record<PhaseNo, number> = { 1: 160, 2: 165, 3: 195 };
 const LIFELINE_WINDOW = 3;
 
 export interface FakeOptions {

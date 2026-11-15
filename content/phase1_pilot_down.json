@@ -1,7 +1,7 @@
 {
   "phase": 1, "id": "pilot_down",
   "name": {"en": "Pilot Down", "hi": "पायलट बेहोश"},
-  "station": "overhead", "fuel_s": 150, "signal": "strong",
+  "station": "overhead", "fuel_s": 160, "signal": "strong",
   "phase_vars": [],
   "actions": [
     {
