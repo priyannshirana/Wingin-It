@@ -28,6 +28,7 @@ import {
   LOOK,
   nextLookMode,
   pickSettleStation,
+  pokeAllowed,
   pointer,
   resetHead,
   SEAT_EYE,
@@ -194,6 +195,56 @@ describe("settle target picking", () => {
     applyFreeLook(new Vector3(), new Vector3(0, 0, -1), 0.1);
     expect(head.sYaw).toBe(-90);
   });
+});
+
+describe("settle framing (§F10.3)", () => {
+  /** NDC extents of the panel's four corners after settling, at the real FOV 55° and 1440×900. */
+  function settledExtent(id: StationId, spot: Vector3) {
+    resetHead();
+    head.mode = "look";
+    const a = anglesOf(spot.clone().sub(SEAT_EYE));
+    setHead(a.yaw, a.pitch);
+    expect(startSettle()).toBe(id);
+    head.mode = "interact";
+    for (let i = 0; i < 30; i++) applyFreeLook(new Vector3(), new Vector3(0, 0, -1), 1 / 60);
+    const eye = clampEye(SEAT_EYE.clone().add(head.offset));
+    const cam = new PerspectiveCamera(55, 1440 / 900, 0.03, 100);
+    cam.position.copy(eye);
+    cam.lookAt(eye.clone().add(dirFor(head.sYaw, head.sPitch, new Vector3())));
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    const f = STATION_FACES[id];
+    const center = new Vector3(...f.center);
+    const normal = new Vector3(...f.target).sub(center).normalize();
+    const right = new Vector3().crossVectors(new Vector3(0, 1, 0), normal).normalize();
+    const up = new Vector3().crossVectors(normal, right).normalize();
+    let max = 0;
+    for (const sx of [-1, 1]) {
+      for (const sy of [-1, 1]) {
+        const c = center
+          .clone()
+          .addScaledVector(right, (sx * f.size[0]) / 2)
+          .addScaledVector(up, (sy * f.size[1]) / 2)
+          .project(cam);
+        max = Math.max(max, Math.abs(c.x), Math.abs(c.y));
+      }
+    }
+    return max;
+  }
+
+  it.each(["overhead", "pedestal", "front"] as const)(
+    "frames the whole %s panel inside the view (margin 4%)",
+    (id) => {
+      const f = STATION_FACES[id];
+      const c = new Vector3(...f.center);
+      const spots = [
+        c.clone(),
+        c.clone().add(new Vector3(f.size[0] * 0.3, f.size[1] * 0.3, 0)),
+        c.clone().add(new Vector3(-f.size[0] * 0.3, f.size[1] * 0.3, 0)),
+      ];
+      for (const spot of spots) expect(settledExtent(id, spot)).toBeLessThan(0.96);
+    },
+  );
 });
 
 describe("applyFreeLook (camera blend)", () => {
@@ -416,11 +467,85 @@ describe("useFreeLook (pointer lock, clicks, typing, cinematics)", () => {
     const yaw = head.yaw;
     move(50, 0);
     expect(head.yaw).toBe(yaw);
+    exitPointerLock.mockReset(); // the cinematic start already released the lock
     down(100, 50);
     expect(exitPointerLock).not.toHaveBeenCalled();
     // the pointer stayed locked through the cinematic: straight back into look mode
     act(() => useStore.getState().receive(gameState({ input_locked: false })));
     expect(useStore.getState().look.mode).toBe("look");
+  });
+
+  it("releases the pointer lock when a cinematic starts, and re-enters in enter mode after", () => {
+    renderHook(() => useFreeLook(true));
+    down(100, 50);
+    setLock(canvas);
+    exitPointerLock.mockReset();
+    act(() => useStore.getState().receive(gameState({ input_locked: true })));
+    expect(exitPointerLock).toHaveBeenCalledTimes(1);
+    setLock(null);
+    expect(useStore.getState().look.mode).toBe("off");
+    act(() => useStore.getState().receive(gameState({ input_locked: false })));
+    expect(useStore.getState().look.mode).toBe("enter"); // unlocked → needs a click again
+  });
+
+  it.each(["CRASH", "ENDING", "PAUSED"] as const)(
+    "releases the pointer lock when the status becomes %s (Retry / Skip stay clickable)",
+    (status) => {
+      renderHook(() => useFreeLook(true));
+      down(100, 50);
+      setLock(canvas);
+      exitPointerLock.mockReset();
+      act(() => useStore.getState().receive(roomState({ status })));
+      expect(exitPointerLock).toHaveBeenCalledTimes(1);
+      setLock(null);
+      expect(useStore.getState().look.mode).toBe("off");
+    },
+  );
+
+  it("Esc eases to interact with the 0.3 s settle; a deactivation does not settle", () => {
+    renderHook(() => useFreeLook(true));
+    down(100, 50);
+    setLock(canvas);
+    const a = anglesOf(toward(STATION_FACES.pedestal.center));
+    setHead(a.yaw, a.pitch);
+    setLock(null); // Esc
+    expect(useStore.getState().look.mode).toBe("interact");
+    expect(head.settle).not.toBeNull();
+    expect(head.settle?.t).toBe(0);
+
+    resetHead();
+    useStore.getState().reset();
+    cleanup();
+    act(() => {
+      useStore.getState().receive(roomState({ status: "PLAYING" }));
+      useStore.getState().receive(gameState());
+    });
+    renderHook(() => useFreeLook(true));
+    down(100, 50);
+    setLock(canvas);
+    setHead(a.yaw, a.pitch);
+    act(() => useStore.getState().receive(gameState({ input_locked: true })));
+    setLock(null);
+    expect(head.settle).toBeNull();
+  });
+
+  it("the freezing click does not poke the hands, whatever the listener order; later clicks do", () => {
+    const early: boolean[] = [];
+    const late: boolean[] = [];
+    canvas.addEventListener("pointerdown", (e) => early.push(pokeAllowed(e))); // before the hook
+    renderHook(() => useFreeLook(true));
+    canvas.addEventListener("pointerdown", (e) => late.push(pokeAllowed(e))); // after it
+    down(100, 50);
+    setLock(canvas);
+    expect([early, late]).toEqual([[false], [false]]); // look-mode click: no poke
+    down(100, 50); // freeze
+    expect([early, late]).toEqual([
+      [false, false],
+      [false, false],
+    ]);
+    setLock(null);
+    down(100, 50); // a control click in interact mode
+    expect([early[2], late[2]]).toEqual([true, true]);
   });
 
   it("does nothing when disabled (sandboxes, the Tower)", () => {

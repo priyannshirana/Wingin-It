@@ -47,7 +47,7 @@ async function check(page: Page, name: string, errors: string[]): Promise<void> 
 
 const LOOKS = [
   // out of each side window at the wing and the fire (the side lean kicks in past 60°)
-  { name: "fl-01-look-left-window", query: "world=p2_start&fire_side=left", yaw: 88, pitch: -8 },
+  { name: "fl-01-look-left-window", query: "world=p2_start&fire_side=left", yaw: 94, pitch: -4 },
   { name: "fl-02-look-right-window", query: "world=p2_start&fire_side=right", yaw: -78, pitch: -8 },
   // leaning forward over the pedestal (phase 2 levers) and past it to the front panel's levers
   { name: "fl-03-lean-pedestal", query: "world=p2_start&fire_side=right", yaw: 30, pitch: -48 },
@@ -119,8 +119,8 @@ test("fl-09-pointer-lock-flow", async ({ page }) => {
   await expect(hint).toHaveAttribute("data-mode", "interact");
   await expect.poll(() => page.evaluate(() => document.pointerLockElement)).toBeNull();
   await page.waitForTimeout(1300); // Chrome refuses a re-lock right after an unlock
-  // the sky through the windshield top-right: no control there
-  await canvas.click({ position: { x: 1400, y: 40 } });
+  // the cabin wall at the lower right after the settle: no control there
+  await canvas.click({ position: { x: 1380, y: 700 } });
   await expect(hint).toHaveAttribute("data-mode", "look");
   expect(errors).toEqual([]);
 });

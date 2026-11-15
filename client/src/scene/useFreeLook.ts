@@ -101,10 +101,13 @@ export function useFreeLook(enabled: boolean): void {
       const active = selectLookActive(s);
       if (active && head.mode === "off") {
         // Start of play or the end of a cinematic: face the current station, ease in (0.4 s).
+        // SPEC-ASSUMPTION: after a refresh / rejoin (or any resume while unlocked) look mode starts
+        // in "enter" — pointer lock needs a user gesture, so the first click re-locks it (§F10.3).
         faceStation(s.flyer.station);
         dispatchLook({ type: "activate", locked: pointer.locked });
       } else if (!active && head.mode !== "off") {
         dispatchLook({ type: "deactivate" });
+        exitLock(); // a cinematic, pause, crash or landing needs the cursor (Skip, Retry)
       }
     };
     sync(useStore.getState());
@@ -124,6 +127,8 @@ export function useFreeLook(enabled: boolean): void {
       const locked = document.pointerLockElement === el;
       if (locked === pointer.locked) return;
       pointer.locked = locked;
+      // Esc / tab hidden: look → interact eases over 0.3 s like a click-freeze (not when off).
+      if (!locked && head.mode === "look") startSettle();
       dispatchLook({ type: locked ? "locked" : "unlocked" });
     };
     const onMove = (e: MouseEvent) => {
@@ -136,6 +141,7 @@ export function useFreeLook(enabled: boolean): void {
         case "look":
           // Freeze: settle onto the nearest panel and show the cursor. R3F handles the same
           // event from the screen centre (freeLookEvents), so a control there is clicked too.
+          head.frozeBy = e;
           startSettle();
           dispatchLook({ type: "freeze" });
           exitLock();

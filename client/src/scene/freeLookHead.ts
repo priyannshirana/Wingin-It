@@ -26,12 +26,22 @@ export const LOOK = {
   clearance: 0.06, // m from cockpit geometry
   smoothing: 0.06, // s, the look's damping time
   settleS: 0.3,
+  // SPEC-ASSUMPTION: 0.4 s on activation too — §F10.3 gives 0.4 s only for the cinematic hand-back;
+  // the first look-mode entry reuses it so the head never pops.
   blendS: 0.4, // rig ↔ head hand-over (cinematic end / start)
+  // SPEC-ASSUMPTION: 1.5 m — a rig farther than this from the head is a cinematic cut, so the head
+  // snaps instead of flying 0.4 s across the set; the longest in-cockpit head offset is ~0.6 m.
   cutDistance: 1.5, // m: a rig farther than this from the head is a cut, not a move
   settleRadius: 25, // degrees: nearest panel within this cone
-  settleAim: 0.4, // share of the aim moved from the player's spot toward the station shot's aim
+  // SPEC-ASSUMPTION: settle blend constants (aim ≥ 40% toward the station shot's aim, eye 90% of the
+  // way to the shot's eye, spot kept inside 70% of the panel) — §F10.3 only says "a blend of the
+  // current view and the station's shot"; the aim share rises as needed until the whole panel fits.
+  settleAim: 0.4, // minimum share of the aim moved from the player's spot toward the shot's aim
+  settleFov: 55, // degrees, the cockpit camera's vertical FOV (CockpitCanvas)
+  settleAspect: 1.6, // the framing is checked at 1440×900
+  settleFit: 0.94, // every panel corner must land inside this share of NDC
   settleInset: 0.7, // the player's spot is kept within this share of the panel's half-size
-  settlePos: 0.8, // share of the way toward the station shot's eye (it rises over the yokes)
+  settlePos: 0.9, // share of the way toward the station shot's eye (it rises over the yokes)
   settleMaxOffset: 0.6, // m from the seated eye (inside the first-person radius, 0.8 m)
 } as const;
 
@@ -101,7 +111,14 @@ export const head = {
   /** 0 = the rig's pose, 1 = the head's pose. */
   weight: 0,
   settle: null as SettleAnim | null,
+  /** The pointerdown that froze the view (look → interact); it must not poke (§F10.3). */
+  frozeBy: null as Event | null,
 };
+
+/** The first-person hands poke only in interact mode, never on the click that froze the view. */
+export function pokeAllowed(e: Event): boolean {
+  return head.mode === "interact" && head.frozeBy !== e;
+}
 
 const clamp = MathUtils.clamp;
 const smoothstep = (a: number, b: number, x: number) => {
@@ -159,6 +176,9 @@ export function leanFor(yaw: number, pitch: number, out: Vector3): Vector3 {
 
 // Cockpit geometry near the right seat (Cockpit.tsx / §F9.3 stations), as axis-aligned boxes
 // [minX, minY, minZ, maxX, maxY, maxZ]. The cabin interior bounds the head from outside.
+// SPEC-ASSUMPTION: hard-coded collision boxes [x0, y0, z0, x1, y1, z1] (cabin shell, seat back, yoke,
+// pedestal, glare shield, overhead housing) — §F10.3 asks for a ≥ 6 cm clamp without naming the
+// geometry; boxes measured from the station/cockpit parts are the simplest allocation-free option.
 const CABIN: readonly number[] = [-1.18, 0.06, -0.9, 1.18, 2.26, 1.06];
 const OBSTACLES: readonly (readonly number[])[] = [
   [0.24, 0.56, 0.24, 0.76, 1.3, 0.62], // the Flyer's seat back + headrest
@@ -204,7 +224,7 @@ export function clampEye(p: Vector3): Vector3 {
 // Settle on freeze
 // ---------------------------------------------------------------------------
 
-interface FaceFrame {
+export interface FaceFrame {
   id: StationId;
   center: Vector3;
   normal: Vector3;
@@ -294,12 +314,52 @@ export function settleTargetFor(
   if (off.length() > LOOK.settleMaxOffset) off.setLength(LOOK.settleMaxOffset);
   const next = clampEye(off.clone().add(SEAT_EYE));
   off.copy(next).sub(SEAT_EYE);
-  const aimPoint = panelAimPoint(station, eye, dir).lerp(
-    new Vector3(...shot.target),
-    LOOK.settleAim,
-  );
-  const aim = anglesOf(aimPoint.sub(next));
-  return { yaw: clampYaw(aim.yaw), pitch: clampPitch(aim.pitch), offset: off };
+  const spot = panelAimPoint(station, eye, dir);
+  const shotAim = new Vector3(...shot.target);
+  const face = FACES.find((x) => x.id === station);
+  // Keep as much of the player's angle as still frames the whole panel (§F10.3 "clean framing").
+  let w: number = LOOK.settleAim;
+  for (;;) {
+    const a = anglesOf(spot.clone().lerp(shotAim, w).sub(next));
+    const yaw = clampYaw(a.yaw);
+    const pitch = clampPitch(a.pitch);
+    if (w >= 1 || !face || panelExtent(face, next, yaw, pitch) <= LOOK.settleFit) {
+      return { yaw, pitch, offset: off };
+    }
+    w = Math.min(1, w + 0.1);
+  }
+}
+
+const fitRight = new Vector3();
+const fitUp = new Vector3();
+const fitFwd = new Vector3();
+const fitV = new Vector3();
+
+/** Largest |NDC| of the panel's four corners seen from `eye` looking along yaw/pitch (Infinity if behind). */
+export function panelExtent(f: FaceFrame, eye: Vector3, yaw: number, pitch: number): number {
+  dirFor(yaw, pitch, fitFwd);
+  fitRight.crossVectors(fitFwd, WORLD_UP).normalize();
+  fitUp.crossVectors(fitRight, fitFwd);
+  const ty = Math.tan((LOOK.settleFov * DEG) / 2);
+  const tx = ty * LOOK.settleAspect;
+  let max = 0;
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      fitV
+        .copy(f.center)
+        .addScaledVector(f.right, sx * f.halfW)
+        .addScaledVector(f.up, sy * f.halfH)
+        .sub(eye);
+      const z = fitV.dot(fitFwd);
+      if (z < 0.05) return Infinity;
+      max = Math.max(
+        max,
+        Math.abs(fitV.dot(fitRight)) / (z * tx),
+        Math.abs(fitV.dot(fitUp)) / (z * ty),
+      );
+    }
+  }
+  return max;
 }
 
 const eyeNow = new Vector3();
@@ -349,6 +409,7 @@ export function resetHead(): void {
   head.mode = "off";
   head.weight = 0;
   head.settle = null;
+  head.frozeBy = null;
   setHead(0, 0);
 }
 

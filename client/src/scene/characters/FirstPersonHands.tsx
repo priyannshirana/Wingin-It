@@ -15,6 +15,7 @@ import type { Gender } from "../../net/protocol";
 import { selectGenderOf, selectInteractive } from "../../state/selectors";
 import { useStore } from "../../state/store";
 import { mergeParts, useDisposeGeometry } from "../env/merge";
+import { pokeAllowed } from "../freeLookHead";
 import { registerRef } from "../sceneRefs";
 import { isFirstPerson, OUTFIT, OUTFIT_TRIM, SKIN_FLYER } from "./firstPerson";
 
@@ -141,7 +142,7 @@ export function FirstPersonHands() {
     const el = gl.domElement;
     const onDown = (e: PointerEvent) => {
       // §F10.3: the poke plays only in interact mode (cursor visible), never on the freezing click.
-      if (e.button !== 0 || !group.current?.visible || document.pointerLockElement) return;
+      if (e.button !== 0 || !group.current?.visible || !pokeAllowed(e)) return;
       const rect = el.getBoundingClientRect();
       ndc.set(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
