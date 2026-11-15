@@ -105,6 +105,10 @@ export const STRINGS = {
     en: "Typing mode: no microphone needed.",
     hi: "टाइपिंग मोड: माइक्रोफ़ोन की ज़रूरत नहीं।",
   },
+  "lobby.headphones": {
+    en: "Wear headphones so your mic doesn't pick up your partner",
+    hi: "हेडफ़ोन लगाओ, ताकि आपका माइक साथी की आवाज़ न पकड़े",
+  },
   "lobby.demo_badge": { en: "DEMO", hi: "डेमो" },
   "phase.1": { en: "Pilot Down", hi: "पायलट बेहोश" },
   "phase.2": { en: "Engine Fire", hi: "इंजन में आग" },
@@ -195,6 +199,7 @@ export const STRINGS = {
   "settings.volume": { en: "Volume", hi: "आवाज़" },
   "settings.mute": { en: "Mute", hi: "आवाज़ बंद" },
   "settings.sensitivity": { en: "Mouse sensitivity", hi: "माउस की संवेदनशीलता" },
+  "settings.partner_voice": { en: "Partner voice", hi: "साथी की आवाज़" },
   "look.hint_enter": { en: "Click to look around", hi: "चारों ओर देखने के लिए क्लिक करो" },
   "look.hint_look": {
     en: "Move the mouse to look · Click to use the controls",

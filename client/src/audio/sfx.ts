@@ -62,6 +62,11 @@ export function getAudioContext(): AudioContext {
   return ctx;
 }
 
+/** The radio bus of the running engine (the partner's live voice), or null while locked. */
+export function runningRadioBus(): { ctx: AudioContext; bus: AudioNode } | null {
+  return running() && ctx && engine ? { ctx, bus: engine.buses.radio } : null;
+}
+
 /** Resume the context from a user gesture (lobby click, Ready, "Click to enable sound"). */
 export async function unlockAudio(): Promise<void> {
   if (!supported()) return;

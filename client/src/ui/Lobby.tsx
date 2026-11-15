@@ -4,7 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useT } from "../i18n/useT";
 import type { PlayerPublic, Role } from "../net/protocol";
 import { send } from "../net/socket";
-import { otherRole, selectMock } from "../state/selectors";
+import { otherRole, selectMock, selectVoice } from "../state/selectors";
 import { useStore } from "../state/store";
 import { CharacterSelect } from "./CharacterSelect";
 import { FlyerPortrait } from "./avatars/FlyerPortrait";
@@ -19,6 +19,7 @@ export function Lobby() {
   const room = useStore((s) => s.room);
   const me = useStore(useShallow((s) => s.me));
   const mock = useStore(selectMock);
+  const voice = useStore(selectVoice);
   const micPermission = useStore((s) => s.mic.permission);
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -113,6 +114,11 @@ export function Lobby() {
       <div className="flex max-w-2xl flex-col items-center gap-2 rounded-2xl bg-white/5 px-6 py-4 text-center">
         <p className="font-display text-xl text-cream">{t("lobby.tip")}</p>
         {mock ? <p className="font-display text-cream/60">{t("lobby.mock_note")}</p> : <MicCheck />}
+        {voice && !mock && (
+          <p data-testid="headphones-hint" className="font-display text-cream/70">
+            {t("lobby.headphones")}
+          </p>
+        )}
       </div>
     </main>
   );

@@ -296,6 +296,7 @@ export function fixtureRoomState(flyerGender: Gender, towerGender: Gender = "mal
     status: "PLAYING",
     demo: false,
     mock_speech: true,
+    voice: false,
     players: [
       {
         id: "fx-flyer",

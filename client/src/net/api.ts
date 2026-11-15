@@ -6,6 +6,7 @@ export interface CreateRoomOptions {
   demo?: boolean;
   seed?: number;
   mock?: boolean;
+  voice?: boolean;
 }
 
 export interface RoomInfo {
@@ -13,6 +14,7 @@ export interface RoomInfo {
   status: Status | null;
   roles_taken: Role[];
   demo: boolean;
+  voice: boolean;
 }
 
 const ROLES: readonly Role[] = ["flyer", "tower"];
@@ -46,7 +48,8 @@ export async function createRoom(opts: CreateRoomOptions = {}): Promise<string> 
 
 export async function getRoom(code: string): Promise<RoomInfo> {
   const res = await fetch(`${API_BASE}/api/rooms/${encodeURIComponent(code)}`);
-  if (res.status === 404) return { exists: false, status: null, roles_taken: [], demo: false };
+  if (res.status === 404)
+    return { exists: false, status: null, roles_taken: [], demo: false, voice: false };
   if (!res.ok) throw new Error(`GET /api/rooms/${code} → ${res.status}`);
   const body: unknown = await res.json();
   if (!isObject(body)) throw new Error("bad /api/rooms reply");
@@ -56,6 +59,7 @@ export async function getRoom(code: string): Promise<RoomInfo> {
     status: STATUSES.find((s) => s === body.status) ?? null,
     roles_taken: ROLES.filter((r) => taken.includes(r)),
     demo: body.demo === true,
+    voice: body.voice === true,
   };
 }
 

@@ -34,4 +34,9 @@ export class FakeWebSocket {
   emit(msg: S2C): void {
     this.onmessage?.({ data: JSON.stringify(msg) });
   }
+
+  /** Deliver a binary frame (the partner's voice in voice rooms). */
+  emitBinary(data: ArrayBuffer): void {
+    this.onmessage?.({ data });
+  }
 }

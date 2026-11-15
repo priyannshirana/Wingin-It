@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useShallow } from "zustand/react/shallow";
+import { installPartnerVoice } from "../audio/partnerVoice";
 import { DEV } from "../config";
 import { normalizeCode } from "../net/api";
 import type { Gender, Lang, Role } from "../net/protocol";
@@ -48,6 +49,8 @@ export function Room() {
     name: (query.get("name") ?? "").slice(0, 16),
   };
   const auto = query.get("auto") === "1";
+
+  useEffect(() => installPartnerVoice(), []);
 
   // Connect (idempotent singleton) and, for split view / refresh, join without the form.
   useEffect(() => {

@@ -177,6 +177,7 @@ async function mockRoom(page: Page, role: Role, lang: Lang): Promise<Room> {
           status: "PLAYING",
           demo: false,
           mock_speech: true,
+          voice: false,
           players: [
             {
               id: "p-tower",
@@ -224,6 +225,7 @@ async function mockRoom(page: Page, role: Role, lang: Lang): Promise<Room> {
         server_ms: Date.now(),
         room_code: "TEST",
         mock_speech: true,
+        voice: false,
         dev_mode: true,
         demo: false,
         gloss_threshold: 2,

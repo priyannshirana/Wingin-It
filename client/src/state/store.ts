@@ -124,6 +124,8 @@ export interface Settings {
   showDevPanel: boolean;
   /** Free-look mouse sensitivity, degrees per pixel (§F10.3). */
   sensitivity: number;
+  /** Voice rooms: the partner's live voice volume 0..1. */
+  partnerVolume: number;
 }
 
 /** The Flyer's free-look mode (§F10.3); see scene/freeLookHead.ts. */
@@ -225,6 +227,7 @@ const DEFAULT_SETTINGS: Settings = {
   sendDevanagari: false,
   showDevPanel: false,
   sensitivity: 0.15,
+  partnerVolume: 0.9,
 };
 
 function loadSettings(): Settings {
@@ -246,6 +249,10 @@ function loadSettings(): Settings {
         typeof p.sensitivity === "number" && Number.isFinite(p.sensitivity)
           ? Math.min(0.4, Math.max(0.05, p.sensitivity))
           : DEFAULT_SETTINGS.sensitivity,
+      partnerVolume:
+        typeof p.partnerVolume === "number" && Number.isFinite(p.partnerVolume)
+          ? Math.min(1, Math.max(0, p.partnerVolume))
+          : DEFAULT_SETTINGS.partnerVolume,
     };
   } catch {
     return DEFAULT_SETTINGS;

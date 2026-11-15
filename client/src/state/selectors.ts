@@ -20,6 +20,10 @@ export const selectGenderOf = (s: StoreState, role: Role): Gender | undefined =>
 export const selectMock = (s: StoreState): boolean =>
   s.welcome?.mock_speech === true || s.room?.mock_speech === true;
 
+/** Voice rooms forward the partner's live audio (binary frames) besides the subtitles. */
+export const selectVoice = (s: StoreState): boolean =>
+  s.welcome?.voice === true || s.room?.voice === true;
+
 export const selectDemo = (s: StoreState): boolean =>
   s.welcome?.demo === true || s.room?.demo === true || s.game?.demo === true;
 

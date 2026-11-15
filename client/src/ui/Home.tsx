@@ -8,7 +8,7 @@ import { DemoBadge } from "./DemoBadge";
 import { HowToPlay } from "./HowToPlay";
 import { ToyButton } from "./ToyButton";
 
-/** Query params passed through to the room (seed, demo, mock, bots…). */
+/** Query params passed through to the room (seed, demo, mock, voice, bots…). */
 function passThrough(params: URLSearchParams): string {
   const q = params.toString();
   return q ? `?${q}` : "";
@@ -19,6 +19,7 @@ function readCreateOptions(params: URLSearchParams) {
   return {
     ...(params.get("demo") === "1" ? { demo: true } : {}),
     ...(params.get("mock") === "1" ? { mock: true } : {}),
+    ...(params.get("voice") === "1" ? { voice: true } : {}),
     ...(params.has("seed") && Number.isInteger(seed) ? { seed } : {}),
   };
 }
