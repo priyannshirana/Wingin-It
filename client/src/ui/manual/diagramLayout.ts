@@ -369,7 +369,7 @@ export interface Variant {
 export const PREFERRED: Readonly<Partial<Record<`${StationId}:${Lang}`, Variant>>> = {
   "overhead:hi": { rowRatio: 2.4, fill: GLYPH_FILL, reach: 1.8, sides: "right" },
   "pedestal:hi": { rowRatio: 2.4, fill: GLYPH_FILL, reach: 1, sides: "sides" },
-  "front:hi": { rowRatio: 1.7, fill: GLYPH_FILL, reach: 1, sides: "sides" },
+  "front:hi": { rowRatio: 1.7, fill: GLYPH_FILL, reach: 1.8, sides: "sides" },
   "overhead:en": { rowRatio: 2, fill: GLYPH_FILL, reach: 1, sides: "right" },
   "pedestal:en": { rowRatio: 2.4, fill: GLYPH_FILL, reach: 1, sides: "sides" },
   "front:en": { rowRatio: 1.45, fill: GLYPH_FILL, reach: 1.8, sides: "sides" },
