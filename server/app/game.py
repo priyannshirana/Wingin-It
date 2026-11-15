@@ -29,6 +29,7 @@ from app.actions import (
     verb_valid,
 )
 from app.constants import (
+    BYTES_PER_SECOND,
     CROSSOVER_BONUS_S,
     FUEL_BROADCAST_MS,
     HISTORY_SIZE,
@@ -1712,6 +1713,7 @@ def release_channel_of(room: Room, role: Role) -> None:
     room.channel_token += 1
     room.transmission = None
     if tx is not None:
+        room.charge_transcribe(len(tx.buffer) / BYTES_PER_SECOND)
         room.spawn(abort_transmission(tx))
     broadcast_all(room, ChannelMsg(type="channel", busy_by=None))
 
@@ -1785,6 +1787,9 @@ def start_translation(room: Room, utt: Utterance) -> None:
         utt.translation_event.set()
         return
     tr = translator_for(room)
+    paid = tr is not None and tr is not room.svc.mock_translator
+    if paid and not room.svc.limits.translate.take(room.clock.now_ms()):
+        tr = room.svc.mock_translator  # daily Translate cap: authored lines only (§B22)
     if tr is None:
         utt.translation_status = "failed"
         utt.translation_event.set()

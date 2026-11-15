@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
 import secrets
@@ -28,6 +29,7 @@ from app.constants import (
 from app.content import Content
 from app.language.exposure import PlayerStats
 from app.language.lexicon import Lexicon
+from app.limits import Limits
 from app.logging_setup import log_event
 from app.protocol import (
     ALL_ROLES,
@@ -150,7 +152,9 @@ def _bucket(capacity: float, rate: float) -> TokenBucket:
 class Connection:
     """One socket. Its writer task is the only thing that writes to the WebSocket (§B1)."""
 
-    queue: asyncio.Queue[str | bytes | None] = field(default_factory=asyncio.Queue)
+    queue: asyncio.Queue[str | None] = field(default_factory=asyncio.Queue)
+    audio: deque[bytes] = field(default_factory=lambda: deque(maxlen=AUDIO_RELAY_MAX_QUEUED))
+    wake: asyncio.Event = field(default_factory=asyncio.Event)
     ws: WebSocket | None = None
     writer: asyncio.Task[None] | None = None
     player_id: str | None = None
@@ -166,23 +170,28 @@ class Connection:
         default_factory=lambda: _bucket(RATE_AUDIO_FRAMES_PER_S, RATE_AUDIO_FRAMES_PER_S)
     )
     last_say_ms: float = -math.inf
+    strikes: deque[float] = field(default_factory=deque)
+    abusive: bool = False  # set when the client keeps flooding: the session closes it (1008)
     last_rate_notice_ms: float = -math.inf
 
     def put(self, data: str) -> None:
-        """Queue one outbound text frame."""
+        """Queue one outbound text frame (never dropped)."""
         if not self.closed:
             self.queue.put_nowait(data)
+            self.wake.set()
 
     def put_audio(self, data: bytes) -> None:
-        """Queue one relayed binary audio frame; dropped when the socket is backed up (§B13.5)."""
-        if not self.closed and self.queue.qsize() < AUDIO_RELAY_MAX_QUEUED:
-            self.queue.put_nowait(data)
+        """Relayed audio frame on its own bounded deque; the oldest drops when full (§B13.5)."""
+        if not self.closed:
+            self.audio.append(data)
+            self.wake.set()
 
     def close(self) -> None:
         """Stop accepting frames and wake the writer so it exits."""
         if not self.closed:
             self.closed = True
             self.queue.put_nowait(None)
+            self.wake.set()
 
 
 # --------------------------------------------------------------------------------- player
@@ -244,6 +253,20 @@ class Services:
     open_session: SessionFactory | None = None
     reporter: Reporter | None = None
     persister: Persister | None = None
+    limits: Limits = field(init=False)
+
+    def __post_init__(self) -> None:
+        s = self.settings
+        self.limits = Limits(
+            rooms_per_ip=s.rooms_per_ip,
+            rooms_window_s=s.rooms_window_s,
+            ws_per_ip=s.ws_per_ip,
+            gets_per_min=s.room_gets_per_min_per_ip,
+            transcribe_daily_min=s.transcribe_daily_min,
+            transcribe_room_min=s.transcribe_room_min,
+            translate_daily=s.translate_daily_calls,
+            bedrock_daily=s.bedrock_daily_reports,
+        )
 
 
 # ----------------------------------------------------------------------------------- room
@@ -285,6 +308,8 @@ class Room:
     last_utterance: Utterance | None = None
     pending_force: dict[str, str] = field(default_factory=dict)
     transmission: Transmission | None = None
+    last_input: float = 0.0  # last non-ping client message or connect (lobby idle expiry, §B22)
+    transcribe_s: float = 0.0  # Transcribe seconds used by this room (§B22)
 
     # --------------------------------------------------------------- timers (§B1)
 
@@ -359,6 +384,11 @@ class Room:
         for t in list(self.tasks):
             t.cancel()
         self.tasks.clear()
+
+    def charge_transcribe(self, seconds: float) -> None:
+        """Count streamed audio seconds against the room and daily Transcribe caps (§B22)."""
+        self.transcribe_s += seconds
+        self.svc.limits.transcribe.add(seconds, self.clock.now_ms())
 
     def after_handle(self) -> None:
         """Post-message / post-timer hook: dev_state (§B16.3)."""
@@ -680,6 +710,7 @@ class Registry:
     def __init__(self, svc: Services) -> None:
         self.svc = svc
         self.rooms: dict[str, Room] = {}
+        self._closers: set[asyncio.Task[None]] = set()
 
     def create(
         self,
@@ -701,6 +732,7 @@ class Registry:
             voice=bool(voice),
             seed_override=seed,
             last_activity=self.svc.clock.monotonic(),
+            last_input=self.svc.clock.monotonic(),
         )
         self.rooms[room.code] = room
         log_event(
@@ -717,18 +749,48 @@ class Registry:
         return self.rooms.get(code.upper())
 
     def sweep(self) -> list[str]:
-        """Delete rooms with no connected human for ROOM_IDLE_TTL_S (and their clips)."""
+        """Delete expired rooms (§B7, §B22): no human for the idle TTL, idle lobby, or too old."""
         now = self.svc.clock.monotonic()
+        cfg = self.svc.settings
         gone = []
         for code, room in list(self.rooms.items()):
-            if room.any_human_connected():
+            reason: str | None = None
+            if now - room.created_at >= cfg.room_max_age_s:
+                reason = "room_expired"
+            elif room.status == "LOBBY" and now - room.last_input >= cfg.lobby_idle_s:
+                reason = "lobby_idle"
+            elif room.any_human_connected():
                 room.last_activity = now
                 continue
-            if now - room.last_activity >= self.svc.settings.room_idle_ttl_s:
-                room.ticker = None
-                room.bump()
-                room.cancel_tasks()
-                room.clips.clear()
-                del self.rooms[code]
+            elif now - room.last_activity >= cfg.room_idle_ttl_s:
+                reason = "room_idle"
+            if reason is not None:
+                self.close_room(room, reason)
                 gone.append(code)
+        self.svc.limits.prune(now)
         return gone
+
+    def close_room(self, room: Room, reason: str) -> None:
+        """Remove a room: invalidate timers, cancel tasks, close its sockets with a reason."""
+        room.ticker = None
+        room.bump()
+        room.cancel_tasks()
+        room.clips.clear()
+        self.rooms.pop(room.code, None)
+        conns = [p.conn for p in room.players.values() if p.conn is not None]
+        conns += list(room.spectators)
+        for conn in conns:
+            ws = conn.ws
+            conn.close()
+            if ws is not None:
+                self._closers.add(
+                    t := asyncio.get_running_loop().create_task(_close_ws(ws, reason))
+                )
+                t.add_done_callback(self._closers.discard)
+        log_event(log, "room_closed", room=room.code, reason=reason)
+
+
+async def _close_ws(ws: WebSocket, reason: str) -> None:
+    """Close a socket with code 1000 and a reason; ignore a socket that is already gone."""
+    with contextlib.suppress(RuntimeError, OSError, TimeoutError):
+        await asyncio.wait_for(ws.close(code=1000, reason=reason), 5)

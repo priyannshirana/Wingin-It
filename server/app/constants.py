@@ -40,7 +40,7 @@ LATENCY_KEEP: Final = 20
 SAMPLE_RATE: Final = 16000
 BYTES_PER_SECOND: Final = SAMPLE_RATE * 2
 MAX_FRAME_BYTES: Final = 6400
-AUDIO_RELAY_MAX_QUEUED: Final = 25  # voice rooms: drop relayed frames past ~2.5 s backlog (§B13.5)
+AUDIO_RELAY_MAX_QUEUED: Final = 8  # voice rooms: per-player audio deque, oldest dropped (§B13.5)
 MAX_TEXT_FRAME_BYTES: Final = 8 * 1024
 MAX_UTTERANCE_BUFFER_S: Final = 12.5
 MAX_NAME_CHARS: Final = 16
@@ -54,9 +54,11 @@ FUEL_LITRES_PER_S: Final = 1.0  # mission report shows fuel as litres and second
 DDB_TIMEOUT_S: Final = 5.0
 
 # Rate limits per connection (§B17)
-RATE_TEXT_BURST: Final = 30
-RATE_TEXT_SUSTAINED_PER_S: Final = 15
+RATE_TEXT_BURST: Final = 20
+RATE_TEXT_SUSTAINED_PER_S: Final = 10
 RATE_INTERACT_PER_S: Final = 12
 RATE_SAY_TEXT_MIN_GAP_MS: Final = 300
-RATE_AUDIO_FRAMES_PER_S: Final = 15
+RATE_AUDIO_FRAMES_PER_S: Final = 20  # 2x real time (10 frames/s)
 RATE_LIMITED_NOTICE_GAP_MS: Final = 1000
+RATE_STRIKE_LIMIT: Final = 60  # rate-limited messages within RATE_STRIKE_WINDOW_S: close 1008
+RATE_STRIKE_WINDOW_S: Final = 5

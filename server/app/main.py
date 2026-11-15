@@ -28,6 +28,8 @@ from app.constants import (
     PARTIAL_MIN_INTERVAL_MS,
     RATE_LIMITED_NOTICE_GAP_MS,
     RATE_SAY_TEXT_MIN_GAP_MS,
+    RATE_STRIKE_LIMIT,
+    RATE_STRIKE_WINDOW_S,
     ROOM_CLEANUP_INTERVAL_S,
     TRANSCRIBE_FINAL_TIMEOUT_MS,
 )
@@ -173,6 +175,15 @@ async def _cleanup_loop(registry: Registry) -> None:
             log_event(log, "room_deleted", room=code)
 
 
+def client_ip(conn: Request | WebSocket) -> str:
+    """The visitor address; uvicorn's proxy-headers setup resolves X-Forwarded-For (§B22)."""
+    return conn.client.host if conn.client is not None else "unknown"
+
+
+def _limited() -> JSONResponse:
+    return JSONResponse({"error": "rate_limited"}, status_code=429)
+
+
 def _routes(app: FastAPI, s: Settings) -> None:
     @app.get("/health")
     async def health(request: Request) -> dict[str, Any]:
@@ -189,6 +200,9 @@ def _routes(app: FastAPI, s: Settings) -> None:
     @app.post("/api/rooms")
     async def create_room(request: Request, body: CreateRoomReq | None = None) -> JSONResponse:
         registry: Registry = request.app.state.registry
+        limits = registry.svc.limits
+        if not limits.create.allow(client_ip(request), registry.svc.clock.monotonic()):
+            return _limited()
         if len(registry.rooms) >= s.max_rooms:
             return JSONResponse({"error": "too many rooms"}, status_code=503)
         req = body or CreateRoomReq()
@@ -203,6 +217,8 @@ def _routes(app: FastAPI, s: Settings) -> None:
     @app.get("/api/rooms/{code}")
     async def get_room(request: Request, code: str) -> JSONResponse:
         registry: Registry = request.app.state.registry
+        if not registry.svc.limits.gets.allow(client_ip(request), registry.svc.clock.monotonic()):
+            return _limited()
         room = registry.get(code)
         if room is None:
             return JSONResponse({"exists": False}, status_code=404)
@@ -241,16 +257,19 @@ def _routes(app: FastAPI, s: Settings) -> None:
 
 
 async def _writer(ws: WebSocket, conn: Connection) -> None:
-    """The only writer for this socket: drains the connection queue."""
+    """The only writer for this socket: JSON first, relayed audio only when no JSON waits."""
     try:
         while True:
-            data = await conn.queue.get()
-            if data is None:
-                break
-            if isinstance(data, bytes):
-                await ws.send_bytes(data)  # voice rooms: relayed partner audio (§B13.5)
-            else:
+            if not conn.queue.empty():
+                data = conn.queue.get_nowait()
+                if data is None:
+                    break
                 await ws.send_text(data)
+            elif conn.audio:
+                await ws.send_bytes(conn.audio.popleft())  # voice rooms (§B13.5)
+            else:
+                conn.wake.clear()
+                await conn.wake.wait()
     except (WebSocketDisconnect, RuntimeError, OSError):
         conn.closed = True
     except Exception:
@@ -264,6 +283,17 @@ async def websocket_session(ws: WebSocket, raw_code: str, s: Settings) -> None:
     if not s.origin_allowed(ws.headers.get("origin")):
         await ws.close(code=4403)
         return
+    ip = client_ip(ws)
+    if not registry.svc.limits.ws_acquire(ip):
+        await ws.close(code=1008, reason="rate_limited")
+        return
+    try:
+        await _websocket_session(ws, raw_code, s, registry)
+    finally:
+        registry.svc.limits.ws_release(ip)
+
+
+async def _websocket_session(ws: WebSocket, raw_code: str, s: Settings, registry: Registry) -> None:
     code = raw_code.upper()
     room = registry.get(code)
     if room is None:
@@ -293,10 +323,16 @@ async def websocket_session(ws: WebSocket, raw_code: str, s: Settings) -> None:
             text = msg.get("text")
             if text is not None:
                 await handle_text(room, conn, text)
-                continue
-            data = msg.get("bytes")
-            if data is not None:
-                await handle_audio(room, conn, data)
+            else:
+                data = msg.get("bytes")
+                if data is not None:
+                    await handle_audio(room, conn, data)
+            if conn.abusive:
+                conn.close()
+                if conn.writer is not None:  # let the rate_limited error flush first
+                    await asyncio.wait({conn.writer}, timeout=1)
+                await ws.close(code=1008, reason="rate_limited")
+                break
     except WebSocketDisconnect:
         pass
     finally:
@@ -312,7 +348,7 @@ async def websocket_session(ws: WebSocket, raw_code: str, s: Settings) -> None:
 def on_connect(room: Room, conn: Connection) -> None:
     """Handshake: spectator until `join`; welcome + room_state (§A5)."""
     room.spectators.add(conn)
-    room.last_activity = room.clock.monotonic()
+    room.last_activity = room.last_input = room.clock.monotonic()
     send_conn(
         conn,
         Welcome(
@@ -331,7 +367,13 @@ def on_connect(room: Room, conn: Connection) -> None:
 
 
 def _rate_limited(room: Room, conn: Connection) -> None:
-    now = room.clock.monotonic() * 1000
+    now_s = room.clock.monotonic()
+    conn.strikes.append(now_s)
+    while conn.strikes and now_s - conn.strikes[0] > RATE_STRIKE_WINDOW_S:
+        conn.strikes.popleft()
+    if len(conn.strikes) >= RATE_STRIKE_LIMIT:
+        conn.abusive = True  # the session loop closes the socket with 1008 (§B22)
+    now = now_s * 1000
     if now - conn.last_rate_notice_ms >= RATE_LIMITED_NOTICE_GAP_MS:
         conn.last_rate_notice_ms = now
         send_error(conn, "rate_limited", "slow down")
@@ -376,7 +418,7 @@ async def handle_text(room: Room, conn: Connection, raw: str) -> None:
 
 def dispatch(room: Room, conn: Connection, msg: C2S) -> None:
     """Route a parsed message to its module (lock held, no awaits)."""
-    room.last_activity = room.clock.monotonic()
+    room.last_activity = room.last_input = room.clock.monotonic()
     if isinstance(msg, JoinMsg):
         handle_join(room, conn, msg)
         return
@@ -451,6 +493,10 @@ def handle_ptt_start(room: Room, p: Player) -> None:
     if factory is None:
         send(p, ErrorMsg(type="error", code="transcribe_failed", message="speech unavailable"))
         return
+    if not room.svc.limits.transcribe_allowed(room.transcribe_s, room.clock.now_ms()):
+        # Spend cap (§B22): the client already maps transcribe_failed to a "didn't catch" toast.
+        send(p, ErrorMsg(type="error", code="transcribe_failed", message="speech limit reached"))
+        return
     room.channel_holder = p.role
     room.channel_token += 1
     tx = Transmission(
@@ -497,15 +543,15 @@ def send_partial(room: Room, tx: Transmission, text: str) -> None:
 
 async def handle_audio(room: Room, conn: Connection, data: bytes) -> None:
     """Binary frame: accepted only from the channel holder, size-checked (§A5, §B17)."""
+    if not conn.audio_bucket.allow(room.clock.monotonic()):  # ~2x real time, every sender (§B22)
+        _rate_limited(room, conn)
+        return
     async with room.lock:
         tx = room.transmission
         p = room.player_by_id(conn.player_id)
         if tx is None or p is None or tx.player_id != p.id:
             return  # not holding the channel: drop silently
         if len(data) % 2 or len(data) > MAX_FRAME_BYTES or not data:
-            return
-        if not conn.audio_bucket.allow(room.clock.monotonic()):
-            _rate_limited(room, conn)
             return
         if len(tx.buffer) + len(data) > MAX_UTTERANCE_BUFFER_S * BYTES_PER_SECOND:
             return
@@ -526,6 +572,7 @@ async def end_transmission(room: Room, tx: Transmission) -> None:
         speaker = room.player_by_id(tx.player_id)
         duration_ms = len(tx.buffer) / BYTES_PER_SECOND * 1000
         released_at = room.clock.monotonic()
+        room.charge_transcribe(duration_ms / 1000)
         too_short = duration_ms < MIN_UTTERANCE_MS
         if too_short:
             send(speaker, UtteranceDropped(type="utterance_dropped", reason="too_short"))

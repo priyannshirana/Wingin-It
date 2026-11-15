@@ -861,7 +861,13 @@ Read once at startup into a frozen `Settings` object (pydantic-settings or plain
 | `PORT` | `8000` | |
 | `LOG_LEVEL` | `INFO` | |
 | `ROOM_IDLE_TTL_S` | `1800` | Delete a room this long after its last connection closes. |
-| `MAX_ROOMS` | `200` | `POST /api/rooms` returns 503 above this. |
+| `MAX_ROOMS` | `50` | `POST /api/rooms` returns 503 above this. |
+| `LOBBY_IDLE_S` / `ROOM_MAX_AGE_S` | `900` / `3600` | Close a room idle in LOBBY this long / any room this old (§B22). |
+| `ROOMS_PER_IP` / `ROOMS_WINDOW_S` | `10` / `600` | `POST /api/rooms` per IP per window; over it: 429 `{"error":"rate_limited"}`. |
+| `WS_PER_IP` | `6` | Concurrent WebSockets per IP; over it the handshake is closed with 1008. |
+| `ROOM_GETS_PER_MIN_PER_IP` | `60` | `GET /api/rooms/{code}` per IP per minute (429). |
+| `TRANSCRIBE_DAILY_MIN` / `TRANSCRIBE_ROOM_MIN` | `300` / `20` | Streaming minutes per UTC day, and per room (§B22). |
+| `TRANSLATE_DAILY_CALLS` / `BEDROCK_DAILY_REPORTS` | `2000` / `100` | Paid Translate calls / Bedrock reports per UTC day (§B22). |
 
 `say_text` is accepted when `room.mock_speech` is true, **or** `DEV_MODE=1`, **or** the room is a demo room (that is the stage safety net). `room.mock_speech` defaults to `MOCK_SPEECH`, and room creation may override it (§A4).
 
@@ -2364,7 +2370,7 @@ class Handler(TranscriptResultStreamHandler):
 
 ### B13.5 Voice rooms: partner audio relay (§A5.1)
 
-`room.voice` comes from `POST /api/rooms {"voice": true}` (default `false`). In `handle_audio`, after a frame passes every check and is fed to the session, `rooms.relay_audio(room, speaker, frame)` puts the same bytes on the partner's connection queue (`Connection.put_audio`). It is a non-blocking enqueue; the connection's writer task sends `bytes` items with `send_bytes`, so the speaker's transcription feed never waits on the partner's socket. If the partner's queue already holds `AUDIO_RELAY_MAX_QUEUED` (25) items the frame is dropped. No relay to the sender, to bots, to spectators, in mock rooms or in normal rooms. No new timers.
+`room.voice` comes from `POST /api/rooms {"voice": true}` (default `false`). In `handle_audio`, after a frame passes every check and is fed to the session, `rooms.relay_audio(room, speaker, frame)` puts the same bytes on the partner's connection queue (`Connection.put_audio`). It is a non-blocking enqueue; the connection's writer task sends `bytes` items with `send_bytes`, so the speaker's transcription feed never waits on the partner's socket. Relayed audio never shares the JSON queue: each connection has a separate bounded deque of `AUDIO_RELAY_MAX_QUEUED` (8, about 0.8 s) frames that drops the **oldest** when full, and the writer sends audio only when no JSON message is pending, so game messages never wait behind audio (JSON is never dropped; trailing audio may arrive just after `channel{busy_by:null}`). No relay to the sender, to bots, to spectators, in mock rooms or in normal rooms. No new timers.
 
 ## B14. Translation and lifelines
 
@@ -2636,3 +2642,13 @@ Jobs: `content` (`python content/validate_content.py`), `server` (`pip install -
 - [ ] Privacy tests pass; `dev_state` is absent with `DEV_MODE=0`.
 - [ ] Demo room: route, forced values, phase 2 auto-play, `N`/`P` presenter keys, 300 s fuel.
 - [ ] Deployed over HTTPS/WSS on AWS with exactly one task; two laptops in one room can play.
+
+## B22. Abuse and cost limits
+
+Backend-only; no new wire messages. All numbers are env settings (§B3), in-memory, one process (`app/limits.py`).
+
+- **Client IP.** Caddy sets `X-Forwarded-For`; uvicorn runs with `--proxy-headers --forwarded-allow-ips <docker private ranges>`, so `request.client.host` is the visitor and a direct hit cannot spoof it.
+- **Per IP.** Sliding windows: `POST /api/rooms` (429 `{"error":"rate_limited"}`), `GET /api/rooms/{code}` (429). Concurrent WebSockets are capped; over the cap the handshake is closed with 1008.
+- **Per connection.** Text token bucket 20 burst / 10 per s (§B17). Audio frames: bucket of 20 per s (2x real time of 10 frames/s), checked for every binary frame. Every rejected frame is a strike; 60 strikes within 5 s send `rate_limited` then close 1008.
+- **Rooms.** Max rooms 50. `Registry.sweep` (every 60 s) also closes a room idle in LOBBY for `LOBBY_IDLE_S` (no non-ping message or connect) and any room older than `ROOM_MAX_AGE_S`: `gen` bumped, tasks cancelled, sockets closed 1000 with reason `lobby_idle` / `room_expired`.
+- **Daily AWS caps (UTC day, reset at midnight).** Transcribe: total streamed seconds (each transmission's duration) per day and per room; past a cap `ptt_start` returns error `transcribe_failed` (client shows its normal "didn't catch" toast; typed `say_text` still works where allowed). Translate: past the cap lifelines/deck translation use the authored-line (mock) translator only. Bedrock: past the cap the player gets the template report. A WARNING `daily_cap_hit` is logged once per cap per day.

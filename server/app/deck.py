@@ -259,13 +259,16 @@ def uses_bedrock(room: Room) -> bool:
 def prepare(room: Room) -> None:
     """Build every player's deck at ENDING start; start Bedrock calls now (§B15.1)."""
     g = _game(room)
-    bedrock = uses_bedrock(room)
+    bedrock_ok = uses_bedrock(room)
+    bedrock = False
     for p in room.players.values():
         q = room.partner(p)
         if p.is_bot or q is None:
             continue
         words = build_words(room, p, q)
         template = template_report(room, p, words)
+        # Daily Bedrock cap: past it this player gets the template report (§B22).
+        bedrock = bedrock_ok and room.svc.limits.bedrock.take(room.clock.now_ms())
         g.reports[p.id] = None if bedrock else template
         g.decks[p.id] = DeckMsg(
             type="deck",
@@ -280,7 +283,7 @@ def prepare(room: Room) -> None:
         )
         if bedrock:
             room.spawn(_fetch_report(room, p, report_prompt(room, p, words), template))
-    log_event(log, "deck", room=room.code, game=g.id, bedrock=bedrock)
+    log_event(log, "deck", room=room.code, game=g.id, bedrock=bedrock_ok)
 
 
 async def _fetch_report(room: Room, p: Player, prompt: str, template: str) -> None:
