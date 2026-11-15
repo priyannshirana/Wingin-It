@@ -41,12 +41,25 @@ export function isPanelToggle(e: KeyLike): boolean {
 }
 
 /**
+ * Key codes owned by PresenterKeys in demo rooms (§F19 / §A17).
+ * When demo=true these keys are yielded to the presenter; the dev panel doesn't fire them.
+ */
+export const PRESENTER_KEY_CODES = new Set(["KeyN", "KeyP"]);
+
+/**
  * The dev command for this key, or null. Only while the panel is open. While a skippable
  * cinematic is on screen, Overlays already turns K into the (dev force) skip, so K is left to it
- * (`overlaySkips`) and the skip is never sent twice.
+ * (`overlaySkips`) and the skip is never sent twice. In demo rooms the presenter owns N and P,
+ * so those keys yield even when the panel is open (`demo=true`).
  */
-export function devHotkey(e: KeyLike, panelOpen: boolean, overlaySkips = false): DevCommand | null {
+export function devHotkey(
+  e: KeyLike,
+  panelOpen: boolean,
+  overlaySkips = false,
+  demo = false,
+): DevCommand | null {
   if (!panelOpen || ignored(e)) return null;
   if (e.code === "KeyK" && overlaySkips) return null;
+  if (demo && PRESENTER_KEY_CODES.has(e.code)) return null;
   return DEV_HOTKEYS[e.code] ?? null;
 }

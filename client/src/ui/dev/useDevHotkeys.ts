@@ -20,7 +20,8 @@ export function useDevHotkeys(): void {
         s.setSettings({ showDevPanel: !s.settings.showDevPanel });
         return;
       }
-      const command = devHotkey(e, s.settings.showDevPanel, overlaySkips(s));
+      const demo = !!(s.welcome?.demo || s.room?.demo);
+      const command = devHotkey(e, s.settings.showDevPanel, overlaySkips(s), demo);
       if (!command) return;
       e.preventDefault();
       send({ type: "dev", ...command });

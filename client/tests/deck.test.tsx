@@ -390,6 +390,40 @@ describe("word deck (§F17)", () => {
     for (const c of cards) expect(c.getAttribute("style")).toBeNull();
   });
 
+  it("uses the singular 'word' header when exactly 1 word was learned (§I4 plural fix)", () => {
+    act(() =>
+      enter(
+        "flyer",
+        "en",
+        "female",
+        enFlyerDeck({
+          learned_count: 1,
+          words: [word({ concept: "RED", word: "laal", meaning: "red", learned: true })],
+        }),
+      ),
+    );
+    render(<WordDeck />);
+    expect(screen.getByTestId("deck-header").textContent).toBe("Your partner taught you 1 word");
+    cleanup();
+  });
+
+  it("uses the plural 'words' header for n=0 and n>1", () => {
+    act(() =>
+      enter(
+        "flyer",
+        "en",
+        "female",
+        enFlyerDeck({
+          learned_count: 3,
+          words: [],
+        }),
+      ),
+    );
+    render(<WordDeck />);
+    expect(screen.getByTestId("deck-header").textContent).toBe("Your partner taught you 3 words");
+    cleanup();
+  });
+
   it("shows a near-empty deck with 0 learned words: no learned grid, only still-learning", () => {
     act(() =>
       enter(

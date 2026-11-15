@@ -22,7 +22,9 @@ export function WordDeck() {
 
   // The portrait is the partner's character: the Tower's controller for a Flyer and vice versa.
   const Portrait = role === "flyer" ? TowerPortrait : FlyerPortrait;
-  const [before, after] = splitAtSlot(t("deck.header"));
+  // Use the singular form when exactly 1 word was learned (§I4 plural fix).
+  const headerKey = deck.learned_count === 1 ? "deck.header_one" : "deck.header";
+  const [before, after] = splitAtSlot(t(headerKey));
 
   return (
     <main

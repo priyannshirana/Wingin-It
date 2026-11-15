@@ -72,6 +72,14 @@ describe("strings (§F7)", () => {
     expect(translate("en", "hud.seconds")).toBe("{n}s");
   });
 
+  it("deck.header_one is singular in both en and hi (§I4 plural fix)", () => {
+    expect(translate("en", "deck.header_one", { n: 1 })).toBe("Your partner taught you 1 word");
+    expect(translate("hi", "deck.header_one", { n: 1 })).toBe("आपके साथी ने आपको 1 शब्द सिखाया");
+    // Plural form is unaffected.
+    expect(translate("en", "deck.header", { n: 2 })).toBe("Your partner taught you 2 words");
+    expect(translate("hi", "deck.header", { n: 2 })).toBe("आपके साथी ने आपको 2 शब्द सिखाए");
+  });
+
   it("maps every ToastKey to a string", () => {
     for (const [toastKey, stringKey] of Object.entries(TOAST_KEYS)) {
       expect(stringKey).toBe(toastKey);
