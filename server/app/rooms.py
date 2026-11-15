@@ -611,6 +611,7 @@ def on_disconnect(room: Room, conn: Connection) -> None:
         if p.conn is None and p.disconnected_at == stamp and room.status in ("LOBBY", "DECK"):
             if room.players.get(p.role) is p:
                 del room.players[p.role]
+                room.deck_votes.pop(p.role, None)  # a freed seat keeps no deck vote (§B8.5)
             broadcast_room_state(room)
 
     room.schedule(

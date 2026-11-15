@@ -315,6 +315,60 @@ async def test_deck_vote_switch_to_play_again_clears_swap(make_room: MakeRoom) -
     assert t.room.players["flyer"].lang == "en"
 
 
+@pytest.mark.parametrize("vote", ["play_again", "swap_roles"])
+async def test_freed_seat_drops_its_deck_vote(make_room: MakeRoom, vote: str) -> None:
+    """§B8.5: a player whose seat is freed after 60 s no longer counts as a vote."""
+    t = await make_room(seed=3)
+    await play_to_deck(t)
+    old = t.room.game
+    await t.flyer.send({"type": vote})
+    await t.disconnect("flyer")
+    t.advance(61_000)
+    assert "flyer" not in t.room.players
+    assert t.last("tower", "room_state")["play_again_votes"] == []
+    await t.tower.send({"type": vote})
+    assert t.status == "DECK" and t.room.game is old
+    assert t.room.players["tower"].role == "tower" and "flyer" not in t.room.players
+    expected = ["tower"] if vote == "play_again" else []
+    assert t.last("tower", "room_state")["play_again_votes"] == expected
+
+
+async def test_virtual_bot_copies_the_humans_deck_vote(harness: Harness) -> None:
+    """§B16.1: a seated bot votes at once, matching the human's current vote."""
+    t = Table(harness, harness.make())
+    await t.join("flyer", "en", ready=False)
+    await t.flyer.send({"type": "dev", "cmd": "bots", "args": {"tower": True, "flyer": True}})
+    await t.flyer.send({"type": "ready"})
+
+    async def bots_to_deck() -> None:
+        await t.flyer.send({"type": "dev", "cmd": "bots", "args": {"flyer": True}})
+        while t.status != "DECK":
+            t.advance(100)
+            assert t.clock.t < 10_000_000, f"stuck in {t.status}"
+        await t.flyer.send({"type": "dev", "cmd": "bots", "args": {"flyer": False}})
+
+    await bots_to_deck()
+    first = t.room.game
+    t.clear()
+    await t.flyer.send({"type": "play_again"})
+    votes = [m["play_again_votes"] for m in t.flyer.of("room_state")]
+    assert ["flyer", "tower"] in votes  # the bot copied play_again
+    assert t.status == "PROLOGUE" and t.room.game is not first
+
+    await bots_to_deck()
+    t.clear()
+    await t.flyer.send({"type": "swap_roles"})
+    states = t.flyer.of("room_state")
+    deck_states = [m for m in states if m["status"] == "DECK"]
+    assert deck_states and deck_states[-1]["play_again_votes"] == []  # vote followed the human
+    assert t.status == "LOBBY"
+    by_role = {p["role"]: p for p in states[-1]["players"]}
+    assert by_role["tower"]["name"] == "Flyer" and not by_role["tower"]["is_bot"]
+    assert by_role["flyer"]["name"] == "Auto Tower" and by_role["flyer"]["is_bot"]
+    assert by_role["tower"]["lang"] == "en" and by_role["flyer"]["lang"] == "hi"
+    assert t.flyer.last("joined")["role"] == "tower"
+
+
 async def test_disconnect_in_lobby_frees_slot_after_60s(harness: Harness) -> None:
     t = Table(harness, harness.make())
     await t.join("flyer", "en", ready=False)

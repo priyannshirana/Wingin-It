@@ -1434,9 +1434,11 @@ def _deck_vote(room: Room, p: Player, vote: DeckVote) -> bool:
         return False
     room.deck_votes[p.role] = vote
     for r in room.bot_roles():
-        room.deck_votes[r] = vote  # bots vote at once, matching the human
+        if r in room.players:
+            room.deck_votes[r] = vote  # seated bots vote at once, matching the human
     broadcast_room_state(room)
-    return all(room.deck_votes.get(r) == vote for r in ALL_ROLES)
+    # Act only with both seats filled: a freed seat never counts as a vote.
+    return all(r in room.players and room.deck_votes.get(r) == vote for r in ALL_ROLES)
 
 
 def handle_play_again(room: Room, p: Player) -> None:
