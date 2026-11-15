@@ -1,14 +1,19 @@
 import { setMasterVolume, setMuted } from "../audio/sfx";
 import { useT } from "../i18n/useT";
 import { useStore } from "../state/store";
+import { SENSITIVITY } from "../scene/freeLookHead";
 import { SpeakerIcon } from "./audio/SpeakerIcon";
 
 // Volume slider + mute (§F16.4): both screens, persisted in store.settings (localStorage), and
-// applied to the master bus by audio/sfx.
+// applied to the master bus by audio/sfx. The Flyer also gets the free-look mouse sensitivity
+// (§F10.3, saved in `wingin:settings`).
 export function Settings() {
   const t = useT();
+  const setSettings = useStore((s) => s.setSettings);
   const volume = useStore((s) => s.settings.volume);
   const muted = useStore((s) => s.settings.muted);
+  const sensitivity = useStore((s) => s.settings.sensitivity);
+  const flyer = useStore((s) => s.me?.role === "flyer");
   return (
     <div
       data-testid="settings"
@@ -38,6 +43,41 @@ export function Settings() {
         onChange={(e) => setMasterVolume(Number(e.target.value))}
         className="h-2 w-24 cursor-pointer accent-teal disabled:cursor-not-allowed disabled:opacity-40"
       />
+      {flyer && (
+        <>
+          <MouseIcon />
+          <input
+            type="range"
+            data-testid="sensitivity"
+            aria-label={t("settings.sensitivity")}
+            title={t("settings.sensitivity")}
+            min={SENSITIVITY.min}
+            max={SENSITIVITY.max}
+            step={0.01}
+            value={sensitivity}
+            onChange={(e) => setSettings({ sensitivity: Number(e.target.value) })}
+            className="h-2 w-20 cursor-pointer accent-teal"
+          />
+        </>
+      )}
     </div>
+  );
+}
+
+function MouseIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="ml-1 size-4 shrink-0" aria-hidden="true">
+      <rect
+        x="4"
+        y="1.5"
+        width="8"
+        height="13"
+        rx="4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path d="M8 4v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
   );
 }

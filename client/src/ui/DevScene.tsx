@@ -13,7 +13,10 @@ import { installDebugHooks, stats, waitFrames, type WinginStats } from "../dev/d
 import type { Gender, ObjectState, Side } from "../net/protocol";
 import { CockpitCanvas } from "../scene/CockpitCanvas";
 import { worldSync } from "../scene/env/worldSync";
+import { head, setHead, startSettle } from "../scene/freeLookHead";
+import { dispatchLook } from "../scene/useFreeLook";
 import { useStore } from "../state/store";
+import { FreeLookHint } from "./FreeLookHint";
 import { isTypingTarget } from "./isTypingTarget";
 
 interface SceneQuery {
@@ -22,6 +25,7 @@ interface SceneQuery {
   shot: ShotId | null;
   lamps: Record<string, ObjectState>;
   fps: boolean;
+  look: boolean;
   gender: Gender;
   error: string | null;
 }
@@ -48,6 +52,8 @@ function parseQuery(search: string): SceneQuery {
     shot: isShot(shot) ? shot : null,
     lamps,
     fps: q.get("fps") === "1",
+    // `look=1` mounts free look (§F10.3) so its frames can be checked; shots no longer apply.
+    look: q.get("look") === "1",
     // SPEC-ASSUMPTION: `gender=male|female` picks the Flyer character (default female, like the
     // split view) — §F0.6 needs WIDE_INTERIOR with each character and the sandbox has no lobby.
     gender: q.get("gender") === "male" ? "male" : "female",
@@ -144,6 +150,23 @@ export function DevScene() {
           setShot(id);
           return cutTo(id);
         },
+        ...(query.look
+          ? {
+              // The sandbox has no real pointer lock: the hooks drive the same mode reducer.
+              look: (yaw: number, pitch: number) => {
+                if (head.mode !== "look") dispatchLook({ type: "locked" });
+                setHead(yaw, pitch);
+                head.weight = 1;
+                return waitFrames(3);
+              },
+              freeze: () => {
+                if (head.mode !== "look") dispatchLook({ type: "locked" });
+                const station = startSettle();
+                dispatchLook({ type: "freeze" });
+                return waitFrames(30).then(() => ({ station }));
+              },
+            }
+          : {}),
       }),
     [query],
   );
@@ -171,7 +194,8 @@ export function DevScene() {
 
   return (
     <main data-screen="dev-scene" className="relative h-full overflow-hidden bg-night">
-      {seeded && <CockpitCanvas />}
+      {seeded && <CockpitCanvas freeLook={query.look} />}
+      {seeded && query.look && <FreeLookHint />}
       {query.fps && <StatsReadout />}
       <div className="pointer-events-none absolute right-2 bottom-2 rounded bg-black/60 px-2 py-1 font-mono text-xs text-cream/80">
         {preset} · {shot}

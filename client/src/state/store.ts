@@ -117,7 +117,12 @@ export interface Settings {
   muted: boolean;
   sendDevanagari: boolean;
   showDevPanel: boolean;
+  /** Free-look mouse sensitivity, degrees per pixel (§F10.3). */
+  sensitivity: number;
 }
+
+/** The Flyer's free-look mode (§F10.3); see scene/freeLookHead.ts. */
+export type LookMode = "off" | "enter" | "look" | "interact";
 
 export interface StoreState {
   // connection
@@ -170,6 +175,8 @@ export interface StoreState {
   flashFx: FlashFx | null;
   /** Incremented for every red wrong-action vignette pulse (§F15). */
   redPulseId: number;
+  /** Free look (§F10.3): the current mode and how often each mode was entered (HUD hint). */
+  look: { mode: LookMode; uses: { look: number; interact: number } };
 }
 
 export interface StoreActions {
@@ -184,6 +191,7 @@ export interface StoreActions {
   clearCues: () => void;
   flash: (color: string, ms: number, opacity?: number) => void;
   redPulse: () => void;
+  setLookMode: (mode: LookMode) => void;
   setMic: (patch: Partial<StoreState["mic"]>) => void;
   /** Phase 3: a lifeline was requested for this utterance (spinner until `translation`). */
   markLifelinePending: (utteranceId: string) => void;
@@ -211,6 +219,7 @@ const DEFAULT_SETTINGS: Settings = {
   muted: false,
   sendDevanagari: false,
   showDevPanel: false,
+  sensitivity: 0.15,
 };
 
 function loadSettings(): Settings {
@@ -228,6 +237,10 @@ function loadSettings(): Settings {
         typeof p.sendDevanagari === "boolean" ? p.sendDevanagari : DEFAULT_SETTINGS.sendDevanagari,
       showDevPanel:
         typeof p.showDevPanel === "boolean" ? p.showDevPanel : DEFAULT_SETTINGS.showDevPanel,
+      sensitivity:
+        typeof p.sensitivity === "number" && Number.isFinite(p.sensitivity)
+          ? Math.min(0.4, Math.max(0.05, p.sensitivity))
+          : DEFAULT_SETTINGS.sensitivity,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -313,6 +326,7 @@ function initialState(): StoreState {
     uiLang: browserLang(),
     flashFx: null,
     redPulseId: 0,
+    look: { mode: "off", uses: { look: 0, interact: 0 } },
   };
 }
 
@@ -528,6 +542,13 @@ export const useStore = create<Store>()((set) => ({
     }),
   setTitleCard: (titleCard) => set({ titleCard }),
   setCinePlaying: (cinePlaying) => set({ cinePlaying }),
+  setLookMode: (mode) =>
+    set((s) => {
+      if (s.look.mode === mode) return {};
+      const uses = { ...s.look.uses };
+      if (mode === "look" || mode === "interact") uses[mode] += 1;
+      return { look: { mode, uses } };
+    }),
   setCue: (cue, on) =>
     set((s) => (Boolean(s.cues[cue]) === on ? {} : { cues: { ...s.cues, [cue]: on } })),
   clearCues: () => set({ cues: {} }),

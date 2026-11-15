@@ -12,6 +12,8 @@ import { FlyerAvatar } from "./characters/FlyerAvatar";
 import { Pilot } from "./characters/Pilot";
 import { Cockpit } from "./Cockpit";
 import { Effects } from "./Effects";
+import { FreeLook } from "./FreeLook";
+import { freeLookEvents } from "./freeLookHead";
 import { Atmosphere } from "./env/Atmosphere";
 import { Clouds } from "./env/Clouds";
 import { ExteriorPlane } from "./env/ExteriorPlane";
@@ -55,7 +57,7 @@ function useRestingShot() {
 
 // The Flyer's 3D canvas (§F9.1). Every slot is mounted; the env/, characters/ and Effects
 // components are filled in by their own work (M3a) without touching this file.
-export function CockpitCanvas() {
+export function CockpitCanvas({ freeLook = false }: { freeLook?: boolean }) {
   const orbit = DEV && new URLSearchParams(location.search).get("orbit") === "1";
   useRestingShot();
   return (
@@ -63,6 +65,7 @@ export function CockpitCanvas() {
       dpr={[1, 1.5]}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       camera={{ fov: 55, near: 0.03, far: 3000, position: [0.5, 1.3, 0.35] }}
+      events={freeLookEvents}
       onCreated={({ gl }) => {
         gl.toneMapping = ACESFilmicToneMapping;
       }}
@@ -70,6 +73,7 @@ export function CockpitCanvas() {
       {orbit ? <OrbitControls target={[0.1, 1.2, -0.6]} makeDefault /> : <CameraRigDriver />}
       {/* After the rig (same-priority frames run in mount order); never on top of OrbitControls. */}
       {!orbit && <CameraFxDriver />}
+      <FreeLook enabled={freeLook && !orbit} />
       <Atmosphere />
       <LightRig />
       <Sky />
