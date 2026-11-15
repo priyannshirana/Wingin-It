@@ -18,7 +18,7 @@ const OPACITY: Record<3 | 5, number[]> = {
 };
 
 /** Older lines are drawn at 80% of the newest line's size. */
-const OLDER_SCALE = 0.8;
+const OLDER_SCALE = 0.9;
 
 // The partner's subtitle stack (§F13), newest at the bottom, plus my own partial / echo above.
 // One component for both screens: the Flyer passes stack 3 / 26 px, the Tower stack 5 / 20 px.
