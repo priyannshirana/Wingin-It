@@ -102,7 +102,9 @@ export type CueName =
   | "dawn_warm"
   | "blip_spiral"
   | "poof"
-  | "fade_cream"; // ending: fade to cream
+  | "fade_cream" // ending: fade to cream
+  | "fade_black" // prologue: full-screen black (0.4 s fade in and out)
+  | "fade_dim"; // prologue: dimmed frame behind the take-control card
 
 /** A one-shot full-screen DOM flash (§F10.1 `flash(color, ms)`). */
 export interface FlashFx {

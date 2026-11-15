@@ -3,6 +3,8 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import {
   BoxGeometry,
   BufferGeometry,
+  CircleGeometry,
+  Color,
   Float32BufferAttribute,
   type Group,
   type InstancedMesh,
@@ -27,6 +29,9 @@ import { stageOf, useWorldSync, type Stage, type SyncTweens } from "./worldSync"
 const LENGTH = 1200;
 const STEP = 30;
 const N = LENGTH / STEP;
+const L_STEP = 15; // edge lights are twice as dense as the centre dashes
+const NL = LENGTH / L_STEP;
+const PATCHES = 48;
 const EDGE_X = 28;
 const APPROACH = 10;
 const dummy = new Object3D();
@@ -60,12 +65,12 @@ const applyRunway = (w: World, tw: SyncTweens) => {
 const stream = { offset: 0 };
 
 function makeLightGeometry(): BufferGeometry {
-  const pos = new Float32Array((N * 2 + APPROACH) * 3);
-  const bright = new Float32Array(N * 2 + APPROACH).fill(1);
+  const pos = new Float32Array((NL * 2 + APPROACH) * 3);
+  const bright = new Float32Array(NL * 2 + APPROACH).fill(1);
   for (let i = 0; i < APPROACH; i++) {
-    pos[(N * 2 + i) * 3] = (i - (APPROACH - 1) / 2) * 3;
-    pos[(N * 2 + i) * 3 + 1] = 0.4;
-    pos[(N * 2 + i) * 3 + 2] = 30;
+    pos[(NL * 2 + i) * 3] = (i - (APPROACH - 1) / 2) * 3;
+    pos[(NL * 2 + i) * 3 + 1] = 0.4;
+    pos[(NL * 2 + i) * 3 + 2] = 30;
   }
   const g = new BufferGeometry();
   g.setAttribute("position", new Float32BufferAttribute(pos, 3));
@@ -88,19 +93,44 @@ function RunwayCopy({
   const dashGeometry = useMemo(() => new BoxGeometry(1, 0.02, 12), []);
   const lights = useMemo(() => makeLightGeometry(), []);
   const lightPoints = useRef<Points>(null);
+  const patches = useRef<InstancedMesh>(null);
+  const patchGeometry = useMemo(() => new CircleGeometry(1, 20), []);
   const lightMat = useMemo(() => makeLightPointsMaterial("#FFF4D6", 2.6, 1.6, 2.5), []);
 
   useLayoutEffect(() => {
     const g = group.current;
     return g && onGroup ? onGroup(g) : undefined;
   }, [onGroup]);
+  useLayoutEffect(() => {
+    // Ground variation: dusky patches of scrub and dry grass scattered beside the runway.
+    const m = patches.current;
+    if (!m) return;
+    let seed = 11;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const c = new Color();
+    for (let i = 0; i < PATCHES; i++) {
+      const side = i % 2 ? 1 : -1;
+      const sc = 14 + rand() * 40;
+      dummy.position.set(side * (45 + rand() * 260), 0.01, -rand() * LENGTH);
+      dummy.rotation.set(-Math.PI / 2, 0, 0);
+      dummy.scale.set(sc * (1 + rand()), sc, 1);
+      dummy.updateMatrix();
+      m.setMatrixAt(i, dummy.matrix);
+      m.setColorAt(i, c.setHSL(0.07 + rand() * 0.06, 0.35, 0.1 + rand() * 0.07));
+    }
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  }, []);
   useLayoutEffect(
     () => () => {
+      patchGeometry.dispose();
       dashGeometry.dispose();
       lights.dispose();
       lightMat.dispose();
     },
-    [dashGeometry, lights, lightMat],
+    [dashGeometry, patchGeometry, lights, lightMat],
   );
 
   useFrame(({ camera, size, viewport }) => {
@@ -127,8 +157,8 @@ function RunwayCopy({
     const pts = lightPoints.current;
     if (pts) {
       const pos = pts.geometry.getAttribute("position");
-      for (let k = 0; k < N; k++) {
-        const z = -k * STEP + off;
+      for (let k = 0; k < NL; k++) {
+        const z = -k * L_STEP + (off % L_STEP);
         pos.setXYZ(k * 2, -EDGE_X, 0.4, z);
         pos.setXYZ(k * 2 + 1, EDGE_X, 0.4, z);
       }
@@ -145,11 +175,43 @@ function RunwayCopy({
 
   return (
     <group ref={group}>
+      {/* Dusk ground: warm earth catching the low sun (emissive stays below the bloom threshold). */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, -LENGTH / 2]}>
+        <planeGeometry args={[1400, LENGTH + 400]} />
+        <meshStandardMaterial
+          color="#3A3A26"
+          emissive="#3A2210"
+          emissiveIntensity={0.5}
+          roughness={1}
+          metalness={0}
+        />
+      </mesh>
+      <instancedMesh ref={patches} args={[patchGeometry, undefined, PATCHES]} frustumCulled={false}>
+        <meshStandardMaterial
+          emissive="#3A2412"
+          emissiveIntensity={0.35}
+          roughness={1}
+          metalness={0}
+        />
+      </instancedMesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -LENGTH / 2]}>
         <planeGeometry args={[60, LENGTH]} />
-        <meshStandardMaterial ref={strip} color="#2A2A2E" roughness={0.9} metalness={0} />
+        <meshStandardMaterial
+          ref={strip}
+          color="#7C7886"
+          emissive="#5A4040"
+          emissiveIntensity={0.7}
+          roughness={0.9}
+          metalness={0}
+        />
       </mesh>
       {/* threshold bar */}
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * 29, 0.02, -LENGTH / 2]}>
+          <boxGeometry args={[0.8, 0.02, LENGTH]} />
+          <meshStandardMaterial color="#E8E4DC" emissive="#6A4A30" emissiveIntensity={0.5} />
+        </mesh>
+      ))}
       <mesh position={[0, 0.02, -2]}>
         <boxGeometry args={[50, 0.02, 2]} />
         <meshStandardMaterial color="#D9D9E0" roughness={0.8} />
