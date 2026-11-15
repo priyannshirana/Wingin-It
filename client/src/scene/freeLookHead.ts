@@ -183,7 +183,7 @@ const CABIN: readonly number[] = [-1.18, 0.06, -0.9, 1.18, 2.26, 1.06];
 const OBSTACLES: readonly (readonly number[])[] = [
   [0.24, 0.56, 0.24, 0.76, 1.3, 0.62], // the Flyer's seat back + headrest
   [0.36, 0.85, -0.6, 0.64, 1.1, -0.5], // right yoke wheel
-  [-0.3, 0.45, -0.82, 0.3, 1.06, -0.12], // pedestal face + body
+  [-0.3, 0.33, -0.82, 0.3, 0.94, -0.12], // pedestal face + body
   [-1.05, 1.12, -1.0, 1.05, 1.2, -0.85], // glare shield
   [-0.62, 1.76, -0.6, 0.62, 2.3, -0.02], // overhead panel (lower edge y 1.75, z −0.03) + housing
 ];

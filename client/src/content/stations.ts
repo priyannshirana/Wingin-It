@@ -263,7 +263,7 @@ export interface StationFace {
 
 export const STATION_FACES: Readonly<Record<StationId, StationFace>> = {
   overhead: { center: [0, 1.95, -0.25], size: [1.2, 0.6], target: [0.3, 0.9, 0.7] },
-  pedestal: { center: [0, 0.78, -0.45], size: [0.5, 0.7], target: [0.3, 1.9, 0.2] },
+  pedestal: { center: [0, 0.66, -0.45], size: [0.5, 0.7], target: [0.3, 1.9, 0.2] },
   front: { center: [0, 0.975, -0.95], size: [2.0, 0.35], target: [0.3, 1.25, 0.8] },
 };
 
