@@ -145,13 +145,12 @@ class Client:
             raw = self.conn.queue.get_nowait()
             if raw is None:
                 continue
-            if isinstance(raw, bytes):
-                self.audio.append(raw)
-                continue
             data = orjson.loads(raw)
             S2C_ADAPTER.validate_python(data)  # every outbound frame obeys the contract
             assert_no_null_optionals(data, data.get("type", "?"))
             new.append(data)
+        while self.conn.audio:
+            self.audio.append(self.conn.audio.popleft())
         self.msgs.extend(new)
         return new
 

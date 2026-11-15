@@ -1,10 +1,25 @@
-# Wingin' it! — EC2 fallback (docs/BACKEND_SPEC.md §B19.3). Replace the example domain.
+# Wingin' it! — EC2 fallback (docs/BACKEND_SPEC.md §B19.3, §B22). Replace the example domain.
+# Global options. Caddy always sets X-Forwarded-For for reverse_proxy; the server trusts it
+# only from the docker network (uvicorn --forwarded-allow-ips), so per-IP limits see the visitor.
+{
+	servers {
+		timeouts {
+			# Slowloris guard. read_body stays unset: it would cut long-lived WebSockets.
+			read_header 10s
+			idle 2m
+		}
+	}
+}
+
 wingin.example.com {
 	encode gzip
 	handle /ws/* {
 		reverse_proxy server:8000
 	}
 	handle /api/* {
+		request_body {
+			max_size 64KB
+		}
 		reverse_proxy server:8000
 	}
 	handle /clips/* {

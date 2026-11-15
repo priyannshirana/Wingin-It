@@ -65,7 +65,17 @@ class Settings:
     port: int = 8000
     log_level: str = "INFO"
     room_idle_ttl_s: int = 1800
-    max_rooms: int = 200
+    max_rooms: int = 50
+    lobby_idle_s: int = 900
+    room_max_age_s: int = 3600
+    rooms_per_ip: int = 10
+    rooms_window_s: int = 600
+    ws_per_ip: int = 6
+    room_gets_per_min_per_ip: int = 60
+    transcribe_daily_min: int = 300
+    transcribe_room_min: int = 20
+    translate_daily_calls: int = 2000
+    bedrock_daily_reports: int = 100
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -93,7 +103,17 @@ class Settings:
             port=_int(e, "PORT", 8000),
             log_level=e.get("LOG_LEVEL", "INFO").strip().upper() or "INFO",
             room_idle_ttl_s=_int(e, "ROOM_IDLE_TTL_S", 1800),
-            max_rooms=_int(e, "MAX_ROOMS", 200),
+            max_rooms=_int(e, "MAX_ROOMS", 50),
+            lobby_idle_s=_int(e, "LOBBY_IDLE_S", 900),
+            room_max_age_s=_int(e, "ROOM_MAX_AGE_S", 3600),
+            rooms_per_ip=_int(e, "ROOMS_PER_IP", 10),
+            rooms_window_s=_int(e, "ROOMS_WINDOW_S", 600),
+            ws_per_ip=_int(e, "WS_PER_IP", 6),
+            room_gets_per_min_per_ip=_int(e, "ROOM_GETS_PER_MIN_PER_IP", 60),
+            transcribe_daily_min=_int(e, "TRANSCRIBE_DAILY_MIN", 300),
+            transcribe_room_min=_int(e, "TRANSCRIBE_ROOM_MIN", 20),
+            translate_daily_calls=_int(e, "TRANSLATE_DAILY_CALLS", 2000),
+            bedrock_daily_reports=_int(e, "BEDROCK_DAILY_REPORTS", 100),
         )
 
     def origin_allowed(self, origin: str | None) -> bool:

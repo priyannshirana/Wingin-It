@@ -372,7 +372,7 @@ async def test_voice_relay_drops_when_partner_backs_up(make_room: MakeRoom) -> N
         await handle_audio(t.room, t.flyer.conn, FRAME)
     await t.settle()
     t.drain()
-    assert 0 < len(t.tower.audio) <= AUDIO_RELAY_MAX_QUEUED  # backlog cap: the rest dropped
+    assert len(t.tower.audio) == AUDIO_RELAY_MAX_QUEUED
     assert len(f.sessions[0].fed) == AUDIO_RELAY_MAX_QUEUED + 10  # transcription unaffected
 
 
@@ -393,3 +393,30 @@ def test_voice_flag_in_http_welcome_and_room_state() -> None:
             with client.websocket_connect(f"/ws/{code}") as ws:
                 assert ws.receive_json()["voice"] is want  # welcome
                 assert ws.receive_json()["voice"] is want  # room_state
+
+
+async def test_audio_backlog_does_not_delay_json(make_room: MakeRoom) -> None:
+    """The writer sends every pending JSON message before any relayed audio (§B13.5)."""
+    from app.main import _writer
+
+    t, _ = await real_room(make_room, transcript="Yes")
+    conn = t.tower.conn
+    sent: list[str] = []
+
+    class FakeWs:
+        async def send_text(self, data: str) -> None:
+            sent.append("json")
+
+        async def send_bytes(self, data: bytes) -> None:
+            sent.append("audio")
+
+    for _ in range(20):
+        conn.put_audio(FRAME)
+    conn.put("{}")
+    conn.put("{}")
+    task = asyncio.get_running_loop().create_task(_writer(FakeWs(), conn))  # type: ignore[arg-type]
+    await t.settle()
+    conn.close()
+    await task
+    assert sent[:2] == ["json", "json"]
+    assert sent.count("audio") == 8
