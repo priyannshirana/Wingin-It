@@ -61,7 +61,8 @@ export type LookEvent =
   | { type: "deactivate" }
   | { type: "locked" }
   | { type: "unlocked" }
-  | { type: "freeze" };
+  | { type: "freeze" }
+  | { type: "lock_failed" };
 
 /**
  * off = not playing / a cinematic owns the camera; enter = playing, waiting for the first click
@@ -81,6 +82,10 @@ export function nextLookMode(mode: LookMode, ev: LookEvent): LookMode {
       return mode === "look" ? "interact" : mode;
     case "freeze":
       return mode === "look" ? "interact" : mode;
+    case "lock_failed":
+      // The browser refused pointer lock (embedded frame, no permission): the cursor stays, so
+      // the controls still work in interact mode instead of waiting for a lock that never comes.
+      return mode === "enter" ? "interact" : mode;
     default:
       return assertNever(ev);
   }

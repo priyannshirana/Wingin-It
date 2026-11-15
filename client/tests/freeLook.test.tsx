@@ -73,6 +73,10 @@ describe("mode transitions (§F10.3)", () => {
     }
     expect(nextLookMode("off", { type: "locked" })).toBe("off");
     expect(nextLookMode("off", { type: "unlocked" })).toBe("off");
+    // A refused pointer lock leaves the cursor usable instead of stuck in "enter".
+    expect(nextLookMode("enter", { type: "lock_failed" })).toBe("interact");
+    expect(nextLookMode("look", { type: "lock_failed" })).toBe("look");
+    expect(nextLookMode("off", { type: "lock_failed" })).toBe("off");
     expect(nextLookMode("off", { type: "freeze" })).toBe("off");
     expect(nextLookMode("interact", { type: "activate", locked: false })).toBe("interact");
   });
