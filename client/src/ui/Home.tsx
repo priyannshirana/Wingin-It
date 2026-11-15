@@ -4,6 +4,7 @@ import { useT } from "../i18n/useT";
 import { createRoom, getHealth, getRoom, normalizeCode } from "../net/api";
 import type { Lang } from "../net/protocol";
 import { useStore } from "../state/store";
+import { DemoBadge } from "./DemoBadge";
 import { HowToPlay } from "./HowToPlay";
 import { ToyButton } from "./ToyButton";
 
@@ -197,13 +198,5 @@ function LangSwitch({ value, onChange }: { value: Lang; onChange: (lang: Lang) =
         </button>
       ))}
     </div>
-  );
-}
-
-function DemoBadge({ label }: { label: string }) {
-  return (
-    <span className="rounded-md bg-lamp-red px-2 py-0.5 font-display text-sm font-extrabold tracking-widest text-white">
-      {label}
-    </span>
   );
 }
