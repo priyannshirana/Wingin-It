@@ -127,8 +127,8 @@ describe("head limits, lean and collision clamp", () => {
   });
 
   it("pushes a point inside an obstacle out to the 6 cm clearance", () => {
-    const inside = clampEye(new Vector3(0, 0.9, -0.45)); // in the pedestal
-    expect(inside.y).toBeCloseTo(1.06 + LOOK.clearance);
+    const inside = clampEye(new Vector3(0, 0.8, -0.45)); // in the pedestal
+    expect(inside.y).toBeCloseTo(0.94 + LOOK.clearance);
     const out = clampEye(new Vector3(5, 5, 5)); // outside the cabin
     expect(out.x).toBeCloseTo(1.18 - LOOK.clearance);
     expect(out.y).toBeCloseTo(2.26 - LOOK.clearance);

@@ -110,7 +110,7 @@ function shellParts(): PartSpec[] {
     block([2.4, 1.14, 0.06], [0, 0.63, -1.18]),
     block([2.1, 0.79, 0.25], [0, 0.455, -1.025], SLATE),
     block([2.1, 0.05, 0.15], [0, 1.17, -0.925], SLATE), // glare shield
-    block([0.56, 0.48, 0.66], [0, 0.27, -0.47], SLATE), // pedestal body (tucked under the face)
+    block([0.56, 0.36, 0.66], [0, 0.24, -0.47], SLATE), // pedestal body (tucked under the face)
     block([2.32, 0.06, 0.06], [0, 0, 0], CREAM, 0.02, ws),
     block([2.32, 0.06, 0.06], [0, 0.7, 0], CREAM, 0.02, ws),
     ...[-1.13, 0, 1.13].map((x) => block([0.06, 0.76, 0.06], [x, 0.35, 0], CREAM, 0.02, ws)),

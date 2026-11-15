@@ -54,7 +54,7 @@ export const SHOTS: Readonly<Record<ShotId, Shot>> = {
   FLYER_DEFAULT: { position: [0.5, 1.3, 0.35], target: [0.2, 1.0, -1.0] },
   OVERHEAD: { position: [0.29, 1.17, 0.44], target: [-0.01, 1.875, -0.3] },
   // PEDESTAL keeps the lever row (phase 2 targets) above the subtitle zone (upper 70%).
-  PEDESTAL: { position: [0.36, 1.45, 0.33], target: [0, 0.55, -0.54] },
+  PEDESTAL: { position: [0.36, 1.35, 0.33], target: [0, 0.45, -0.54] },
   FRONT: { position: [0.2, 1.86, 0.14], target: [0.02, 0.95, -0.95] },
   // Window shots look down onto the wing so it runs as a diagonal through the lower third with
   // the sill and frame as foreground (from seat height the wing hid below the sill).
