@@ -54,6 +54,10 @@ export const STRINGS = {
     en: "The help fades each phase, so you learn each other's words. Land the plane before the fuel runs out!",
     hi: "हर चरण में मदद घटती जाती है, इसलिए तुम एक-दूसरे के शब्द सीखते हो। ईंधन खत्म होने से पहले विमान उतारो!",
   },
+  "home.langs_note": {
+    en: "Only two languages for now: English and Hindi. One player speaks each, in either role.",
+    hi: "अभी सिर्फ़ दो भाषाएँ हैं: अंग्रेज़ी और हिंदी। हर खिलाड़ी एक भाषा बोलता है, किसी भी भूमिका में।",
+  },
   "home.modes": { en: "Game modes", hi: "खेल के तरीके" },
   "modes.title": { en: "Game modes", hi: "खेल के तरीके" },
   "modes.intro": {

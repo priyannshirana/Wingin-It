@@ -34,6 +34,15 @@ describe("Home game modes", () => {
     expect(within(dialog).getByText(/Hold Space to talk/)).toBeTruthy();
   });
 
+  it("notes English and Hindi in both popups", () => {
+    renderHome();
+    fireEvent.click(screen.getByRole("button", { name: "How to play" }));
+    expect(within(screen.getByRole("dialog")).getByText(/Only two languages/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Game modes" }));
+    expect(screen.getByText(/Only two languages/)).toBeTruthy();
+  });
+
   it("builds ?demo=1&voice=1 and creates the room with demo+voice", async () => {
     renderHome();
     fireEvent.click(screen.getByRole("button", { name: "Game modes" }));

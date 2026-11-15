@@ -70,6 +70,7 @@ export function GameModes({ onClose, onCreate, busy = false }: Props) {
         <h2 id="modes-title" className="font-display text-3xl font-extrabold text-cream">
           {t("modes.title")}
         </h2>
+        <p className="font-display text-sm text-cream/55">{t("home.langs_note")}</p>
         <p className="font-display text-base text-cream/70">{t("modes.intro")}</p>
         <ul className="flex flex-col gap-2">
           {MODES.map((m, i) => (
