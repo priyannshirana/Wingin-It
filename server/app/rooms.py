@@ -10,7 +10,7 @@ import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeVar
 
 import orjson
 from pydantic import BaseModel
@@ -55,6 +55,8 @@ if TYPE_CHECKING:
     from app.speech.base import SessionFactory, Transmission, Utterance
     from app.speech.translate import Translator
 
+
+DeckVote = Literal["play_again", "swap_roles"]
 log = logging.getLogger("wingin.rooms")
 T = TypeVar("T")
 
@@ -239,8 +241,8 @@ class Room:
     gen: int = 0
     game: Game | None = None
     bots: dict[Role, bool] = field(default_factory=lambda: {"flyer": False, "tower": False})
-    play_again_votes: set[Role] = field(default_factory=set)
-    swap_votes: set[Role] = field(default_factory=set)
+    # §B8.5: one current deck vote per player; a later vote replaces the earlier one.
+    deck_votes: dict[Role, DeckVote] = field(default_factory=dict)
     last_activity: float = 0.0
     channel_holder: Role | None = None
     channel_token: int = 0
@@ -462,7 +464,7 @@ def room_state_msg(room: Room) -> RoomState:
         players=players,
         can_start=can_start and room.status == "LOBBY",
         block_reason=None if room.status != "LOBBY" else reason,
-        play_again_votes=sorted(room.play_again_votes),
+        play_again_votes=sorted(r for r, v in room.deck_votes.items() if v == "play_again"),
     )
 
 

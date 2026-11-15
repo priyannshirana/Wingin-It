@@ -283,6 +283,38 @@ async def test_play_again_new_seed_same_roles(make_room: MakeRoom) -> None:
     assert t.room.players["flyer"].lang == "en"
 
 
+async def test_deck_votes_one_current_vote_each_later_replaces(make_room: MakeRoom) -> None:
+    """§B8.5: mismatched votes wait; a later vote replaces; act only when both match."""
+    t = await make_room(seed=3)
+    await play_to_deck(t)
+    old = t.room.game
+    await t.flyer.send({"type": "play_again"})
+    await t.tower.send({"type": "swap_roles"})
+    assert t.status == "DECK" and t.room.game is old
+    assert t.last("flyer", "room_state")["play_again_votes"] == ["flyer"]
+    # The Flyer changes its mind to swap_roles: its play_again vote is replaced.
+    await t.flyer.send({"type": "swap_roles"})
+    assert t.status == "LOBBY"
+    by_role = {p["role"]: p for p in t.last("flyer", "room_state")["players"]}
+    assert by_role["flyer"]["lang"] == "hi" and by_role["tower"]["lang"] == "en"
+    assert t.last("flyer", "room_state")["play_again_votes"] == []
+
+
+async def test_deck_vote_switch_to_play_again_clears_swap(make_room: MakeRoom) -> None:
+    t = await make_room(seed=3)
+    await play_to_deck(t)
+    await t.tower.send({"type": "swap_roles"})
+    assert t.last("flyer", "room_state")["play_again_votes"] == []
+    await t.tower.send({"type": "play_again"})
+    assert t.last("flyer", "room_state")["play_again_votes"] == ["tower"]
+    await t.flyer.send({"type": "swap_roles"})
+    assert t.status == "DECK"  # tower's swap vote was replaced: no swap
+    assert t.last("flyer", "room_state")["play_again_votes"] == ["tower"]
+    await t.flyer.send({"type": "play_again"})
+    assert t.status == "PROLOGUE"
+    assert t.room.players["flyer"].lang == "en"
+
+
 async def test_disconnect_in_lobby_frees_slot_after_60s(harness: Harness) -> None:
     t = Table(harness, harness.make())
     await t.join("flyer", "en", ready=False)

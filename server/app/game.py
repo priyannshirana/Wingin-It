@@ -98,6 +98,7 @@ from app.protocol import (
 )
 from app.rng import Roller, new_seed
 from app.rooms import (
+    DeckVote,
     Player,
     Room,
     broadcast,
@@ -540,8 +541,7 @@ def start_game(room: Room) -> None:
     room.utterances.clear()
     room.last_utterance = None
     room.clips.clear()
-    room.play_again_votes.clear()
-    room.swap_votes.clear()
+    room.deck_votes.clear()
     room.ticker = lambda: fuel_tick(room)
     log_event(log, "start", room=room.code, game=g.id, seed=seed, demo=room.demo)
     set_status(room, "PROLOGUE")
@@ -1414,26 +1414,27 @@ def abandon(room: Room) -> None:
 # -------------------------------------------------------------- play again / swap (§B8.5)
 
 
-def handle_play_again(room: Room, p: Player) -> None:
-    """`play_again` (DECK only): both → new game, same roles."""
+def _deck_vote(room: Room, p: Player, vote: DeckVote) -> bool:
+    """Record `p`'s one current deck vote; True when both current votes are `vote` (§B8.5)."""
     if room.status != "DECK":
         send(p, ErrorMsg(type="error", code="not_allowed_now", message="deck only"))
-        return
-    room.play_again_votes.add(p.role)
-    room.play_again_votes |= room.bot_roles()
+        return False
+    room.deck_votes[p.role] = vote
+    for r in room.bot_roles():
+        room.deck_votes[r] = vote  # bots vote at once, matching the human
     broadcast_room_state(room)
-    if room.play_again_votes >= set(ALL_ROLES):
+    return all(room.deck_votes.get(r) == vote for r in ALL_ROLES)
+
+
+def handle_play_again(room: Room, p: Player) -> None:
+    """`play_again` (DECK only): both → new game, same roles (§B8.5)."""
+    if _deck_vote(room, p, "play_again"):
         start_game(room)
 
 
 def handle_swap_roles(room: Room, p: Player) -> None:
-    """`swap_roles` (DECK only): both → LOBBY with roles swapped, languages kept."""
-    if room.status != "DECK":
-        send(p, ErrorMsg(type="error", code="not_allowed_now", message="deck only"))
-        return
-    room.swap_votes.add(p.role)
-    if (room.swap_votes | room.bot_roles()) < set(ALL_ROLES):
-        broadcast_room_state(room)
+    """`swap_roles` (DECK only): both → LOBBY with roles swapped, languages kept (§B8.5)."""
+    if not _deck_vote(room, p, "swap_roles"):
         return
     f, t = room.players.get("flyer"), room.players.get("tower")
     new_players: dict[Role, Player] = {}
@@ -1449,8 +1450,7 @@ def handle_swap_roles(room: Room, p: Player) -> None:
         pl.ready = pl.is_bot
     room.game = None
     room.ticker = None
-    room.play_again_votes.clear()
-    room.swap_votes.clear()
+    room.deck_votes.clear()
     set_status(room, "LOBBY")
     for pl in room.players.values():
         send(pl, joined_msg(pl))
