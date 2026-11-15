@@ -1,6 +1,7 @@
 import { useShallow } from "zustand/react/shallow";
 import { selectDemo, selectMock } from "../state/selectors";
 import { useStore } from "../state/store";
+import { FreeLookHint } from "./FreeLookHint";
 import { FuelBar } from "./FuelBar";
 import { Lifelines } from "./Lifelines";
 import { MockTalkBox } from "./MockTalkBox";
@@ -35,6 +36,7 @@ export function FlyerHUD() {
       <div className="absolute bottom-6 left-1/2 w-[min(720px,50vw)] -translate-x-1/2">
         <Subtitles stack={3} fontSize={26} />
       </div>
+      <FreeLookHint />
       <div className="pointer-events-auto absolute bottom-6 left-6">
         <Lifelines />
       </div>

@@ -2,6 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import gsap from "gsap";
 import { MathUtils, Vector3 } from "three";
 import { rig } from "../cinematics/cameraRig";
+import { applyFreeLook } from "./freeLookHead";
 import { DEG } from "./parts/kit";
 
 const look = new Vector3();
@@ -30,6 +31,7 @@ export function CameraRigDriver() {
     const dist = camera.position.distanceTo(rig.target);
     look.copy(rig.target);
     look.y += Math.tan(rig.pitchOffset * DEG) * dist;
+    applyFreeLook(camera.position, look, dt); // §F10.3: blends toward the head pose (no-op when off)
     camera.lookAt(look);
     camera.rotateZ(rig.roll * DEG);
     if (!gsap.isTweening(rig)) rig.shake = MathUtils.damp(rig.shake, rig.restShake, 3, dt);

@@ -178,6 +178,16 @@ export const STRINGS = {
   "deck.waiting_vote": { en: "Waiting for your partner…", hi: "साथी का इंतज़ार…" },
   "settings.volume": { en: "Volume", hi: "आवाज़" },
   "settings.mute": { en: "Mute", hi: "आवाज़ बंद" },
+  "settings.sensitivity": { en: "Mouse sensitivity", hi: "माउस की संवेदनशीलता" },
+  "look.hint_enter": { en: "Click to look around", hi: "चारों ओर देखने के लिए क्लिक करो" },
+  "look.hint_look": {
+    en: "Move the mouse to look · Click to use the controls",
+    hi: "देखने के लिए माउस घुमाओ · कंट्रोल चलाने के लिए क्लिक करो",
+  },
+  "look.hint_interact": {
+    en: "Click empty space to look around again",
+    hi: "फिर से देखने के लिए खाली जगह पर क्लिक करो",
+  },
   "overlay.paused": {
     en: "Your partner disconnected. Waiting up to 60 s…",
     hi: "साथी का कनेक्शन टूट गया। 60 सेकंड तक इंतज़ार…",

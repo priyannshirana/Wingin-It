@@ -22,6 +22,10 @@ export interface WinginDebug {
     params?: Record<string, string | number | boolean>,
   ) => Promise<void>;
   stats: () => WinginStats;
+  /** Free look (§F10.3, `/dev/scene?look=1`): snap the head to yaw/pitch in degrees (+ = left/up). */
+  look?: (yaw: number, pitch: number) => Promise<void>;
+  /** Free look: freeze the current view (look → interact, with the 0.3 s settle). */
+  freeze?: () => Promise<{ station: string | null }>;
 }
 
 declare global {
@@ -109,6 +113,8 @@ export interface DebugImpl {
   setWorld: WinginDebug["setWorld"];
   setShot: WinginDebug["setShot"];
   seek?: WinginDebug["seek"];
+  look?: WinginDebug["look"];
+  freeze?: WinginDebug["freeze"];
 }
 
 const SETTLE_FRAMES = 30; // troika labels + the first sync tweens settle
@@ -137,6 +143,8 @@ export function installDebugHooks(impl: DebugImpl): () => void {
         // The scene sandbox has no timelines; /dev/cinematic (M3 wave 2) provides seek.
         Promise.reject(new Error("seek not available until the cinematic scrubber"))),
     stats,
+    ...(impl.look ? { look: impl.look } : {}),
+    ...(impl.freeze ? { freeze: impl.freeze } : {}),
   };
   window.__wingin = hooks;
   return () => {
