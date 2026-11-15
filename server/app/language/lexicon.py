@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
@@ -131,6 +132,11 @@ class Lexicon:
         """Latin display form: `en.display` or `hi.display_roman` (§B11.5)."""
         c = self.concepts[cid]
         return c.en.display if lang == "en" else c.hi.display_roman
+
+    def gloss_display(self, cid: str, lang: Lang) -> str:
+        """Gloss form in the listener's script: Devanagari for hi, English for en (§B11.5)."""
+        c = self.concepts[cid]
+        return c.en.display if lang == "en" else unicodedata.normalize("NFC", c.hi.display_deva)
 
     def shared_english(self, norm: str) -> str | None:
         """English spelling of a shared word (लाइट → light), or None."""

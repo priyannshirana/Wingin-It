@@ -56,28 +56,28 @@ function lines(listener: Lang, level: 1 | 2 | 3): Json[][] {
       ],
     ];
   }
-  // A Hindi listener hears English: English chips, romanized-Hindi glosses.
+  // A Hindi listener hears English: English chips, Devanagari glosses.
   return [
     [
       pl("Which light is on — "),
-      kw("red", "RED", g("laal")),
+      kw("red", "RED", g("लाल")),
       pl(" or "),
-      kw("blue", "BLUE", g("neeli")),
+      kw("blue", "BLUE", g("नीला")),
       pl("?"),
     ],
     [
-      kw("Press", "PRESS", g("dabao")),
+      kw("Press", "PRESS", g("दबाओ")),
       pl(" button "),
-      kw("three", "THREE", level === 2 ? "teen" : g("teen")),
+      kw("three", "THREE", level === 2 ? "तीन" : g("तीन")),
       pl(" "),
-      kw("twice", "", g("do baar"), ["TWO", "TIMES"]),
+      kw("twice", "", g("दो बार"), ["TWO", "TIMES"]),
     ],
     [
-      kw("Yes", "YES", g("haan")),
+      kw("Yes", "YES", g("हाँ")),
       pl(", now "),
-      kw("pull", "PULL", g("kheencho")),
+      kw("pull", "PULL", g("खींचो")),
       pl(" the "),
-      kw("fire", "FIRE", level === 2 ? "aag" : g("aag")),
+      kw("fire", "FIRE", level === 2 ? "आग" : g("आग")),
       pl(" handle!"),
     ],
   ];

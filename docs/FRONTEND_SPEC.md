@@ -53,7 +53,7 @@ This is the complete brief for the **browser client** of *Wingin' it!*: the lobb
 
 ## A1. Product in one paragraph
 
-**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** sits in a first-person 3D toy cockpit. A **Tower** has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 160 s fuel), **Engine Fire** (Pedestal, 6 actions, 165 s), **Storm Landing** (Front panel, 8 actions, 195 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** sits in a first-person 3D toy cockpit. A **Tower** has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters** (glosses in the listener's own script), with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 160 s fuel), **Engine Fire** (Pedestal, 6 actions, 165 s), **Storm Landing** (Front panel, 8 actions, 195 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
 
 **Presentation is 3D-first and cinematic.** The Flyer's whole experience is a real-time 3D toy world with scripted camera cinematics between and inside phases; the Tower's 2D screen plays synchronized 2D cinematic beats on the same server clock. The server's job is to cue them exactly (`cinematic`, `fx`, `World`); the client's job is to make every cued frame look great (Frontend §F0).
 
@@ -67,7 +67,7 @@ These hold everywhere. Tests on both sides check them.
    - The Flyer client never receives `manual_card`, branch lines, rule tables, or `quick_say` lines.
    - **The client bundle must not import** `content/lexicon.json` or any `content/phase*.json`. It may import only `content/stations.json` and `content/cinematics.json` (both non-secret).
    - `dev_state` breaks privacy on purpose and is **only** sent when the server runs with `DEV_MODE=1`.
-3. **Subtitles are always Latin script.** Hindi speech is shown romanized (*teen number button dabao*). Devanagari never appears inside a subtitle segment. Glosses are Latin too. Each player's **own material** (UI chrome, manual, title cards, word-deck meanings, lifeline translations into Hindi) is in their own script.
+3. **Subtitle text is always Latin script; glosses are in the listener's script.** Hindi speech is shown romanized (*teen number button dabao*). Devanagari never appears inside a subtitle segment's `text`. A `gloss` is written in the **listener's** script: a Hindi listener gets Devanagari (an English speaker's *red* shows as `red [लाल]`), an English listener gets Latin English (*laal [red]*). Each player's **own material** (UI chrome, manual, title cards, word-deck meanings, lifeline translations into Hindi) is in their own script.
 4. **One keyword style.** Every keyword chip looks identical. Never color a chip by meaning (no red *laal*).
 5. **The manual never scripts sentences.** It shows the panel drawing, what to find out, and a rule table. Example lines exist only for Mock Mode quick-say, bots and the validator, and are only sent when `quick_say` is enabled (Mock/Dev).
 6. **Only the current station's controls are clickable**, and only while an action is active and no cinematic or event is running.
@@ -1663,7 +1663,7 @@ For the three big story moments (**takeoff** in the prologue, the **landing**, a
 - A rounded bar (rgba(10,12,18,0.55), backdrop blur 4 px) with the speaker's small round portrait (28 px, the partner's `FlyerPortrait` / `TowerPortrait` in their gender, from `room_state`), the tag pill (tiny, uppercase, slate) and the segments in order.
 - `plain` segment → a text span (white, preserving spaces).
 - `keyword` segment → `<KeywordChip>`: **one style for every keyword**: `background: rgba(43,47,58,0.78); color: #fff; border-bottom: 2px solid rgba(255,255,255,0.7); border-radius: .45em; padding: 0 .3em;`. **Never vary it by concept.**
-- `gloss` (when non-null) → immediately after the chip: `[gloss]` in a muted yellow #E9D98B, 0.7 em, `margin-left: .2em`.
+- `gloss` (when non-null) → immediately after the chip: `[gloss]` in a muted yellow #E9D98B, 0.7 em, `margin-left: .2em`. The gloss is in the listener's script as sent (Devanagari for a Hindi player, Baloo 2 covers it); render it as given. Segment `text` is always Latin.
 - `concepts` with two entries ("twice") render as one chip with one gloss.
 - New lines slide up 12 px and fade in (200 ms). Lines older than the stack fade out.
 - Phase 3 (`level === 3`): the bar has a faint glitch effect (a 1 px RGB-split text shadow that flickers once when the line appears).
@@ -2060,7 +2060,7 @@ These routes exist so 3D and cinematic work can be checked frame by frame withou
 | `characterSelect.test.tsx` | Join is disabled until role, gender, language and name are set; a taken role is disabled; `join` carries `gender`; `update_player` on change |
 | `clock.test.ts` | the best-RTT offset selection; `serverNow` |
 | `store.test.ts` | the reducer for every S2C type (snapshots), bounce handling, subtitle trimming, translation reveal, rejoin `history` |
-| `subtitles.test.tsx` | segments render in order; every keyword chip has the **same** class list whatever the concept; glosses in brackets; no Devanagari rendered from Latin segments; `twice` → one chip |
+| `subtitles.test.tsx` | segments render in order; every keyword chip has the **same** class list whatever the concept; glosses in brackets; no Devanagari in segment text; Hindi-listener glosses render Devanagari as given; `twice` → one chip |
 | `manual.test.tsx` | a fixture card renders find-out chips, the rule table, highlighter marks on keywords only, `last_wrong`, quick-say only when `quick_say` is set |
 | `stations.test.ts` | grid → position mapping; every station control maps to a part component; the drawing renders every control |
 | `timelines.test.ts` | each Flyer and Tower timeline (with stub refs) has `duration()` = the `cinematics.json` duration (±0.05 s), and the demo and retry variants too |
@@ -2095,7 +2095,7 @@ These routes exist so 3D and cinematic work can be checked frame by frame withou
 - [ ] Only the current station's controls react; nothing reacts during cinematics or the gap; wrong controls spring back.
 - [ ] A wrong action plays the buzzer, shake and red pulse, the fuel drops by 10, and the Tower sees "Flyer used …" in its language.
 - [ ] Fuel at 0 plays the crash; Retry (both) restarts the phase with full fuel.
-- [ ] Phase 1 subtitles show every keyword glossed; Phase 2 only some; Phase 3 none. The chip style is identical everywhere; no Devanagari in any subtitle.
+- [ ] Phase 1 subtitles show every keyword glossed; Phase 2 only some; Phase 3 none. The chip style is identical everywhere; no Devanagari in any subtitle segment text (a Hindi listener's glosses are Devanagari).
 - [ ] Phase 3 lifelines: 3 dots per player, a full translation revealed for 6 s then a free "show" link; a failed translation keeps the dot.
 - [ ] Cinematics start within ~200 ms on two browsers (server clock); double skip works; a late joiner seeks.
 - [ ] Refreshing a tab mid-game rejoins and resumes (same role via the sessionStorage token).

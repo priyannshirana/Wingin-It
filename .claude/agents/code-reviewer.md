@@ -99,7 +99,7 @@ A change by one owner inside the other owner's paths, or in `docs/`, is automati
   - ON/OFF guard is English only.
   - Shared words are never keywords.
   - Listener-language words are plain with no exposure.
-  - **No Devanagari in any segment text or gloss.**
+  - **No Devanagari in any segment text** (glosses for a Hindi listener are Devanagari; English listener glosses are Latin).
   - The gloss rule uses the listener's own counters; exposure counts only in phase ≥ 1.
 - Credits and lifelines:
   - Understood: unglossed, not lifelined, phases 2–3, once per concept per action.

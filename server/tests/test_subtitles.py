@@ -83,16 +83,23 @@ def test_devanagari_crossover_shown_in_english_plain(lexicon: Lexicon) -> None:
     assert chips(out) == [("Aag", "fire")]
 
 
-def test_hindi_listener_glosses_in_latin(lexicon: Lexicon) -> None:
+def test_hindi_listener_glosses_in_devanagari(lexicon: Lexicon) -> None:
     out = segs(lexicon, "Red! The red one!", "en", "hi")
-    assert chips(out) == [("Red", "laal"), ("red", "laal"), ("one", "ek")]
+    assert chips(out) == [("Red", "लाल"), ("red", "लाल"), ("one", "एक")]
+    assert not DEVA.search("".join(s["text"] for s in out))
+
+
+def test_english_listener_gets_latin_gloss_and_text(lexicon: Lexicon) -> None:
+    out = segs(lexicon, "लाल बटन दबाओ", "hi", "en")
+    assert chips(out) == [("Laal", "red"), ("dabao", "press")]
+    assert not DEVA.search("".join(s["text"] + (s.get("gloss") or "") for s in out))
 
 
 def test_twice_one_chip_two_concepts(lexicon: Lexicon) -> None:
     out = segs(lexicon, "press it twice", "en", "hi")
     twice = next(s for s in out if s["text"] == "twice")
     assert twice["concept"] == "TWO" and twice["concepts"] == ["TWO", "TIMES"]
-    assert twice["gloss"] == "do baar"
+    assert twice["gloss"] == "दो बार"
 
 
 def test_segments_cover_the_whole_utterance_in_order(lexicon: Lexicon) -> None:
@@ -127,11 +134,11 @@ def test_no_devanagari_in_any_segment_for_every_authored_line(
         assert not DEVA.search(display_text(utt, lexicon))
 
 
-def test_no_devanagari_for_hindi_listener_glosses(content: Content, lexicon: Lexicon) -> None:
+def test_no_devanagari_in_text_for_hindi_listeners(content: Content, lexicon: Lexicon) -> None:
     for _, _, en in authored_lines(content):
         utt = make_utt(lexicon, en, "en", "hi")
         for s in build_segments(utt, "hi", PlayerStats(), 1, lexicon, 2):
-            assert not DEVA.search(s.text) and not DEVA.search(s.gloss or "")
+            assert not DEVA.search(s.text)
 
 
 def test_same_language_speech_is_all_plain(lexicon: Lexicon) -> None:

@@ -559,6 +559,30 @@ const GLOSS: Record<ConceptId, Record<Lang, string>> = {
   DOWN: { en: "down", hi: "neeche" },
 };
 
+/** Gloss forms in the listener's script (§A2 rule 3): Devanagari (hi.display_deva) for Hindi, Latin English for English. */
+const GLOSS_SCRIPT: Record<ConceptId, Record<Lang, string>> = {
+  RED: { en: GLOSS.RED.en, hi: "लाल" },
+  BLUE: { en: GLOSS.BLUE.en, hi: "नीला" },
+  ONE: { en: GLOSS.ONE.en, hi: "एक" },
+  THREE: { en: GLOSS.THREE.en, hi: "तीन" },
+  PRESS: { en: GLOSS.PRESS.en, hi: "दबाओ" },
+  PULL: { en: GLOSS.PULL.en, hi: "खींचो" },
+  YES: { en: GLOSS.YES.en, hi: "हाँ" },
+  GREEN: { en: GLOSS.GREEN.en, hi: "हरा" },
+  TWO: { en: GLOSS.TWO.en, hi: "दो" },
+  FOUR: { en: GLOSS.FOUR.en, hi: "चार" },
+  ON: { en: GLOSS.ON.en, hi: "चालू" },
+  OFF: { en: GLOSS.OFF.en, hi: "बंद" },
+  NO: { en: GLOSS.NO.en, hi: "नहीं" },
+  WHICH: { en: GLOSS.WHICH.en, hi: "कौन सा" },
+  TIMES: { en: GLOSS.TIMES.en, hi: "बार" },
+  FIRE: { en: GLOSS.FIRE.en, hi: "आग" },
+  LEFT: { en: GLOSS.LEFT.en, hi: "बायाँ" },
+  RIGHT: { en: GLOSS.RIGHT.en, hi: "दायाँ" },
+  YELLOW: { en: GLOSS.YELLOW.en, hi: "पीला" },
+  DOWN: { en: GLOSS.DOWN.en, hi: "नीचे" },
+};
+
 /**
  * Words → segments for a listener: keywords become chips; levels 0 and 1 gloss every keyword in the
  * listener's language, levels 2 and 3 gloss nothing (good enough for the fake).
@@ -573,7 +597,7 @@ export function segmentsFor(text: string, level: number, listenerLang: Lang): Se
         text: w,
         kind: "keyword",
         concept,
-        gloss: level <= 1 ? GLOSS[concept][listenerLang] : null,
+        gloss: level <= 1 ? GLOSS_SCRIPT[concept][listenerLang] : null,
       });
     } else if (w) {
       const last = out[out.length - 1];

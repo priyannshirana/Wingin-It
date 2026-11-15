@@ -227,7 +227,7 @@ export async function expectedStep(split: Split): Promise<ExpectedStep> {
   return { object: next.object, verb: next.verb, count: next.count };
 }
 
-/** The visible text of a subtitle row: the segments only, without the speaker tag or lifeline note. */
+/** The visible text of a subtitle row: the segments only, without the speaker tag, glosses or lifeline note. */
 export async function subtitleText(line: Locator): Promise<string> {
   return line.evaluate((el) => {
     const copy = el.cloneNode(true);
@@ -237,6 +237,7 @@ export async function subtitleText(line: Locator): Promise<string> {
       '[data-testid="translation"]',
       '[data-testid="lifeline-show"]',
       '[data-testid="lifeline-decoding"]',
+      '[data-testid="gloss"]', // glosses are in the listener's script (Devanagari for Hindi)
     ])
       copy.querySelectorAll(sel).forEach((n) => n.remove());
     return copy.textContent ?? "";

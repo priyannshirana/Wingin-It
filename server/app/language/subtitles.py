@@ -79,7 +79,7 @@ def build_segments(
             )
             gloss: str | None = None
             if any(should_gloss(level, lexicon.concept(c), stats, threshold) for c in m.concepts):
-                gloss = " ".join(lexicon.display(c, listener_lang) for c in m.concepts)
+                gloss = " ".join(lexicon.gloss_display(c, listener_lang) for c in m.concepts)
             if len(m.concepts) > 1:
                 seg = Segment(
                     text=text,

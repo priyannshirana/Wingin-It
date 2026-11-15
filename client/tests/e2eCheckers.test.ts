@@ -955,7 +955,7 @@ describe("fake server: lifelines (§B14.2)", () => {
   });
 });
 
-describe("fake server: Latin-only subtitles and quick-say (§A2 rule 3, §B11, §A8)", () => {
+describe("fake server: Latin segment text, listener-script glosses and quick-say (§A2 rule 3, §B11, §A8)", () => {
   it("romanizes Devanagari input in segments and in the speaker's echo", () => {
     const r = startGame();
     r.tower.say("एक नंबर बटन दबाओ।");
@@ -965,10 +965,29 @@ describe("fake server: Latin-only subtitles and quick-say (§A2 rule 3, §B11, �
     expect(text).not.toMatch(DEVANAGARI);
     for (const s of u?.segments ?? []) {
       expect(s.text).not.toMatch(DEVANAGARI);
+      // The Flyer is English here: its glosses stay Latin.
       expect(s.gloss ?? "").not.toMatch(DEVANAGARI);
     }
     const echo = r.game.deliveredTo("utterance_echo", "tower").at(-1);
     expect(echo?.transcript_display).toBe("Ek number button dabao.");
+  });
+
+  it("glosses a Hindi listener in Devanagari and an English listener in Latin", () => {
+    const r = startGame();
+    r.flyer.say("press the red button");
+    const hi = r.game.deliveredTo("utterance", "tower").at(-1)?.segments ?? [];
+    const glosses = hi.filter((s) => s.gloss).map((s) => s.gloss ?? "");
+    expect(glosses.length).toBeGreaterThan(0);
+    for (const g of glosses) expect(g).toMatch(DEVANAGARI);
+    for (const s of hi) expect(s.text).not.toMatch(DEVANAGARI);
+    expect(hi.find((s) => s.concept === "RED")?.gloss).toBe("लाल");
+    r.tower.say("laal button dabao");
+    const en = r.game.deliveredTo("utterance", "flyer").at(-1)?.segments ?? [];
+    expect(en.some((s) => s.gloss)).toBe(true);
+    for (const s of en) {
+      expect(s.text).not.toMatch(DEVANAGARI);
+      expect(s.gloss ?? "").not.toMatch(DEVANAGARI);
+    }
   });
 
   it("holds in the other pairing too (Flyer Hindi, Tower English)", () => {

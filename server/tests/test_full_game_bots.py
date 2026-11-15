@@ -29,7 +29,7 @@ REPORT_START = {"en": "Flyer and Tower landed with ", "hi": "Flyer और Tower 
 
 
 def assert_language_paths(t: Table, langs: tuple[Lang, Lang]) -> None:
-    """§A2 rule 9 / §B18: Latin segments, listener-language glosses, Tower-language manual."""
+    """§A2 rule 9 / §B18: Latin segments, listener-script glosses, Tower-language manual."""
     lexicon = t.room.svc.lexicon
     for client, lang in ((t.flyer, langs[0]), (t.tower, langs[1])):
         utts = client.of("utterance")
@@ -41,9 +41,9 @@ def assert_language_paths(t: Table, langs: tuple[Lang, Lang]) -> None:
                 gloss = seg.get("gloss")
                 if gloss is None:
                     continue
-                assert not DEVA.search(gloss), seg
+                assert bool(DEVA.search(gloss)) == (lang == "hi"), seg
                 ids = seg.get("concepts") or [seg["concept"]]
-                assert gloss == " ".join(lexicon.display(c, lang) for c in ids), seg
+                assert gloss == " ".join(lexicon.gloss_display(c, lang) for c in ids), seg
                 glossed += 1
         assert glossed > 0
     cards = [m["card"] for m in t.tower.of("manual_card") if m["card"] is not None]
@@ -203,7 +203,7 @@ async def run_of_show(t: Table, content: Content) -> dict[str, object]:
     assert chips(m) == [("Kaun si", "which"), ("laal", "red"), ("neeli", "blue")]
     await t.say("flyer", "Red! The red one!")
     m = t.last("tower", "utterance")
-    assert chips(m)[:2] == [("Red", "laal"), ("red", "laal")]
+    assert chips(m)[:2] == [("Red", "लाल"), ("red", "लाल")]
     await t.say("tower", "Ek number button dabao — teen nahi!")
     await t.click("OH_BTN_1", "press")
     t.advance(1300)
