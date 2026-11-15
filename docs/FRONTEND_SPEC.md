@@ -31,7 +31,7 @@ This is the complete brief for the **browser client** of *Wingin' it!*: the lobb
   - F7 UI strings (`i18n/strings.ts`)
   - F8 Home page, character select and lobby
   - F9 The 3D cockpit (scene, stations, parts, environment, characters, world mapping)
-  - F10 Camera rig and light rigs
+  - F10 Camera rig, light rigs, and free look (F10.3, pending)
   - F11 Flyer HUD
   - F12 Tower screen (radar, the flight manual, the subtitle column)
   - F13 Subtitles, keyword chips and lifelines
@@ -381,7 +381,7 @@ Single source: `content/cinematics.json` (both sides read it; durations must mat
 
 | id | kind | duration ms | demo ms | skippable | Plays in | Flyer params | Tower params |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `prologue` | state | 12000 | 6000 | yes | PROLOGUE | — | — |
+| `prologue` | state | 28000 | 12000 | yes | PROLOGUE | — | — |
 | `p1_intro` | state | 1200 (3200 on retry) | 1200 | yes | PHASE_INTRO(1) | `retry` | `retry` |
 | `p1_seat` | in_phase | 3000 | 3000 | yes | after P1_A3 | — | — |
 | `p1_outro` | state | 6000 | 6000 | yes | PHASE_OUTRO(1) | — | — |
@@ -397,6 +397,7 @@ Single source: `content/cinematics.json` (both sides read it; durations must mat
 | `crash` | state | 5000 | 5000 | no | CRASH | — | — |
 
 - `fire_side`, `stopped_side`, `damaged_side` are `"left"` / `"right"` and are **never** sent to the Tower.
+- **Prologue change (Nov 14 2026, pending):** the prologue is now a 28 s movie-style opening (12 s in demo): takeoff, a "1.5 hours later" black card, the pilot dozing off, a "take control" card, black, then a zoom into the Flyer's eyes (Frontend §F14.2, §F14.4, §F12.7). `content/cinematics.json` must be updated to the new durations when this is built.
 - The server sends `cinematic` with `start_at_ms = server_now + 300`. A client that receives it late seeks the timeline forward by `serverNow() - start_at_ms`.
 - **Skip:** each player sends `skip_cinematic`; the server broadcasts `skip_votes`; when both roles have voted (bots vote instantly) the server broadcasts `cinematic_skip {id}` and advances immediately. Clients call `timeline.progress(1)` so every end state is applied. `crash` is not skippable (it waits for Retry instead).
 - After a `state` cinematic ends the server enters the next state. After an `in_phase` or `event` cinematic ends the server sends the post-cinematic `flyer_view` (world end state) and activates the next action (or, for `event`, makes the current action active).
@@ -408,7 +409,7 @@ Single source: `content/cinematics.json` (both sides read it; durations must mat
 {
   "lead_ms": 300,
   "cinematics": {
-    "prologue":         {"kind": "state",    "duration_ms": 12000, "demo_duration_ms": 6000, "skippable": true},
+    "prologue":         {"kind": "state",    "duration_ms": 28000, "demo_duration_ms": 12000, "skippable": true},
     "p1_intro":         {"kind": "state",    "duration_ms": 1200,  "retry_duration_ms": 3200, "skippable": true},
     "p1_seat":          {"kind": "in_phase", "duration_ms": 3000,  "skippable": true},
     "p1_outro":         {"kind": "state",    "duration_ms": 6000,  "skippable": true},
@@ -765,7 +766,7 @@ Each cinematic has one hero beat. Hit it at the spec time with the **flash + sou
 
 | Cinematic | Hero beat |
 | --- | --- |
-| `prologue` | 5.0 s, the pilot slumps onto the yoke (roll dip, alarm starts at 6) |
+| `prologue` | 3.5 s lift-off; 15.5 s the pilot slumps onto the yoke (roll dip, alarm at 16); 21.5–25 the dolly-in into the Flyer's eyes |
 | `p1_seat` | the seat slides back with the elastic bounce |
 | `p1_outro` | the overhead lamps going green in sequence, then the clouds parting to the moon |
 | `p2_intro` | 0.8 s, the engine explodes: white flash 60 ms + `boom` + fireball + shake 1.0 |
@@ -795,7 +796,7 @@ Check each frame against: the §F0.2 color script, the §F0.3 composition rules,
 ## F1. Principles
 
 1. **Render the server.** Every visual state comes from a server message: `game_state`, `flyer_view`, `object_state`, `manual_card`, `cinematic`, `utterance`, and so on. The only client-side "prediction" is the optimistic control motion (§F9.6), which springs back unless the server confirms it.
-2. **One bundle, two roles.** `/r/:code` renders the Lobby, then the `FlyerScreen` or the `TowerScreen` by role, then the `WordDeck`. The Tower never mounts the 3D canvas, except the Lobby/landing background, which is a separate, content-free canvas.
+2. **One bundle, two roles.** `/r/:code` renders the Lobby, then the `FlyerScreen` or the `TowerScreen` by role, then the `WordDeck`. The Tower never mounts the **cockpit** canvas. It may mount only content-free exterior canvases: the Lobby/home background and the **tower window** (§F12.7), which contain no cockpit, controls or Flyer data.
 3. **Language of the viewer.** All chrome text comes from `strings.ts` in the viewer's `lang`. All Devanagari renders in the DOM (troika `Text` in 3D can't shape Devanagari), and 3D labels are only digits and arrows.
 4. **Latin subtitles, one chip style.** Subtitles render the server's segments exactly. Never style a chip by its concept.
 5. **Toy, not scary.** Saturated colors, rounded shapes, bouncy eases, a cartoon "POOF".
@@ -1137,6 +1138,9 @@ Every UI string lives here with `en` and `hi`. A unit test fails if any key is m
 | `lifeline.show` | show | दिखाओ |
 | `lifeline.decoding` | Decoding… | अनुवाद हो रहा है… |
 | `cin.skip` | Skip | छोड़ो |
+| `cin.time_skip` | 1.5 hours later | 1.5 घंटे बाद |
+| `cin.take_control_flyer` | The pilot is out cold. You have to fly the plane! | पायलट बेहोश है। अब विमान तुम्हें उड़ाना है! |
+| `cin.take_control_tower` | The pilot is out cold. Guide the passenger down! | पायलट बेहोश है। यात्री को सही-सलामत उतरवाओ! |
 | `cin.skip_waiting` | Waiting for your partner to skip | साथी के छोड़ने का इंतज़ार |
 | `crash.title` | OUT OF FUEL | ईंधन ख़त्म |
 | `crash.retry` | Retry | फिर से कोशिश करो |
@@ -1437,7 +1441,7 @@ Helpers (all return GSAP tweens so timelines can position them):
 - `flash(color, ms)`: full-screen DOM overlay, opacity 1 → 0.
 - `setLightRig(name, s)`, `titleCard(key, seconds)`, `sfx(name)`.
 
-**Resting shot during play** = the current station's shot (`OVERHEAD` / `PEDESTAL` / `FRONT`), applied when PLAYING starts, after any cinematic and on rejoin. In Dev Mode with `?orbit=1`, OrbitControls replace the rig.
+**Resting shot during play** (until §F10.3 free look is built; then it's the initial facing) = the current station's shot (`OVERHEAD` / `PEDESTAL` / `FRONT`), applied when PLAYING starts, after any cinematic and on rejoin. In Dev Mode with `?orbit=1`, OrbitControls replace the rig.
 
 ### F10.2 `scene/LightRig.tsx`
 
@@ -1450,6 +1454,42 @@ Helpers (all return GSAP tweens so timelines can position them):
 | `dawn` | Low directional #FFB36B at 1.2 from (0, 0.3, −1); hemisphere #FFD9B0 / #3A3A4A at 0.6 |
 
 Every rig parameter is a tweenable number; a rig change tweens all of them over 1 s (or over the duration the timeline asks for). The fire-side light reads `world.fire.side`.
+
+### F10.3 Free look and interact mode (PENDING DESIGN CHANGE, user decision Nov 14 2026, not implemented yet)
+
+> **This overrides the build spec's non-goal "No walking or free camera."** The Flyer may now look around the cabin with the mouse. There's still no walking: the head stays in the seat, turning and leaning a little. Scripted cinematics are unchanged. Build this after the current round, on the new AWS profile.
+
+**Two modes during PLAYING (Flyer only):**
+
+| Mode | Cursor | Mouse | Clicks |
+| --- | --- | --- | --- |
+| **Look** (default) | Hidden; pointer locked (Pointer Lock API) | Moving the mouse turns the head | A click **freezes the view** → interact mode (and also counts as a click on the control under the screen centre if there is one; see below) |
+| **Interact** | Visible | Moves the pointer only; the view stays still | A click on a control → `interact` (as today, §F9.5). A click on **empty space** (no control under the pointer) → back to look mode, re-locking the pointer |
+
+- **Entering look mode** needs a user gesture (browser rule): the first click on the canvas when PLAYING starts. Until then, show the hint below. `Esc` (the browser releases pointer lock) → interact mode.
+- **Clicking any control** keeps interact mode, including a control on another station that's inert (it does nothing, as today). Only a click that hits **no control mesh** returns to look mode.
+- **Head limits** (from the seated eye at the `FLYER_DEFAULT` position):
+  - **turn:** yaw ±110° (enough to look out of both side windows), pitch −55° (down to the pedestal) to +60° (up to the overhead);
+  - **lean** with the look direction: up to **25 cm** forward/down when looking toward the front panel or the pedestal, and up to **20 cm sideways** toward a side window when yaw > 60°, so the player can **see past the pedestal** (it hides lever 4 from the upright head) and look **side to side** out of both windows at the wings and fire;
+  - a collision clamp keeps the camera ≥ 6 cm from cockpit geometry.
+- **Settle on freeze:** when look → interact, find the station whose panel the view ray hits (or the nearest within 25°). Ease over **0.3 s** (`power2.out`) toward a clean framing of that panel: a blend of the current view and that station's shot (§F10.1), keeping most of the player's angle and any lean needed to see the bottom row. If no panel is near, stay exactly where the view is.
+- **Feel:** mouse sensitivity is set in Settings (default 0.15°/px, range 0.05–0.4, saved in `wingin:settings`). The look is smoothed with critical damping (~60 ms); there's no Y inversion by default (optional toggle). Camera shake, roll and pitch from cinematics and `fx` compose on top of the look rotation (§F10.1 rig).
+- **Cinematics** (`input_locked`): the scripted rig takes over the camera as today. Pointer lock may stay engaged, but mouse input is ignored. When the cinematic ends, the head eases (0.4 s) back from the cinematic's end shot into look mode, facing the current station's shot.
+- **Typing** (the MockTalkBox or any input): focusing an input releases pointer lock → interact mode. Space push-to-talk works in both modes.
+- **First-person hands:** the poke animation plays only in interact mode, toward the clicked control.
+- **HUD hint** (new strings, both languages): `look.hint_enter` "Click to look around" / "चारों ओर देखने के लिए क्लिक करो"; `look.hint_look` "Move the mouse to look · Click to use the controls" / "देखने के लिए माउस घुमाओ · कंट्रोल चलाने के लिए क्लिक करो"; `look.hint_interact` "Click empty space to look around again" / "फिर से देखने के लिए खाली जगह पर क्लिक करो"; `settings.sensitivity` "Mouse sensitivity" / "माउस की संवेदनशीलता". The hint shows small and bottom-left, and fades after the first 3 uses of each mode.
+- **Privacy and rules unchanged:** only the server's `interactive` ids react (§A2 rule 6); the Tower is unaffected; there are no protocol changes.
+- **Consequences:**
+  - The **FRONT occlusion** (the pedestal hiding lever 4) is solved by the lean, so the controls stay frozen.
+  - Free look means all three stations are on screen more often, so the **draw-call budget** (§F21; WIDE-type views reach ~280) matters more. Plan the control-batching optimization (identical controls in one draw each, with **no visual change**) alongside this.
+  - The station shots (§F10.1) remain the cinematic shots, the settle targets, and the initial facing.
+- **Tests and visual check:**
+  - mode transitions (lock/unlock/Esc/typing/cinematic);
+  - the head limits and collision clamp;
+  - the settle target picking;
+  - an empty-space click returning to look mode;
+  - a click on a control in interact mode sending `interact` and staying in interact mode;
+  - screenshots of the leaned view past the pedestal showing lever 4, both side-window looks, and each settle framing, at 1440×900.
 
 ## F11. Flyer HUD (`ui/FlyerHUD.tsx`)
 
@@ -1518,6 +1558,11 @@ Below the radar: the fuel bar (same colors and pulse as the Flyer HUD, plus `{n}
 - **Nothing on either page may be clipped or scroll.** A test asserts that every page element's bounding box is inside its page at both sizes.
 - The phase tabs stick out of the right page's outer edge but stay inside the manual's reserved width.
 
+**Accepted by the user (Nov 14 2026), after reviewing the open-book build:**
+- The front panel's three gear lamps keep **separate** callouts.
+- The overhead diagram may use a **single (right) side gutter**, with its column-0 names above and below.
+- Callout tags may scale down to **≥ 12 px at 1280 × 720**, because the whole book scales uniformly. They stay ≥ 14 px at 1440 × 900.
+
 **Left page: the diagram (`PanelDrawing`).** A title bar on top, then the station diagram filling the rest of the page (≈ 80% of the page height). Nothing else goes on the left page.
 
 1. **Title bar:** `card.title` in heavy caps (Baloo 2 800, 34 px, letter-spaced; Devanagari at the same weight, no caps transform) on the left; a small step pill (`manual.step`, `index+1` / `total`) and the phase name on the right.
@@ -1584,6 +1629,20 @@ The Tower doesn't render the 3D scene. Each cinematic has a 2D Tower timeline (�
 - Rubber stamp component: big bold text (Baloo 2 800, 96 px, letter-spaced) in a rounded double border, rotated −8°, slams in (scale 2.2 → 1, 180 ms, `power4.in`) with a `stamp` thump and a 2 px screen jolt. Used for MAYDAY (red), LANDED (green) and EMERGENCY (manual corner).
 - Banner: a full-width strip across the radar column (teal, white text) for `tower.autopilot`.
 
+### F12.7 Tower window (PENDING, user decision Nov 14 2026)
+
+For the three big story moments (**takeoff** in the prologue, the **landing**, and the **crash**), the Tower sees the plane itself through a "tower window", not just the radar.
+
+- **Look:** a large framed control-tower window (thick slate frame, slightly tinted glass with a soft reflection streak) that slides down over the radar and manual area (≈ 75% of the screen, centered) in 0.5 s, plays its shot, then slides away. The desk dims behind it.
+- **Rendering:** a separate, small `<Canvas>` (`ui/tower/TowerWindow.tsx`, lazy-loaded) containing **only** the sky, clouds, runway, the exterior plane and a ground strip with a few toy hangars and the tower's own railing in the foreground. It **never** includes the cockpit, stations, controls or any `flyer_view` data, and it reuses the exterior components from §F9.7. The Tower bundle loads three.js only for this chunk, and only when a window cinematic starts.
+- **Shots:** from the tower (a fixed position near the runway's middle, about 12 m up), with a slow pan following the plane:
+  - takeoff: the roll, lift-off and climb away into the dusk;
+  - landing: dawn, touchdown, braking and the stop near the tower;
+  - crash: far-off sky, the spiral and the POOF on the horizon.
+- **Privacy rule:** the Tower's view must **never** reveal the fire side. In the tower window the plane is always rendered **symmetrically**: both propellers spinning (or both slowed on landing), no single-wing fire or smoke, and wisps from both engines, or none. It doesn't receive or read `fire_side`/`damaged_side`, and the server sends the Tower no side params anyway (§A10).
+- **Sound:** a distant engine and wind, quieter than the Flyer's; touchdown screech on landing; the soft boom on the crash.
+- **Tests:** the TowerWindow chunk is lazy and is never imported by the cockpit; no side param is read; symmetric rendering is asserted; screenshots of all three shots in both languages.
+
 ## F13. Subtitles, keyword chips and lifelines (`ui/Subtitles.tsx`, `ui/Lifelines.tsx`)
 
 **One component for both screens:** `<Subtitles stack={3|5} tag="TOWER"|"FLYER" fontSize={26|20}/>`, reading `store.subtitles`.
@@ -1635,15 +1694,32 @@ useEffect(() => {                                       // on store.cinematic ch
 
 Times in seconds from the start. They follow the build spec shot lists, plus the exact end states.
 
-**`prologue` (12 s; demo 6 s = every time ×0.5)**
+**`prologue` (28 s; demo 12 s) — PENDING REWRITE (user decision Nov 14 2026): a movie-style opening.** *(The previous 12 s cruise-start version is superseded.)*
 
-1. 0–3 `cut(EXT_CHASE)`. The toy plane cruises at night over moonlit clouds; `engine_hum` on. WINGIN' IT! logo fades in 0.5–1.0, holds, fades out 2.0–2.5.
-2. 3 `cut(WIDE_INTERIOR)`. The pilot yawns and stretches (arms up 3.2–4.2); at 5.0 he slumps onto the yoke while the Flyer's character in the right seat turns to him and goes `panic` (5.2). Camera `rollTo(6, 1)` from 5.0 as the plane dips.
-3. 6 the `alarm_master` loop starts; `setLightRig("night_alarm", 0.3)`.
-4. 7 `whip(FLYER_DEFAULT)` (0.5 s); "Zzz" starts above the pilot. `rollTo(0, 1.5)`.
-5. 8.5 `sfx("radio_crackle")`.
-6. 10–12 `titleCard` "PHASE 1 — PILOT DOWN" / "SIGNAL: STRONG ▮▮▮".
-- End state = phase-1 start world (alarm on, night_alarm, pilot slumped).
+1. **0–8 Takeoff at dusk.**
+   - 0 `cut(EXT_FRONT_LOW)` on the runway at sunset: the toy plane sits at the threshold with the runway lights glowing.
+   - 0.8–3.5 it rolls (engines spool up, `engine_hum` rising) while the camera tracks alongside (an `EXT_SIDE`-style dolly).
+   - 3.5 lift-off with a small bounce of the wheels.
+   - 4–8 `cut(EXT_CHASE)`: it climbs through pink-orange clouds and banks gently.
+   - The WINGIN' IT! logo fades in at 5.0–5.5, holds, and fades out by 7.5.
+   - Light: a `dawn`-like dusk rig (low orange sun), shifting toward night.
+2. **8–10.5 Time skip.** A fade to black over 0.4 s. A centered movie-style card in the viewer's language, `cin.time_skip` ("1.5 hours later" / "1.5 घंटे बाद"), fades in and out. Engine hum only.
+3. **10.5–17 Cruise, the pilot dozes off.**
+   - 10.5 fade up on `EXT_CHASE` at night over moonlit clouds (`night_calm`).
+   - 12 `cut(WIDE_INTERIOR)`: the captain yawns (12.5), nods twice (13.5, 14.5), then **slumps onto the yoke at 15.5** (roll dip 6°). The Flyer's character turns to him and goes `panic` (15.8).
+   - 16 the `alarm_master` loop starts and the `night_alarm` rig snaps on; "Zzz" floats above the captain.
+4. **17–20 "Take control".** A big card over a dimmed frame, in the viewer's language:
+   - Flyer: `cin.take_control_flyer` "The pilot is out cold. You have to fly the plane!" / "पायलट बेहोश है। अब विमान तुम्हें उड़ाना है!"
+   - Tower: `cin.take_control_tower` "The pilot is out cold. Guide the passenger down!" / "पायलट बेहोश है। यात्री को सही-सलामत उतरवाओ!"
+   - Radio crackle at 17.2.
+5. **20–21 Black.** A fade to black, then a fade up.
+6. **21–25.5 Into the Flyer's eyes.**
+   - 21 `cut(WIDE_INTERIOR)` (from behind both seats, as in the M3a `09-wide-prologue-*` frame), alarm light pulsing.
+   - 21.5–25 a slow dolly-in (`power2.inOut`) over the Flyer character's shoulder and **into the Flyer's eye position**. The character model hides as the camera passes 0.8 m from the eye (§F9.8).
+   - 25 the first-person view settles facing the overhead.
+7. **25.5–28 Title card** "PHASE 1 — PILOT DOWN" / "SIGNAL: STRONG ▮▮▮". At 28 the camera hands over to **free look** (§F10.3) at PLAYING start (until free look is built: the `OVERHEAD` resting shot).
+- **Demo (12 s):** a 3 s takeoff (lift-off + chase), a 1.2 s time skip, 3.5 s of dozing, a 1.5 s take-control card, a 1.8 s dolly-in, 1 s of title. Same beats, compressed per beat (not a uniform ×0.43).
+- End state = the phase-1 start world (alarm on, night_alarm, pilot slumped).
 
 **`p1_intro` (1.2 s; retry 3.2 s)** — retry: `titleCard` phase 1 for 2 s first. Then `moveTo(OVERHEAD, 1.2)`.
 
@@ -1716,7 +1792,7 @@ After `p1_seat`, `p2_extinguish`, `p3_runway_reveal` and `p3_touchdown`, the cam
 
 | id | Tower 2D sequence |
 | --- | --- |
-| `prologue` | 0–8.5: the radar boots (rings draw in, sweep starts), green blip cruising. 8.5: `sfx("radio_crackle")`; the blip turns red; the MAYDAY stamp slams onto the screen. 10–12: the phase 1 title card. (Demo: ×0.5.) |
+| `prologue` | **PENDING REWRITE (matches the new 28 s Flyer prologue):** 0–8: the **tower window** (§F12.7) slides open and shows the takeoff from the control tower: the toy plane rolls down the runway, lifts off and climbs away into the dusk. 7.5: the window slides closed and the radar boots (rings draw in, sweep starts), with a green blip climbing. 8–10.5: the same `cin.time_skip` black card. 10.5–17: the radar cruising; at 17 the blip turns red, the radio crackles, and the MAYDAY stamp slams. 17–20: `cin.take_control_tower`. 20–21: black. 21–25.5: the manual cover. 25.5–28: the phase 1 title card. (Demo 12 s: compressed per beat, like the Flyer's.) |
 | `p1_intro` | The manual cover opens (0.6 s), and the first card slides in. Retry: the title card for 2 s first. |
 | `p1_seat` | Nothing (the radar keeps sweeping). |
 | `p1_outro` | 0–2: every progress dot turns green one by one. 4–6: the "AUTOPILOT ENGAGED" banner; the blip turns green. The manual closes to the cover at 5.4. |
@@ -1727,9 +1803,9 @@ After `p1_seat`, `p2_extinguish`, `p3_runway_reveal` and `p3_touchdown`, the cam
 | `lightning_strike` | A 60 ms white overlay at 30%; the radar flickers for 0.5 s. |
 | `p3_runway_reveal` | The runway icon brightens and pulses twice. |
 | `p3_touchdown` | 0–2: the blip slides onto the runway icon; 2: a small bounce of the blip. |
-| `landing` | 0–3: the blip parks; 3: the LANDED stamp + confetti; the screen warms (a dawn-colored gradient overlay, 20%). |
+| `landing` | **PENDING:** 0–5.5: the **tower window** opens on the dawn runway seen from the tower; the toy plane rolls in from the left, braking (smoke wisps from **both** engines; see the privacy rule in §F12.7), and stops near the tower. 5.5: the window slides closed; the blip parks; then the LANDED stamp + confetti; the screen warms (a dawn-colored gradient overlay, 20%). |
 | `ending` | The same title as the Flyer (`end.landed`, fuel, time); fade to cream. |
-| `crash` | The blip spirals off the radar and pops into a tiny "POOF"; 4: `crash.title`; the Retry overlay from 5 s. |
+| `crash` | **PENDING:** 0–3.2: the **tower window** opens on the sky seen from the tower: far away, the toy plane spirals down (a symmetric smoke corkscrew) and vanishes into a big cartoon POOF cloud on the horizon. 3.2: the window closes; the blip spirals off the radar and pops into a tiny "POOF"; 4: `crash.title`; the Retry overlay from 5 s. |
 
 ## F15. Action feedback (not cinematics; no input lock)
 

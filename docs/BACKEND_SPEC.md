@@ -375,7 +375,7 @@ Single source: `content/cinematics.json` (both sides read it; durations must mat
 
 | id | kind | duration ms | demo ms | skippable | Plays in | Flyer params | Tower params |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `prologue` | state | 12000 | 6000 | yes | PROLOGUE | — | — |
+| `prologue` | state | 28000 | 12000 | yes | PROLOGUE | — | — |
 | `p1_intro` | state | 1200 (3200 on retry) | 1200 | yes | PHASE_INTRO(1) | `retry` | `retry` |
 | `p1_seat` | in_phase | 3000 | 3000 | yes | after P1_A3 | — | — |
 | `p1_outro` | state | 6000 | 6000 | yes | PHASE_OUTRO(1) | — | — |
@@ -391,6 +391,7 @@ Single source: `content/cinematics.json` (both sides read it; durations must mat
 | `crash` | state | 5000 | 5000 | no | CRASH | — | — |
 
 - `fire_side`, `stopped_side`, `damaged_side` are `"left"` / `"right"` and are **never** sent to the Tower.
+- **Prologue change (Nov 14 2026, pending):** the prologue is now a 28 s movie-style opening (12 s in demo): takeoff, a "1.5 hours later" black card, the pilot dozing off, a "take control" card, black, then a zoom into the Flyer's eyes (Frontend §F14.2, §F14.4, §F12.7). `content/cinematics.json` must be updated to the new durations when this is built.
 - The server sends `cinematic` with `start_at_ms = server_now + 300`. A client that receives it late seeks the timeline forward by `serverNow() - start_at_ms`.
 - **Skip:** each player sends `skip_cinematic`; the server broadcasts `skip_votes`; when both roles have voted (bots vote instantly) the server broadcasts `cinematic_skip {id}` and advances immediately. Clients call `timeline.progress(1)` so every end state is applied. `crash` is not skippable (it waits for Retry instead).
 - After a `state` cinematic ends the server enters the next state. After an `in_phase` or `event` cinematic ends the server sends the post-cinematic `flyer_view` (world end state) and activates the next action (or, for `event`, makes the current action active).
@@ -402,7 +403,7 @@ Single source: `content/cinematics.json` (both sides read it; durations must mat
 {
   "lead_ms": 300,
   "cinematics": {
-    "prologue":         {"kind": "state",    "duration_ms": 12000, "demo_duration_ms": 6000, "skippable": true},
+    "prologue":         {"kind": "state",    "duration_ms": 28000, "demo_duration_ms": 12000, "skippable": true},
     "p1_intro":         {"kind": "state",    "duration_ms": 1200,  "retry_duration_ms": 3200, "skippable": true},
     "p1_seat":          {"kind": "in_phase", "duration_ms": 3000,  "skippable": true},
     "p1_outro":         {"kind": "state",    "duration_ms": 6000,  "skippable": true},
@@ -1851,7 +1852,7 @@ Build it per role from `game` (identical for both roles: it contains no secrets)
 | Situation | blip | icon | storm | runway | glide_path | landed |
 | --- | --- | --- | --- | --- | --- | --- |
 | LOBBY / start of PROLOGUE | green | null | false | false | false | false |
-| PROLOGUE after 8.5 s, phase 1 until A1 succeeds | red | mayday | | | | |
+| PROLOGUE after the pilot dozes off (17 s; demo 7 s), phase 1 until A1 succeeds | red | mayday | | | | |
 | Phase 1 after A1 | amber | null | | | | |
 | After p1_outro | green | null | | | | |
 | Phase 2 until B3 | red | fire | | | | |
