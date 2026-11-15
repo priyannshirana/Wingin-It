@@ -157,12 +157,12 @@ describe("Tower cue layer (§F14.4, §F12.6)", () => {
     expect(root.style.transform).toBe("");
   });
 
-  it("a late landing (rejoin at 3.5 s) seeks to the stamp + confetti; skip keeps the end state", () => {
+  it("a late landing (rejoin at 6.3 s) seeks to the stamp + confetti; skip keeps the end state", () => {
     render(<FakeTower runner />);
     act(() => {
       useStore
         .getState()
-        .receive(cinematic({ id: "landing", start_at_ms: Date.now() - 3500, duration_ms: 7000 }));
+        .receive(cinematic({ id: "landing", start_at_ms: Date.now() - 6300, duration_ms: 7000 }));
     });
     expect(screen.getByTestId("tower-stamp").dataset.kind).toBe("landed");
     expect(screen.getAllByTestId("confetti-piece")).toHaveLength(60);

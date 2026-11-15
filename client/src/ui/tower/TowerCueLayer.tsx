@@ -4,6 +4,7 @@ import { BlipBounce } from "./BlipBounce";
 import { Confetti } from "./Confetti";
 import { DawnWarm } from "./DawnWarm";
 import { DomPulses } from "./DomPulses";
+import { TowerFade } from "./TowerFade";
 import { FadeCream } from "./FadeCream";
 import { RadarBoot } from "./RadarBoot";
 import { RadarCrash } from "./RadarCrash";
@@ -40,6 +41,7 @@ export function TowerCueLayer() {
     <div ref={attach} data-testid="tower-cues" className="contents">
       <DawnWarm />
       <FadeCream />
+      <TowerFade />
       <Banner root={dom.root} />
       <Stamp kind="mayday" root={dom.root} />
       <Stamp kind="landed" root={dom.root} />

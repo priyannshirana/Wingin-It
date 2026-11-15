@@ -19,6 +19,7 @@ import { SignalBars } from "./SignalBars";
 import { Subtitles } from "./Subtitles";
 import { TitleCard } from "./TitleCard";
 import { TowerCueLayer } from "./tower/TowerCueLayer";
+import { TowerWindowHost } from "./tower/TowerWindowHost";
 import { TowerFeedback } from "./TowerFeedback";
 
 // Columns are 22 / 58 / 20 %: the open-book manual's two equal pages need the wider center (§F12.3).
@@ -99,6 +100,7 @@ export function TowerScreen() {
           {!mock && <PTTIndicator />}
         </aside>
       </div>
+      <TowerWindowHost />
       <TitleCard />
       <TowerCueLayer />
       <FxOverlays />

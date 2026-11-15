@@ -74,7 +74,7 @@ export type Builder = (tl: gsap.core.Timeline, ctx: TimelineCtx, at: (t: number)
 
 /** Nominal (cinematics.json) duration in seconds of the plain variant each builder is laid out for. */
 const NOMINAL_S: Record<CinematicId, number> = {
-  prologue: 12,
+  prologue: 28,
   p1_intro: 1.2,
   p1_seat: 3,
   p1_outro: 6,

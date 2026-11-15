@@ -104,7 +104,10 @@ export type CueName =
   | "poof"
   | "fade_cream" // ending: fade to cream
   | "fade_black" // prologue: full-screen black (0.4 s fade in and out)
-  | "fade_dim"; // prologue: dimmed frame behind the take-control card
+  | "fade_dim" // prologue: dimmed frame behind the take-control card
+  | "tower_window_takeoff" // §F12.7: the Tower window is open on this shot
+  | "tower_window_landing"
+  | "tower_window_crash";
 
 /** A one-shot full-screen DOM flash (§F10.1 `flash(color, ms)`). */
 export interface FlashFx {
