@@ -1,25 +1,31 @@
-// One fake game room (e2e only): just enough of the Part A server to drive the client through
-// the flow specs with correctly shaped messages and role privacy (§A2 rule 2, §A9).
+// One fake game room (e2e only): a small, faithful slice of the Part A server, so the client can
+// be driven through the flow specs with correctly shaped messages, role privacy (§A2 rule 2, §A9),
+// the judge of BACKEND_SPEC §B9.3, fuel (§B10), crash and retry (§B8.2), lifelines (§B14.2), deck
+// votes (§B8.5) and Latin-only subtitles (§B11).
 //
-// It is NOT the game. The script is tiny (2 actions per phase, one step each, judged at once),
-// Phase 2 keeps its fire on the right, glosses are "level 1 = all, else none", and translations
-// are a tagged echo. The real server is the contract's judge; this only speaks its language.
-import type { WebSocketRoute } from "@playwright/test";
+// It is NOT the game. See client/INTEGRATION.md ("Not modelled by the fake") for what is missing:
+// the script is 2 to 4 short actions per phase, glosses are "level 0/1 = all, else none",
+// translations are a tagged echo of the subtitle, the deck is canned. The real server is the
+// contract's judge; this only speaks its language.
 import type {
   C2S,
   CinematicId,
   CinematicMsg,
   DevCmd,
+  ErrorCode,
   GameState,
   Gender,
   Lang,
   ObjectState,
+  PartType,
   PhaseNo,
   PlayerPublic,
   QuickLine,
+  Radar,
   Role,
   RoomState,
   S2C,
+  StationId,
   Status,
   UtteranceMsg,
   Verb,
@@ -47,9 +53,11 @@ import {
   roomState,
   segmentsFor,
   skipVotes,
+  STATION_IDS,
   STATION_OF,
   STATIONS,
   type StationControl,
+  targetOf,
   toast,
   translation,
   utterance,
@@ -58,6 +66,16 @@ import {
   worldFor,
 } from "./fixtures";
 import { parseC2S } from "./parseC2S";
+import { frameViolations, SECRET_PARAMS } from "./privacy";
+import { subtitleText } from "./subtitles";
+
+/** §A14 constants the fake honours. */
+export const PRESS_DEBOUNCE_MS = 1200;
+export const NEXT_ACTION_DELAY_MS = 1500;
+export const WRONG_PENALTY_S = 10;
+/** Fuel per phase (§A14: 150 / 150 / 180 s). */
+export const FUEL_S: Record<PhaseNo, number> = { 1: 150, 2: 150, 3: 180 };
+const LIFELINE_WINDOW = 3;
 
 export interface FakeOptions {
   /** `welcome.mock_speech` / `room_state.mock_speech` (default true). */
@@ -66,18 +84,32 @@ export interface FakeOptions {
   dev?: boolean;
   /** How long the fake bots wait before acting, ms (default 700). */
   botDelayMs?: number;
-  /** Gap after a success before the next action, ms (default 600; the real server uses 1500). */
+  /** Gap after a success before the next action, ms (default 1500, NEXT_ACTION_DELAY_MS). */
   nextActionMs?: number;
+}
+
+interface FakeStep {
+  control: StationControl;
+  verb: Verb;
+  /** Presses / notches the step needs inside the debounce window. */
+  count: number;
+  /** Target of a toggle. */
+  value?: "on" | "off";
 }
 
 interface FakeAction {
   id: string;
   phase: PhaseNo;
-  control: StationControl;
-  verb: Verb;
+  steps: FakeStep[];
+  ordered: boolean;
   /** A lamp lit (red, blinking) while the action is active. */
   lamp: string | null;
-  say: { en: string; hi: string };
+  /** The Tower's quick-say line: English, Hindi in Latin (hi_roman) and Devanagari. */
+  say: { en: string; hi: string; deva: string };
+  /** An `event` cinematic that runs at the start of the action (the action waits for it). */
+  event?: CinematicId;
+  /** An `in_phase` cinematic that runs after the action succeeds. */
+  after?: CinematicId;
 }
 
 function control(id: string): StationControl {
@@ -88,8 +120,9 @@ function control(id: string): StationControl {
   throw new Error(`fake script: ${id} is not in stations.json`);
 }
 
-function verbFor(c: StationControl): Verb {
-  switch (c.type) {
+/** The verb that completes a step on this part type (§A6). */
+function verbFor(type: PartType): Verb {
+  switch (type) {
     case "PushButton":
       return "press";
     case "ToggleSwitch":
@@ -99,58 +132,157 @@ function verbFor(c: StationControl): Verb {
     case "UpDownLever":
     case "NotchLever":
       return "move_down";
+    case "Lamp":
+    case "FuelGauge":
+    case "Screen":
+      throw new Error(`fake script: ${type} is not clickable`);
     default:
-      throw new Error(`fake script: ${c.id} is not clickable`);
+      return assertNever(type);
   }
 }
+
+const step = (id: string, count = 1, value?: "on" | "off"): FakeStep => {
+  const c = control(id);
+  return { control: c, verb: verbFor(c.type), count, ...(value ? { value } : {}) };
+};
 
 const act = (
   id: string,
   phase: PhaseNo,
-  object: string,
+  steps: FakeStep[],
   lamp: string | null,
   say: FakeAction["say"],
-): FakeAction => {
-  const c = control(object);
-  return { id, phase, control: c, verb: verbFor(c), lamp, say };
-};
+  extra: Pick<FakeAction, "event" | "after"> & { ordered?: boolean } = {},
+): FakeAction => ({
+  id,
+  phase,
+  steps,
+  ordered: extra.ordered ?? true,
+  lamp,
+  say,
+  ...(extra.event ? { event: extra.event } : {}),
+  ...(extra.after ? { after: extra.after } : {}),
+});
 
-/** The fake script: two one-step actions per phase. */
+/**
+ * The fake script. Phase 1: a press, a pull, then an ordered two-button action that ends with
+ * `p1_seat`. Phase 2: a pull, then a button pressed twice, then `p2_extinguish`. Phase 3: a
+ * toggle, a press (then `p3_runway_reveal`), a lever that opens with `lightning_strike`, and a
+ * pull that ends with `p3_touchdown`.
+ */
 export const SCRIPT: Record<PhaseNo, FakeAction[]> = {
   1: [
-    act("P1_A1", 1, "OH_BTN_1", "OH_MASTER_LAMP", {
+    act("P1_A1", 1, [step("OH_BTN_1")], "OH_MASTER_LAMP", {
       en: "Press button one",
       hi: "Ek number button dabao",
+      deva: "एक नंबर बटन दबाओ",
     }),
-    act("P1_A2", 1, "OH_HANDLE_3", null, {
+    act("P1_A2", 1, [step("OH_HANDLE_3")], null, {
       en: "Pull lever three",
       hi: "Teen number lever kheencho",
+      deva: "तीन नंबर लीवर खींचो",
     }),
+    act(
+      "P1_A3",
+      1,
+      [step("OH_BTN_2"), step("OH_BTN_3")],
+      null,
+      {
+        en: "Press button two, then button three",
+        hi: "Pehle do number, phir teen number button dabao",
+        deva: "पहले दो नंबर, फिर तीन नंबर बटन दबाओ",
+      },
+      { after: "p1_seat" },
+    ),
   ],
   2: [
-    act("P2_B1", 2, "PD_FIRE_HANDLE_R", "PD_FIRE_LAMP_R", {
+    act("P2_B1", 2, [step("PD_FIRE_HANDLE_R")], "PD_FIRE_LAMP_R", {
       en: "Pull the red lever",
       hi: "Laal lever kheencho",
+      deva: "लाल लीवर खींचो",
     }),
-    act("P2_B2", 2, "PD_EXT_BTN", null, { en: "Press the fire button", hi: "Aag button dabao" }),
+    act(
+      "P2_B2",
+      2,
+      [step("PD_EXT_BTN", 2)],
+      null,
+      {
+        en: "Press the fire button twice",
+        hi: "Aag button do baar dabao",
+        deva: "आग बटन दो बार दबाओ",
+      },
+      { after: "p2_extinguish" },
+    ),
   ],
   3: [
-    act("P3_C1", 3, "FP_LAND_SW", null, {
+    act("P3_C1", 3, [step("FP_LAND_SW", 1, "on")], null, {
       en: "Switch on the yellow switch",
       hi: "Peela switch chalu karo",
+      deva: "पीला स्विच चालू करो",
     }),
-    act("P3_C2", 3, "FP_BTN_3", "FP_WARN_LAMP", {
-      en: "Press button three",
-      hi: "Teen number button dabao",
-    }),
+    act(
+      "P3_C2",
+      3,
+      [step("FP_BTN_3")],
+      "FP_WARN_LAMP",
+      {
+        en: "Press button three",
+        hi: "Teen number button dabao",
+        deva: "तीन नंबर बटन दबाओ",
+      },
+      { after: "p3_runway_reveal" },
+    ),
+    act(
+      "P3_C3",
+      3,
+      [step("FP_LEVER_2")],
+      null,
+      {
+        en: "Move lever two down",
+        hi: "Do number lever neeche karo",
+        deva: "दो नंबर लीवर नीचे करो",
+      },
+      { event: "lightning_strike" },
+    ),
+    act(
+      "P3_C4",
+      3,
+      [step("FP_BRAKE")],
+      null,
+      { en: "Pull the brake", hi: "Brake kheencho", deva: "ब्रेक खींचो" },
+      { after: "p3_touchdown" },
+    ),
   ],
 };
 
 const OUTRO: Record<PhaseNo, CinematicId> = { 1: "p1_outro", 2: "p2_outro", 3: "landing" };
 const INTRO: Record<PhaseNo, CinematicId> = { 1: "p1_intro", 2: "p2_intro", 3: "p3_intro" };
 const NEXT_PHASE: Record<PhaseNo, PhaseNo | null> = { 1: 2, 2: 3, 3: null };
-/** Flyer-only cinematic params (never sent to the Tower, §A10). */
-const SECRET_PARAMS = new Set(["fire_side", "stopped_side", "damaged_side"]);
+
+const CONTROL_BY_ID = new Map<string, { control: StationControl; station: StationId }>();
+for (const station of STATION_IDS)
+  for (const c of STATIONS[station]) CONTROL_BY_ID.set(c.id, { control: c, station });
+
+/** §A6 verb ↔ part type. */
+function verbOk(type: PartType, verb: Verb): boolean {
+  switch (type) {
+    case "PushButton":
+      return verb === "press";
+    case "ToggleSwitch":
+      return verb === "toggle";
+    case "PullHandle":
+      return verb === "pull";
+    case "UpDownLever":
+    case "NotchLever":
+      return verb === "move_down" || verb === "move_up";
+    case "Lamp":
+    case "FuelGauge":
+    case "Screen":
+      return false;
+    default:
+      return assertNever(type);
+  }
+}
 
 interface Slot {
   id: string;
@@ -163,18 +295,45 @@ interface Slot {
   conn: Conn | null;
 }
 
+/** The part of Playwright's `WebSocketRoute` the fake uses (the checker tests script a stand-in). */
+export interface FakeSocket {
+  onMessage(handler: (raw: string | Buffer) => void): void;
+  onClose(handler: () => void): void;
+  send(message: string): void;
+}
+
 interface Conn {
   id: number;
-  ws: WebSocketRoute;
+  ws: FakeSocket;
   slot: Slot | null;
 }
 
 interface StoredUtterance {
   msg: UtteranceMsg;
-  /** The translation into the listener's language (kept for lifelines and history). */
+  /** The translation into the listener's language, in the listener's script (§B14.1). */
   translated: string;
-  decoded: boolean;
+  /** Roles that already spent a lifeline on this line (a repeat request is free, §B14.2). */
+  lifelinedBy: Set<Role>;
 }
+
+interface Pending {
+  step: number;
+  object: string;
+  verb: Verb;
+  count: number;
+  startState: ObjectState | undefined;
+  /** Guards the debounce timer: only the last press's timer may finalize. */
+  token: number;
+}
+
+/** The running action (B9.2 ActionRun). */
+interface Run {
+  action: FakeAction;
+  done: boolean[];
+  pending: Pending | null;
+}
+
+type DeckVote = "play_again" | "swap_roles";
 
 export interface LoggedC2S {
   /** Which socket (1, 2, … in open order). */
@@ -199,7 +358,7 @@ export class FakeGame {
   readonly received: LoggedC2S[] = [];
   /** Every server → client message, in order. */
   readonly sent: LoggedS2C[] = [];
-  /** Frames the client sent that break §A7 (they also get `error bad_message`). */
+  /** Frames the client sent that break §A5/§A7 (they also get `error bad_message`). */
   readonly badFrames: string[] = [];
   /** Role-privacy breaches the fake caught itself about to make (must stay empty). */
   readonly violations: string[] = [];
@@ -210,6 +369,9 @@ export class FakeGame {
   private nextId = 1;
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private fuelTimer: ReturnType<typeof setInterval> | null = null;
+  /** Bumped whenever the game freezes or restarts: older guarded timers become no-ops. */
+  private gen = 0;
+  private pendTok = 0;
 
   private status: Status = "LOBBY";
   private pausedFrom: Status | null = null;
@@ -217,11 +379,17 @@ export class FakeGame {
   private actionIndex = -1;
   private completed = 0;
   private active = false;
-  private fuel = 150;
+  private run: Run | null = null;
+  /** The next action (or the outro) waiting for its gap, so a resume can restart the gap. */
+  private nextTarget: number | "outro" | null = null;
+  private fuel = FUEL_S[1];
+  /** The fuel clock is running (PLAYING); it only drains while no cinematic runs either. */
+  private fuelOn = false;
+  private attempts: Record<PhaseNo, number> = { 1: 1, 2: 1, 3: 1 };
   private lifelines: Record<Role, number> = { flyer: 3, tower: 3 };
   private objects: Record<string, ObjectState> = defaultObjects();
   private interactive: string[] = [];
-  private wrongCount = 0;
+  private lastWrong: { id: string; count: number } | null = null;
   private seed = 0;
   private forced: Record<string, string> = {};
   private bots = { flyer: false, tower: false };
@@ -231,8 +399,9 @@ export class FakeGame {
     timer: ReturnType<typeof setTimeout>;
   } | null = null;
   private votes = new Set<Role>();
-  private playAgain = new Set<Role>();
-  private swap = new Set<Role>();
+  private retryVotes = new Set<Role>();
+  /** Each player's one current deck vote (§B8.5). */
+  private deckVotes = new Map<Role, DeckVote>();
   private utterances: StoredUtterance[] = [];
   private busy: Role | null = null;
 
@@ -242,7 +411,7 @@ export class FakeGame {
       mock: opts.mock ?? true,
       dev: opts.dev ?? true,
       botDelayMs: opts.botDelayMs ?? 700,
-      nextActionMs: opts.nextActionMs ?? 600,
+      nextActionMs: opts.nextActionMs ?? NEXT_ACTION_DELAY_MS,
     };
   }
 
@@ -296,7 +465,7 @@ export class FakeGame {
   // Sockets
   // -------------------------------------------------------------------------
 
-  attach(ws: WebSocketRoute): void {
+  attach(ws: FakeSocket): void {
     const conn: Conn = { id: ++this.connSeq, ws, slot: null };
     this.conns.add(conn);
     ws.onMessage((raw) => {
@@ -329,9 +498,15 @@ export class FakeGame {
       return;
     }
     if (this.status !== "PAUSED") {
+      // §B8.4: freeze every timer, drop partial press counts, release the radio.
       this.pausedFrom = this.status;
       this.status = "PAUSED";
-      this.stopFuel();
+      this.gen += 1;
+      if (this.run) this.run.pending = null;
+      if (this.busy === slot.role) {
+        this.busy = null;
+        this.toAll(channel(null));
+      }
     }
     this.broadcastRoom();
     this.broadcastGame();
@@ -340,17 +515,10 @@ export class FakeGame {
 
   private to(conn: Conn, msg: S2C): void {
     const role = conn.slot?.role ?? null;
-    if (role === "tower" && (msg.type === "flyer_view" || msg.type === "object_state")) {
-      this.violations.push(`tower would get ${msg.type}`);
+    const bad = frameViolations(role, msg.type, msg, this.opts.dev);
+    if (bad.length > 0) {
+      this.violations.push(...bad);
       return;
-    }
-    if (role === "flyer" && msg.type === "manual_card") {
-      this.violations.push("flyer would get manual_card");
-      return;
-    }
-    if (role === "tower" && msg.type === "cinematic") {
-      const leaked = Object.keys(msg.params).filter((k) => SECRET_PARAMS.has(k));
-      if (leaked.length > 0) this.violations.push(`tower cinematic params ${leaked.join(",")}`);
     }
     this.sent.push({ conn: conn.id, role, msg, at: Date.now() });
     conn.ws.send(JSON.stringify(msg));
@@ -375,6 +543,14 @@ export class FakeGame {
       fn();
     }, ms);
     this.timers.add(t);
+  }
+
+  /** A timer that dies when the game pauses, crashes or restarts (§B8.4: `gen` freezes timers). */
+  private laterG(ms: number, fn: () => void): void {
+    const gen = this.gen;
+    this.later(ms, () => {
+      if (gen === this.gen) fn();
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -405,13 +581,43 @@ export class FakeGame {
       players: this.players(),
       can_start: Boolean(both) && !same && ready,
       block_reason: !both ? "missing_player" : same ? "same_language" : !ready ? "not_ready" : null,
-      play_again_votes: [...this.playAgain],
+      // §B8.5: the roles whose current vote is play_again.
+      play_again_votes: [...this.deckVotes].filter(([, v]) => v === "play_again").map(([r]) => r),
     });
+  }
+
+  /** §B8.3 radar table (the client animates the in-cinematic changes; this is the end state). */
+  private radarNow(total: number): Radar {
+    const progress = total === 0 ? 0 : this.completed / total;
+    const n = this.phase;
+    const landed = this.status === "ENDING" || this.status === "DECK";
+    if (landed || (n === 3 && this.status === "PHASE_OUTRO"))
+      return radar({ blip: "green", runway: true, landed: true, progress });
+    if (n === 1) {
+      if (this.status === "PHASE_OUTRO") return radar({ blip: "green", progress });
+      return this.completed === 0
+        ? radar({ blip: "red", icon: "mayday", progress })
+        : radar({ blip: "amber", progress });
+    }
+    if (n === 2) {
+      if (this.status === "PHASE_OUTRO") return radar({ blip: "amber", storm: true, progress });
+      return this.completed < total
+        ? radar({ blip: "red", icon: "fire", progress })
+        : radar({ blip: "amber", icon: "smoke", progress });
+    }
+    if (n === 3)
+      return radar({ blip: "amber", storm: true, runway: true, glide_path: true, progress });
+    return radar({ blip: "green" });
+  }
+
+  private draining(): boolean {
+    return this.fuelOn && this.status === "PLAYING" && this.cin === null;
   }
 
   private game(): GameState {
     const action = this.currentDef();
     const total = this.phase === 0 ? 0 : SCRIPT[this.phase].length;
+    const phaseKey: PhaseNo = this.phase === 0 ? 1 : this.phase;
     return gameState({
       status: this.status,
       paused_from: this.status === "PAUSED" ? this.pausedFrom : null,
@@ -424,18 +630,12 @@ export class FakeGame {
       action_active: this.active,
       input_locked: this.cin !== null,
       fuel_s: Math.round(this.fuel * 10) / 10,
-      fuel_max_s: 150,
-      fuel_draining: this.fuelTimer !== null,
+      fuel_max_s: FUEL_S[phaseKey],
+      fuel_draining: this.draining(),
       lifelines: { ...this.lifelines },
       lifelines_enabled: this.phase === 3 && this.status === "PLAYING",
-      radar: radar({
-        blip: this.phase === 0 ? "green" : "amber",
-        icon: this.phase === 1 ? "mayday" : this.phase === 2 ? "fire" : null,
-        storm: this.phase === 3,
-        runway: this.phase === 3,
-        progress: total === 0 ? 0 : this.completed / total,
-        landed: this.status === "ENDING" || this.status === "DECK",
-      }),
+      attempt: this.attempts[phaseKey],
+      radar: this.radarNow(total),
     });
   }
 
@@ -451,9 +651,16 @@ export class FakeGame {
   private broadcastDev(): void {
     if (!this.opts.dev) return;
     const action = this.currentDef();
+    const run = this.run;
     const expected =
-      action && this.status === "PLAYING"
-        ? [{ object: action.control.id, verb: action.verb, done: !this.active }]
+      action && run && this.status === "PLAYING"
+        ? action.steps.map((s, i) => ({
+            object: s.control.id,
+            verb: s.verb,
+            ...(s.value ? { value: s.value } : {}),
+            ...(s.count > 1 ? { count: s.count } : {}),
+            done: run.done[i] === true,
+          }))
         : [];
     this.toAll(
       devState({
@@ -465,22 +672,31 @@ export class FakeGame {
         vars: this.phase >= 2 ? { FIRE_SIDE: "RIGHT" } : {},
         forced: { ...this.forced },
         expected,
+        unordered: Boolean(run && !run.action.ordered && run.action.steps.length > 1),
+        pending: run?.pending ? { object: run.pending.object, count: run.pending.count } : null,
         fuel_s: Math.round(this.fuel * 10) / 10,
         bots: { ...this.bots },
       }),
     );
   }
 
+  private flyerQuickReplies(): QuickLine[] {
+    // §B (flyer_examples): the Flyer's own language, text = hi_roman | en, alt_text = Devanagari.
+    return this.slotOf("flyer")?.lang === "hi"
+      ? [
+          { label: "Haan", text: "haan", alt_text: "हाँ" },
+          { label: "Laal", text: "laal", alt_text: "लाल" },
+        ]
+      : [
+          { label: "Yes", text: "yes" },
+          { label: "Red", text: "red" },
+        ];
+  }
+
   private sendFlyerView(): void {
     const station = this.phase === 0 ? null : STATION_OF[this.phase];
-    const action = this.currentDef();
     const quick: QuickLine[] | null =
-      this.opts.mock && action && this.active
-        ? [
-            { label: "Yes", text: "yes" },
-            { label: "Red", text: "red" },
-          ]
-        : null;
+      this.opts.mock && this.currentDef() && this.active ? this.flyerQuickReplies() : null;
     this.toRole(
       "flyer",
       flyerView({
@@ -507,6 +723,13 @@ export class FakeGame {
       return;
     }
     const total = SCRIPT[action.phase].length;
+    // §B (quick_say): text = hi_roman (Hindi Tower) or en; alt_text = the Devanagari line.
+    const say = action.say[tower.lang];
+    const quick: QuickLine = {
+      label: say,
+      text: say,
+      ...(tower.lang === "hi" ? { alt_text: action.say.deva } : {}),
+    };
     this.toRole(
       "tower",
       manualCardMsg(
@@ -516,20 +739,17 @@ export class FakeGame {
           total,
           phase: action.phase,
           lang: tower.lang,
-          control: action.control,
-          verb: action.verb,
-          quick: this.opts.mock
-            ? { label: action.say[tower.lang], text: action.say.hi, alt_text: action.say.hi }
-            : undefined,
-          lastWrong: lastWrong
-            ? { label: [plain(this.lastWrongId ?? "?")], count: this.wrongCount }
-            : null,
+          steps: action.steps,
+          ordered: action.ordered,
+          ...(this.opts.mock ? { quick } : {}),
+          lastWrong:
+            lastWrong && this.lastWrong
+              ? { label: [plain(this.lastWrong.id)], count: this.lastWrong.count }
+              : null,
         }),
       ),
     );
   }
-
-  private lastWrongId: string | null = null;
 
   /** The rejoin snapshot (§A5): game_state, flyer_view | manual_card, history, cinematic, channel, deck. */
   private snapshot(conn: Conn): void {
@@ -537,17 +757,23 @@ export class FakeGame {
     if (!slot) return;
     this.to(conn, this.game());
     if (slot.role === "flyer") this.sendFlyerView();
-    else this.sendCard(this.wrongCount > 0);
+    else this.sendCard(this.lastWrong !== null);
     this.to(
       conn,
       history(
         this.utterances
           .filter((u) => u.msg.speaker_role !== slot.role)
           .slice(-5)
-          .map((u) => (u.decoded ? { ...u.msg, translation: u.translated } : u.msg)),
+          .map((u) =>
+            u.lifelinedBy.has(slot.role) ? { ...u.msg, translation: u.translated } : u.msg,
+          ),
       ),
     );
     if (this.cin) this.to(conn, this.cinFor(slot.role, this.cin.msg));
+    if (this.status === "CRASH" && this.phase !== 0) {
+      this.to(conn, { type: "crash", phase: this.phase });
+      this.to(conn, { type: "retry_votes", roles: [...this.retryVotes] });
+    }
     this.to(conn, channel(this.busy));
     if (this.status === "DECK") this.sendDeck(slot);
   }
@@ -604,12 +830,12 @@ export class FakeGame {
         if (!this.opts.mock && !this.opts.dev) return this.to(conn, errorMsg("mock_only"));
         this.say(slot.role, msg.text, msg.lang ?? slot.lang);
         return;
-      case "interact":
+      case "interact": {
         if (slot.role !== "flyer") return this.to(conn, errorMsg("not_your_role"));
-        if (!this.active || this.cin || !this.interactive.includes(msg.object_id))
-          return this.to(conn, errorMsg("not_allowed_now"));
-        this.judge(msg.object_id, msg.verb);
+        const err = this.interact(msg.object_id, msg.verb);
+        if (err) this.to(conn, errorMsg(err));
         return;
+      }
       case "lifeline":
         this.lifeline(conn, slot, msg.utterance_id);
         return;
@@ -617,11 +843,14 @@ export class FakeGame {
         this.vote(slot.role);
         return;
       case "retry":
-        return this.to(conn, errorMsg("not_allowed_now")); // the fake never crashes
+        if (this.status !== "CRASH") return this.to(conn, errorMsg("not_allowed_now"));
+        this.retryVote(slot.role);
+        return;
       case "play_again":
       case "swap_roles":
         if (this.status !== "DECK") return this.to(conn, errorMsg("not_allowed_now"));
-        (msg.type === "play_again" ? this.playAgain : this.swap).add(slot.role);
+        // §B8.5: one current vote per player; a later vote replaces the earlier one.
+        this.deckVotes.set(slot.role, msg.type);
         this.broadcastRoom();
         this.checkDeckVotes();
         return;
@@ -676,14 +905,16 @@ export class FakeGame {
     this.pausedFrom = null;
     this.toRole(other(back.role), toast("toast.partner_back", { name: back.name }, "info"));
     if (this.cin) {
-      // §A16: a cinematic running at the disconnect is completed instantly on rejoin.
+      // §B8.4: a cinematic running at the disconnect is completed instantly on resume.
       const { then, timer } = this.cin;
       clearTimeout(timer);
       this.timers.delete(timer);
       this.cin = null;
       then();
-    } else if (this.status === "PLAYING" && this.active) {
-      this.startFuel();
+    } else if (this.status === "PLAYING") {
+      if (this.active) this.botsAct();
+      // A pending gap restarts in full.
+      else if (this.nextTarget !== null) this.scheduleNext(this.nextTarget, this.opts.nextActionMs);
     }
     this.broadcastGame();
   }
@@ -693,28 +924,33 @@ export class FakeGame {
   // -------------------------------------------------------------------------
 
   private startGame(): void {
-    this.playAgain.clear();
-    this.swap.clear();
+    this.deckVotes.clear();
     this.utterances = [];
     this.lifelines = { flyer: 3, tower: 3 };
+    this.attempts = { 1: 1, 2: 1, 3: 1 };
     this.objects = defaultObjects();
     this.phase = 0;
+    this.run = null;
+    this.fuelOn = false;
     this.status = "PROLOGUE";
     this.broadcastRoom();
     this.broadcastGame();
     this.play("prologue", {}, () => this.enterIntro(1));
   }
 
-  private enterIntro(n: PhaseNo): void {
+  private enterIntro(n: PhaseNo, retry = false): void {
+    this.gen += 1;
     this.stopFuel();
     this.active = false;
+    this.run = null;
+    this.nextTarget = null;
     this.actionIndex = -1;
     this.completed = 0;
     this.phase = n;
     this.status = "PHASE_INTRO";
     this.toRole("tower", manualCardMsg(null));
     this.broadcastGame();
-    const params: CinematicMsg["params"] = { retry: false };
+    const params: CinematicMsg["params"] = { retry };
     if (n === 2) params.fire_side = "right";
     if (n === 3) params.damaged_side = "right";
     this.play(INTRO[n], params, () => this.enterPlaying(n));
@@ -723,14 +959,15 @@ export class FakeGame {
   private enterPlaying(n: PhaseNo): void {
     this.status = "PLAYING";
     this.phase = n;
-    this.fuel = 150;
-    this.wrongCount = 0;
-    if (n === 3) this.lifelines = { flyer: 3, tower: 3 };
+    this.fuel = FUEL_S[n];
+    this.lastWrong = null;
+    this.lifelines = { flyer: 3, tower: 3 };
     for (const c of STATIONS[STATION_OF[n]]) this.objects[c.id] = c.default;
     this.interactive = [];
     this.sendFlyerView();
+    this.startFuel();
     this.broadcastGame();
-    this.later(150, () => this.activate(0));
+    this.scheduleNext(0, 150);
   }
 
   private currentDef(): FakeAction | undefined {
@@ -738,68 +975,251 @@ export class FakeGame {
     return SCRIPT[this.phase][this.actionIndex];
   }
 
+  /** Activate action `target` (or enter the outro) after `delay` ms; frozen by pause/crash. */
+  private scheduleNext(target: number | "outro", delay: number): void {
+    this.nextTarget = target;
+    const phase = this.phase;
+    this.laterG(delay, () => {
+      if (this.phase !== phase || this.status !== "PLAYING") return;
+      this.nextTarget = null;
+      if (target === "outro") this.enterOutro(phase === 0 ? 1 : phase);
+      else this.activate(target);
+    });
+  }
+
   private activate(i: number): void {
     if (this.phase === 0 || this.status !== "PLAYING") return;
     const action = SCRIPT[this.phase][i];
     if (!action) return;
     this.actionIndex = i;
-    this.active = true;
-    this.wrongCount = 0;
-    if (action.lamp) {
-      const lamp: ObjectState = { kind: "lamp", color: "red", blinking: true, attention: true };
-      this.objects[action.lamp] = lamp;
-      this.toRole("flyer", objectState(action.lamp, lamp, false));
+    this.run = { action, done: action.steps.map(() => false), pending: null };
+    this.active = false;
+    this.lastWrong = null;
+    const open = (): void => {
+      this.active = true;
+      if (action.lamp) {
+        const lamp: ObjectState = { kind: "lamp", color: "red", blinking: true, attention: true };
+        this.objects[action.lamp] = lamp;
+        this.toRole("flyer", objectState(action.lamp, lamp, false));
+      }
+      this.interactive = clickableIds(STATION_OF[action.phase]);
+      this.sendFlyerView();
+      this.sendCard();
+      this.broadcastGame();
+      this.botsAct();
+    };
+    if (action.event) {
+      // §B8.2: an `event` cinematic opens the action; it stays inactive until the event ends.
+      this.interactive = [];
+      this.sendFlyerView();
+      this.sendCard();
+      this.broadcastGame();
+      this.play(action.event, {}, open);
+    } else {
+      open();
     }
-    this.interactive = clickableIds(STATION_OF[action.phase]);
-    this.sendFlyerView();
-    this.sendCard();
-    this.startFuel();
-    this.broadcastGame();
-    this.botsAct();
   }
 
   private botsAct(): void {
     const action = this.currentDef();
-    if (!action || !this.active) return;
+    const run = this.run;
+    if (!action || !run || !this.active) return;
     const id = action.id;
     if (this.bots.tower) {
-      this.later(this.opts.botDelayMs, () => {
+      this.laterG(this.opts.botDelayMs, () => {
         const lang = this.slotOf("tower")?.lang ?? "hi";
         if (this.currentDef()?.id === id && this.active) this.say("tower", action.say[lang], lang);
       });
     }
     if (this.bots.flyer) {
-      this.later(this.opts.botDelayMs * 2, () => {
-        if (this.currentDef()?.id === id && this.active && !this.cin)
-          this.judge(action.control.id, action.verb);
+      // The bot Flyer clicks like a player: every step in order, presses 250 ms apart.
+      let at = this.opts.botDelayMs * 2;
+      action.steps.forEach((s, i) => {
+        if (run.done[i]) return;
+        for (let k = 0; k < s.count; k++) {
+          this.laterG(at, () => {
+            if (this.currentDef()?.id === id && this.active && !this.cin)
+              this.interact(s.control.id, s.verb);
+          });
+          at += 250;
+        }
       });
     }
   }
 
-  private judge(objectId: string, verb: Verb): void {
-    const action = this.currentDef();
-    if (!action) return;
-    const before = this.objects[objectId];
-    if (objectId === action.control.id && verb === action.verb) {
-      const after = nextState(before, verb);
-      if (after) this.objects[objectId] = after;
-      this.toRole("flyer", objectState(objectId, after ?? { kind: "button" }, false));
-      this.succeed(action, null);
-      return;
-    }
-    this.fail(action, objectId, verb, "wrong_object");
+  // -------------------------------------------------------------------------
+  // The judge (BACKEND_SPEC §B9.3)
+  // -------------------------------------------------------------------------
+
+  /** A control's bounce: state unchanged, the client's optimistic motion springs back. */
+  private bounce(objectId: string): void {
+    const state = this.objects[objectId];
+    if (state) this.toRole("flyer", objectState(objectId, state, true));
   }
 
-  private succeed(action: FakeAction, reason: "dev" | null): void {
+  /** Returns the error code to send, or null. Ignored clicks answer with a bounce and no penalty. */
+  private interact(objectId: string, verb: Verb): ErrorCode | null {
+    const found = CONTROL_BY_ID.get(objectId);
+    if (!found) return "bad_message";
+    return this.interactChecked(found, objectId, verb);
+  }
+
+  private interactChecked(
+    found: { control: StationControl; station: StationId },
+    objectId: string,
+    verb: Verb,
+  ): ErrorCode | null {
+    if (isFixed(found.control.type)) return "bad_message";
+    const run = this.run;
+    // Inactive, the 1.5 s gap, a cinematic, another station: ignored without penalty (§B9.3).
+    if (
+      this.status !== "PLAYING" ||
+      this.cin ||
+      !run ||
+      !this.active ||
+      this.phase === 0 ||
+      found.station !== STATION_OF[this.phase]
+    ) {
+      this.bounce(objectId);
+      return null;
+    }
+    if (!verbOk(found.control.type, verb)) return "bad_message";
+
+    // A pending count on a different object finalizes first; the new click is still judged.
+    if (run.pending && run.pending.object !== objectId) this.finalizePending(run);
+    if (this.run !== run || !this.active) return null; // the finalize crashed the plane
+
+    const steps = run.action.steps;
+    const open = steps.map((_, i) => i).filter((i) => !run.done[i]);
+    const candidates = run.action.ordered ? open.slice(0, 1) : open;
+    const match = candidates.find((i) => steps[i]?.control.id === objectId);
+    const target = match === undefined ? undefined : steps[match];
+    if (match === undefined || !target) {
+      const reason = open.some((i) => steps[i]?.control.id === objectId)
+        ? "wrong_order"
+        : "wrong_object";
+      this.wrong(reason, objectId, verb, 1);
+      return null;
+    }
+
+    const state = this.objects[objectId];
+    switch (found.control.type) {
+      case "PushButton":
+        this.toRole("flyer", objectState(objectId, { kind: "button" }, false));
+        this.count(run, match, objectId, verb);
+        return null;
+      case "NotchLever": {
+        if (verb === "move_up") return this.wrong("wrong_direction", objectId, verb, 1);
+        if (state?.kind !== "notch" || state.value === 2)
+          return this.wrong("wrong_count", objectId, verb, 1);
+        const next: ObjectState = { kind: "notch", value: state.value === 0 ? 1 : 2 };
+        this.count(run, match, objectId, verb);
+        this.objects[objectId] = next;
+        this.toRole("flyer", objectState(objectId, next, false)); // visible immediately
+        return null;
+      }
+      case "ToggleSwitch": {
+        const next: ObjectState = {
+          kind: "toggle",
+          value: state?.kind === "toggle" && state.value === "on" ? "off" : "on",
+        };
+        if (next.value === target.value) {
+          this.objects[objectId] = next;
+          this.toRole("flyer", objectState(objectId, next, false));
+          this.stepDone(run, match);
+        } else {
+          this.wrong("wrong_direction", objectId, verb, 1);
+        }
+        return null;
+      }
+      case "PullHandle": {
+        if (state?.kind === "handle" && state.value === "out") {
+          this.bounce(objectId); // already pulled: no penalty
+          return null;
+        }
+        const next: ObjectState = { kind: "handle", value: "out" };
+        this.objects[objectId] = next;
+        this.toRole("flyer", objectState(objectId, next, false));
+        this.stepDone(run, match);
+        return null;
+      }
+      case "UpDownLever": {
+        if (
+          verb === "move_down" &&
+          state?.kind === "lever" &&
+          state.value === "up" &&
+          target.verb === "move_down"
+        ) {
+          const next: ObjectState = { kind: "lever", value: "down" };
+          this.objects[objectId] = next;
+          this.toRole("flyer", objectState(objectId, next, false));
+          this.stepDone(run, match);
+        } else {
+          this.wrong("wrong_direction", objectId, verb, 1);
+        }
+        return null;
+      }
+      default:
+        return "bad_message";
+    }
+  }
+
+  /** Count one press / notch; the count finalizes PRESS_DEBOUNCE_MS after the last one. */
+  private count(run: Run, match: number, objectId: string, verb: Verb): void {
+    const token = ++this.pendTok;
+    if (run.pending && run.pending.step === match) {
+      run.pending.count += 1;
+      run.pending.token = token;
+    } else {
+      run.pending = {
+        step: match,
+        object: objectId,
+        verb,
+        count: 1,
+        startState: this.objects[objectId],
+        token,
+      };
+    }
+    this.broadcastDev();
+    this.laterG(PRESS_DEBOUNCE_MS, () => {
+      if (this.run === run && run.pending?.token === token) this.finalizePending(run);
+    });
+  }
+
+  /** §B9.3 finalize_pending: equal to the step's count = done, otherwise a wrong action. */
+  private finalizePending(run: Run): boolean {
+    const p = run.pending;
+    if (!p) return true;
+    run.pending = null;
+    const expected = run.action.steps[p.step];
+    if (expected && p.count === expected.count) {
+      this.stepDone(run, p.step);
+      return true;
+    }
+    if (p.startState && p.startState.kind === "notch") this.objects[p.object] = p.startState;
+    this.wrong("wrong_count", p.object, p.verb, p.count);
+    return false;
+  }
+
+  private stepDone(run: Run, i: number): void {
+    run.done[i] = true;
+    run.pending = null;
+    if (run.done.every(Boolean)) this.succeed(null);
+    else this.broadcastDev();
+  }
+
+  private succeed(reason: "dev" | null): void {
+    const run = this.run;
+    if (!run) return;
+    const action = run.action;
     this.active = false;
     this.completed += 1;
-    this.stopFuel();
     const base = actionResult({
       action_id: action.id,
       success: true,
       reason,
-      completed_steps: 1,
-      total_steps: 1,
+      completed_steps: action.steps.length,
+      total_steps: action.steps.length,
     });
     this.toRole("flyer", base);
     this.toRole("tower", { ...base, row_index: 0 });
@@ -812,46 +1232,61 @@ export class FakeGame {
     this.interactive = [];
     this.sendFlyerView();
     this.broadcastGame();
-    const phase = action.phase;
-    const next = this.actionIndex + 1;
-    this.later(this.opts.nextActionMs, () => {
-      if (this.phase !== phase || this.status !== "PLAYING") return;
-      if (next < SCRIPT[phase].length) this.activate(next);
-      else this.enterOutro(phase);
-    });
+    const target: number | "outro" =
+      this.actionIndex + 1 < SCRIPT[action.phase].length ? this.actionIndex + 1 : "outro";
+    if (action.after) {
+      // §B8.2: the in-phase cinematic is the pause; the next action follows 500 ms after it.
+      const params: CinematicMsg["params"] =
+        action.after === "p2_extinguish" ? { fire_side: "right" } : {};
+      this.nextTarget = target;
+      this.play(action.after, params, () => {
+        this.sendFlyerView();
+        this.scheduleNext(target, 500);
+      });
+    } else {
+      this.scheduleNext(target, this.opts.nextActionMs);
+    }
   }
 
-  private fail(
-    action: FakeAction,
+  /** §B9.3 wrong(): -10 s, bounce, `action_result` (the Tower also gets `used`), card, state. */
+  private wrong(
+    reason: "wrong_object" | "wrong_count" | "wrong_direction" | "wrong_order",
     objectId: string,
     verb: Verb,
-    reason: "wrong_object" | "dev",
-  ): void {
-    const unchanged = this.objects[objectId];
-    if (unchanged && reason !== "dev") this.toRole("flyer", objectState(objectId, unchanged, true));
-    this.fuel = Math.max(0, this.fuel - 10);
-    this.wrongCount += 1;
-    this.lastWrongId = objectId;
+    count: number,
+  ): null {
+    const run = this.run;
+    if (!run) return null;
+    run.pending = null;
+    this.lastWrong = { id: objectId, count };
+    this.fuel = Math.max(0, this.fuel - WRONG_PENALTY_S);
+    this.bounce(objectId);
     const base = actionResult({
-      action_id: action.id,
+      action_id: run.action.id,
       success: false,
       reason,
-      fuel_delta: -10,
-      completed_steps: 0,
-      total_steps: 1,
+      fuel_delta: -WRONG_PENALTY_S,
+      completed_steps: run.done.filter(Boolean).length,
+      total_steps: run.action.steps.length,
     });
     this.toRole("flyer", base);
     this.toRole("tower", {
       ...base,
-      used: { object_id: objectId, label: [plain(objectId)], verb, count: 1 },
+      used: { object_id: objectId, label: [plain(objectId)], verb, count },
     });
     this.sendCard(true);
     this.broadcastGame();
+    if (this.fuel <= 0) this.onFuelEmpty();
+    return null;
   }
 
   private enterOutro(n: PhaseNo): void {
+    this.gen += 1;
+    this.stopFuel();
     this.status = "PHASE_OUTRO";
+    this.active = false;
     this.actionIndex = -1;
+    this.nextTarget = null;
     this.toRole("tower", manualCardMsg(null));
     this.broadcastGame();
     const params: CinematicMsg["params"] = {};
@@ -872,6 +1307,45 @@ export class FakeGame {
     });
   }
 
+  /** §B8.2 on_fuel_empty: CRASH, `crash`, the 5 s `crash` cinematic, then wait for Retry. */
+  private onFuelEmpty(): void {
+    if (this.status !== "PLAYING" || this.phase === 0) return;
+    this.gen += 1;
+    this.stopFuel();
+    this.active = false;
+    this.interactive = [];
+    this.nextTarget = null;
+    this.status = "CRASH";
+    this.retryVotes.clear();
+    this.toRole("tower", manualCardMsg(null));
+    this.toAll({ type: "crash", phase: this.phase });
+    this.sendFlyerView();
+    this.play("crash", {}, () => undefined); // no automatic end: the state stays CRASH
+    this.toAll({ type: "retry_votes", roles: [] });
+    // Bots vote at once (after a beat, so the cinematic starts first).
+    this.laterG(this.opts.botDelayMs, () => {
+      if (this.bots.flyer) this.retryVote("flyer");
+      if (this.bots.tower) this.retryVote("tower");
+    });
+  }
+
+  private retryVote(role: Role): void {
+    if (this.status !== "CRASH" || this.phase === 0) return;
+    this.retryVotes.add(role);
+    this.toAll({ type: "retry_votes", roles: [...this.retryVotes] });
+    if (this.retryVotes.size < 2) return;
+    // §B8.2: attempts[phase] += 1, lifelines reset, back to PHASE_INTRO(n) with retry:true.
+    const n = this.phase;
+    this.retryVotes.clear();
+    if (this.cin) {
+      clearTimeout(this.cin.timer);
+      this.timers.delete(this.cin.timer);
+      this.cin = null;
+    }
+    this.attempts[n] += 1;
+    this.enterIntro(n, true);
+  }
+
   private sendDeck(slot: Slot): void {
     const partner = this.slotOf(other(slot.role));
     if (!partner) return;
@@ -881,29 +1355,31 @@ export class FakeGame {
     );
   }
 
+  /** §B8.5: act only when both players' current votes are the same. */
   private checkDeckVotes(): void {
-    if (this.playAgain.size === 2) {
+    if (this.deckVotes.size < 2) return;
+    const [a, b] = [...this.deckVotes.values()];
+    if (a !== b) return; // mismatched votes just wait
+    if (a === "play_again") {
       this.seed += 1;
       this.startGame();
       return;
     }
-    if (this.swap.size === 2) {
-      // §A16: LOBBY with roles swapped, languages kept, not ready; `joined` re-keys each tab.
-      this.swap.clear();
-      this.playAgain.clear();
-      for (const s of this.slots) {
-        s.role = other(s.role);
-        s.ready = false;
-      }
-      this.status = "LOBBY";
-      this.phase = 0;
-      this.actionIndex = -1;
-      for (const s of this.slots) {
-        const p = this.players().find((x) => x.id === s.id);
-        if (s.conn && p) this.to(s.conn, joined(p, s.token));
-      }
-      this.broadcastRoom();
+    // swap_roles: roles swapped, languages and genders kept, not ready → LOBBY. `joined` re-keys.
+    this.deckVotes.clear();
+    for (const s of this.slots) {
+      s.role = other(s.role);
+      s.ready = false;
     }
+    this.status = "LOBBY";
+    this.phase = 0;
+    this.actionIndex = -1;
+    this.run = null;
+    for (const s of this.slots) {
+      const p = this.players().find((x) => x.id === s.id);
+      if (s.conn && p) this.to(s.conn, joined(p, s.token));
+    }
+    this.broadcastRoom();
   }
 
   // -------------------------------------------------------------------------
@@ -913,7 +1389,7 @@ export class FakeGame {
   private cinFor(role: Role, msg: CinematicMsg): CinematicMsg {
     if (role === "flyer") return msg;
     const params: CinematicMsg["params"] = {};
-    for (const [k, v] of Object.entries(msg.params)) if (!SECRET_PARAMS.has(k)) params[k] = v;
+    for (const [k, v] of Object.entries(msg.params)) if (!SECRET_PARAMS.includes(k)) params[k] = v;
     return { ...msg, params };
   }
 
@@ -923,7 +1399,7 @@ export class FakeGame {
     const timer = setTimeout(() => this.finishCinematic(id), msg.duration_ms + 300);
     this.timers.add(timer);
     this.cin = { msg, then, timer };
-    this.broadcastGame(); // input_locked: true
+    this.broadcastGame(); // input_locked: true, fuel paused
     for (const s of this.slots) this.toRole(s.role, this.cinFor(s.role, msg));
     // Bots vote to skip at once (§A10); give the timeline a moment on screen first.
     if (id !== "crash" && (this.bots.flyer || this.bots.tower)) {
@@ -958,6 +1434,8 @@ export class FakeGame {
     this.cin = null;
     this.votes.clear();
     c.then();
+    // The fuel clock resumes (cin === null); the end state reaches both screens.
+    this.broadcastGame();
   }
 
   // -------------------------------------------------------------------------
@@ -970,50 +1448,66 @@ export class FakeGame {
     if (!speaker) return;
     const id = `u${this.utterances.length + 1}-${Date.now() % 100000}`;
     const level = this.phase === 0 ? 0 : this.phase;
+    // §A2 rule 3 / §B11.3: subtitles are Latin; Devanagari is romanized, never echoed.
+    const display = subtitleText(text, lang);
     const msg = utterance({
       id,
       speaker_role: role,
       speaker_name: speaker.name,
       lang,
-      segments: segmentsFor(text, level, listener?.lang ?? "en"),
+      segments: segmentsFor(display, level, listener?.lang ?? "en"),
       level,
       lifeline_available: this.phase === 3 && this.status === "PLAYING",
       created_at_ms: Date.now(),
     });
     const into = listener?.lang ?? "en";
-    // Translations are in the listener's own script (§A2 rule 3).
-    const translated = into === "hi" ? `अनुवाद: ${text}` : `Translation: ${text}`;
-    this.utterances.push({ msg, translated, decoded: false });
+    // Translations are in the listener's own script (§A2 rule 3, §B14.1): Devanagari into Hindi.
+    const translated = into === "hi" ? `अनुवाद: ${display}` : `Translation: ${display}`;
+    this.utterances.push({ msg, translated, lifelinedBy: new Set() });
     this.toRole(other(role), msg);
-    this.toRole(role, utteranceEcho(id, text));
+    this.toRole(role, utteranceEcho(id, display));
   }
 
+  /** §B14.2, in the spec's order. */
   private lifeline(conn: Conn, slot: Slot, id: string): void {
     if (this.phase !== 3 || this.status !== "PLAYING")
       return this.to(conn, errorMsg("lifeline_not_available"));
-    const window = this.utterances.filter((u) => u.msg.speaker_role !== slot.role).slice(-3);
+    const window = this.utterances
+      .filter((u) => u.msg.speaker_role !== slot.role)
+      .slice(-LIFELINE_WINDOW);
     const u = window.find((x) => x.msg.id === id);
     if (!u) return this.to(conn, errorMsg("lifeline_not_available"));
+    // A repeat request on a line this player already decoded is free and comes BEFORE the
+    // no_lifelines check (the "show" link).
+    if (u.lifelinedBy.has(slot.role)) {
+      this.to(conn, translation(id, u.translated, slot.lang, this.lifelines[slot.role]));
+      return;
+    }
     if (this.lifelines[slot.role] <= 0) return this.to(conn, errorMsg("no_lifelines"));
     this.lifelines[slot.role] -= 1;
-    u.decoded = true;
+    u.lifelinedBy.add(slot.role);
     this.to(conn, translation(id, u.translated, slot.lang, this.lifelines[slot.role]));
     this.broadcastGame();
   }
 
   // -------------------------------------------------------------------------
-  // Fuel
+  // Fuel (BACKEND_SPEC §B10)
   // -------------------------------------------------------------------------
 
+  /** Start the clock: 1 s ticks while PLAYING (the gap included), not in cinematics or PAUSED. */
   private startFuel(): void {
+    this.fuelOn = true;
     if (this.fuelTimer) return;
     this.fuelTimer = setInterval(() => {
-      this.fuel = Math.max(1, this.fuel - 1); // the fake never crashes
-      this.broadcastGame();
+      if (!this.draining()) return;
+      this.fuel = Math.max(0, this.fuel - 1);
+      if (this.fuel <= 0) this.onFuelEmpty();
+      else this.broadcastGame();
     }, 1000);
   }
 
   private stopFuel(): void {
+    this.fuelOn = false;
     if (this.fuelTimer) clearInterval(this.fuelTimer);
     this.fuelTimer = null;
   }
@@ -1025,13 +1519,27 @@ export class FakeGame {
   private dev(cmd: DevCmd, args: Record<string, unknown>): void {
     switch (cmd) {
       case "complete_action": {
-        const a = this.currentDef();
-        if (a && this.active && !this.cin) this.succeed(a, "dev");
+        // §B9.3: every expected object to its target state, then the success path.
+        const run = this.run;
+        if (!run || !this.active || this.cin || this.status !== "PLAYING") return;
+        run.pending = null;
+        run.action.steps.forEach((s, i) => {
+          if (run.done[i]) return;
+          const target = targetOf(s.control, s.verb, s.value);
+          this.objects[s.control.id] = target;
+          this.toRole("flyer", objectState(s.control.id, target, false));
+          run.done[i] = true;
+        });
+        this.succeed("dev");
         return;
       }
       case "fail_action": {
-        const a = this.currentDef();
-        if (a && this.active && !this.cin) this.fail(a, a.control.id, a.verb, "dev");
+        // §B9.3: wrong("wrong_object") with `used` = the first expected object.
+        const run = this.run;
+        if (!run || !this.active || this.cin || this.status !== "PLAYING") return;
+        const i = run.done.findIndex((d) => !d);
+        const s = run.action.steps[i < 0 ? 0 : i];
+        if (s) this.wrong("wrong_object", s.control.id, s.verb, 1);
         return;
       }
       case "goto_phase": {
@@ -1044,6 +1552,7 @@ export class FakeGame {
         }
         for (const t of this.timers) clearTimeout(t);
         this.timers.clear();
+        this.retryVotes.clear();
         this.enterIntro(p);
         return;
       }
@@ -1080,21 +1589,8 @@ export class FakeGame {
   }
 }
 
-/** The state after a correct verb (the fake's tiny rule engine). */
-function nextState(state: ObjectState | undefined, verb: Verb): ObjectState | undefined {
-  if (!state) return state;
-  switch (state.kind) {
-    case "toggle":
-      return { kind: "toggle", value: state.value === "on" ? "off" : "on" };
-    case "handle":
-      return verb === "pull" ? { kind: "handle", value: "out" } : state;
-    case "lever":
-      return { kind: "lever", value: verb === "move_down" ? "down" : "up" };
-    case "notch":
-      return { kind: "notch", value: verb === "move_down" ? 2 : 0 };
-    default:
-      return state;
-  }
+function isFixed(type: PartType): boolean {
+  return type === "Lamp" || type === "FuelGauge" || type === "Screen";
 }
 
 function isType<M extends { type: string }, T extends M["type"]>(

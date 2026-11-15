@@ -12,6 +12,7 @@ import {
   say,
   skipCinematic,
   skipToPlaying,
+  subtitleText,
   type Split,
 } from "./kit/split";
 import { expect, expectCleanWire, roomCode, test } from "./kit/test";
@@ -50,7 +51,7 @@ for (const swapLanguages of [false, true]) {
     page,
     server,
   }) => {
-    const code = roomCode("LL");
+    const code = roomCode();
     const split = await openSplit(page, code, { swapLanguages });
     await enableSound(split.flyer);
     await enableSound(split.tower);
@@ -68,6 +69,8 @@ for (const swapLanguages of [false, true]) {
       const heard = server.wire.received(code, "utterance", "flyer");
       const id: unknown = Reflect.get(Object(heard.at(-1)), "id");
 
+      // Subtitles are Latin only, in both pairings (§A2 rule 3).
+      expect(await subtitleText(line)).not.toMatch(DEVANAGARI);
       await expect(line).toHaveAttribute("data-decodable", "true");
       await line.getByTestId("decode").click();
       // The translation opens in the Flyer's own language and script (§A2 rule 3).
@@ -94,9 +97,20 @@ for (const swapLanguages of [false, true]) {
     await expect(last.getByTestId("translation")).toHaveCount(0);
     expect(server.wire.sent(code, "lifeline", "flyer")).toHaveLength(3);
 
+    // A line already decoded stays readable at 0 lifelines (§B14.2: a repeat is free; the
+    // client's "show" link is local and sends nothing). The server side of that rule is checked
+    // in tests/e2eCheckers.test.ts against the fake and is part of the contract for the real one.
+    const show = split.flyer.getByTestId("lifeline-show").first();
+    await expect(show).toBeVisible({ timeout: 15_000 });
+    await show.click();
+    await expect(split.flyer.getByTestId("translation").first()).toBeVisible();
+    expect(server.wire.sent(code, "lifeline", "flyer")).toHaveLength(3);
+    expect(await filledDots(split.flyer)).toBe(0);
+
     // The Tower has its own three: it decodes a Flyer line into its own script.
     await say(split.flyer, LINES[flyerLang][0] ?? "");
     const towerLine = split.tower.getByTestId("subtitle-line").last();
+    expect(await subtitleText(towerLine)).not.toMatch(DEVANAGARI);
     await expect(towerLine).toHaveAttribute("data-decodable", "true");
     await towerLine.getByTestId("decode").click();
     const towerTr = towerLine.getByTestId("translation");

@@ -16,7 +16,7 @@ async function onDeck(frame: Frame): Promise<boolean> {
 
 test("bots play a whole game in split view, prologue to word deck", async ({ page, server }) => {
   test.setTimeout(7 * 60_000);
-  const code = roomCode("BT");
+  const code = roomCode();
   const split = await openSplit(page, code, { seed: 42, bots: "both" });
 
   // Both auto-joined, readied, and the Tower sent the seed and the bots (§F4 `seed`, `bots`).

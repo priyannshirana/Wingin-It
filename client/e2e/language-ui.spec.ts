@@ -2,7 +2,7 @@
 // answered by Playwright with Part A-shaped messages, so it needs only the dev server
 // (VITE_DEV_MODE=1). Saves PNGs to e2e/__screenshots__/m2-*.png for human/agent review and
 // asserts the measured text sizes. No pixel diffs.
-//   E2E_BASE_URL=http://localhost:5175 npx playwright test language-ui --project flows
+//   E2E_BASE_URL=http://localhost:5175 npx playwright test language-ui --project=flows
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

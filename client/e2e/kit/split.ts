@@ -1,7 +1,7 @@
 // Driving `/dev/split` (§F18.1) and single room tabs like a player would: through what the
 // client renders. Dev commands go through the dev panel's hotkeys (§F18.4), so they behave the
 // same against the fake and the real server.
-import { expect, type BrowserContext, type Frame, type Page } from "@playwright/test";
+import { expect, type BrowserContext, type Frame, type Locator, type Page } from "@playwright/test";
 import type { Lang, Role } from "../../src/net/protocol";
 
 export interface Split {
@@ -202,18 +202,45 @@ export interface ExpectedStep {
 }
 
 /**
- * The step the server expects next, from the dev panel's live state (`dev_state.expected`,
- * §A13), read on the Tower so the panel never covers the Flyer's cockpit.
+ * Every step of the current action as the dev panel lists it (`dev_state.expected`, §A13), read
+ * on the Tower so the panel never covers the Flyer's cockpit. `done` marks finished steps.
  */
-export async function expectedStep(split: Split): Promise<ExpectedStep> {
+export async function expectedSteps(split: Split): Promise<(ExpectedStep & { done: boolean })[]> {
   await setDevPanel(split.tower, true);
-  const li = split.tower.locator('[data-testid="dev-live"] li[data-done="false"]').first();
-  await expect(li).toBeVisible();
-  const text = (await li.textContent()) ?? "";
+  const items = split.tower.locator('[data-testid="dev-live"] li[data-done]');
+  await expect(items.first()).toBeVisible();
+  const rows = await items.evaluateAll((els) =>
+    els.map((e) => ({ text: e.textContent ?? "", done: e.getAttribute("data-done") === "true" })),
+  );
   await setDevPanel(split.tower, false);
-  const m = /○\s*(\S+)\s+(\S+)(?:.*×(\d+))?/.exec(text);
-  if (!m?.[1] || !m[2]) throw new Error(`cannot read the expected step from "${text}"`);
-  return { object: m[1], verb: m[2], count: m[3] ? Number(m[3]) : 1 };
+  return rows.map(({ text, done }) => {
+    const m = /[✓○]\s*(\S+)\s+(\S+)(?:.*×(\d+))?/.exec(text);
+    if (!m?.[1] || !m[2]) throw new Error(`cannot read the expected step from "${text}"`);
+    return { object: m[1], verb: m[2], count: m[3] ? Number(m[3]) : 1, done };
+  });
+}
+
+/** The first step still to do (what the Flyer must click next). */
+export async function expectedStep(split: Split): Promise<ExpectedStep> {
+  const next = (await expectedSteps(split)).find((s) => !s.done);
+  if (!next) throw new Error("the dev panel lists no open step");
+  return { object: next.object, verb: next.verb, count: next.count };
+}
+
+/** The visible text of a subtitle row: the segments only, without the speaker tag or lifeline note. */
+export async function subtitleText(line: Locator): Promise<string> {
+  return line.evaluate((el) => {
+    const copy = el.cloneNode(true);
+    if (!(copy instanceof HTMLElement)) return "";
+    for (const sel of [
+      '[data-testid="speaker-tag"]',
+      '[data-testid="translation"]',
+      '[data-testid="lifeline-show"]',
+      '[data-testid="lifeline-decoding"]',
+    ])
+      copy.querySelectorAll(sel).forEach((n) => n.remove());
+    return copy.textContent ?? "";
+  });
 }
 
 /** Type a line into a screen's mock talk box (§F18.2) and send it. */

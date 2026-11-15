@@ -36,7 +36,7 @@ test("handshake: the join form sends 5 pings then join with gender; a taken role
   context,
   server,
 }) => {
-  const code = roomCode("HS");
+  const code = roomCode();
   // The Tower joins by URL (auto=1) in its own tab.
   const towerTab = await context.newPage();
   await towerTab.goto(autoUrl(code, "tower", "hi", "Tara"));
@@ -100,7 +100,7 @@ test("refreshing the Flyer mid-phase rejoins with its token and the same action 
   page,
   server,
 }) => {
-  const code = roomCode("RJ");
+  const code = roomCode();
   const split = await openSplit(page, code);
   await enableSound(split.flyer);
   await skipToAction(split);
@@ -135,7 +135,7 @@ test("swap roles at the deck re-keys the token, and a refresh rejoins in the new
   server,
 }) => {
   test.setTimeout(4 * 60_000);
-  const code = roomCode("SW");
+  const code = roomCode();
   // Two real tabs (each has its own sessionStorage), not split iframes.
   const towerTab = page;
   const flyerTab = await context.newPage();
@@ -199,9 +199,15 @@ async function driveToDeck(split: Split): Promise<void> {
     if ((await screenOf(split.tower)) === "deck" && (await screenOf(split.flyer)) === "deck")
       return;
     if (await skipCinematic(split.flyer, 800)) continue;
-    if ((await towerStep(split)) !== null) {
+    const before = await towerStep(split);
+    if (before !== null) {
       await devKey(split.tower, "KeyN");
-      await split.page.waitForTimeout(400);
+      // The action completes, then the Tower's step changes (next action, or the manual closes
+      // for the outro). A refused N (a cinematic is up) times out and the loop skips it.
+      await expect
+        .poll(() => towerStep(split), { timeout: 8000, intervals: [100] })
+        .not.toBe(before)
+        .catch(() => undefined);
     }
   }
   throw new Error("never reached the deck");

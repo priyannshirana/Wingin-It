@@ -28,19 +28,26 @@ export const test = base.extend<{ server: ServerHandle }>({
 
 export { expect, REAL };
 
-/** A room code no other run uses (real servers keep rooms alive between specs). */
-export function roomCode(prefix: string): string {
+/**
+ * A room code no other run uses (real servers keep rooms alive between specs): 4 random letters
+ * from the server's alphabet (§A4), never the dev room `TEST`.
+ */
+export function roomCode(): string {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  let code = prefix
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "")
-    .slice(0, 2);
-  while (code.length < 4) code += letters[Math.floor(Math.random() * letters.length)] ?? "A";
+  let code = "TEST";
+  while (code === "TEST") {
+    code = "";
+    for (let i = 0; i < 4; i++) code += letters[Math.floor(Math.random() * letters.length)] ?? "A";
+  }
   return code;
 }
 
 /** After each flow: the client sent only §A7-shaped frames and nobody saw the partner's secrets. */
 export function expectCleanWire(server: ServerHandle, code: string): void {
+  expect(
+    server.wire.frames(code).length,
+    "the wire tap recorded nothing for this room (a check that sees no frames proves nothing)",
+  ).toBeGreaterThan(0);
   expect(server.wire.badFrames, "client frames that break §A7").toEqual([]);
   if (server.fake && server.fake.has(code)) {
     const g = server.fake.room(code);

@@ -68,7 +68,7 @@ const PART_TYPES: readonly PartType[] = [
   "FuelGauge",
   "Screen",
 ];
-const STATION_IDS: readonly StationId[] = ["overhead", "pedestal", "front"];
+export const STATION_IDS: readonly StationId[] = ["overhead", "pedestal", "front"];
 
 const get = (v: unknown, key: string): unknown =>
   typeof v === "object" && v !== null ? Reflect.get(v, key) : undefined;
@@ -165,6 +165,23 @@ function loadDurations(): Record<CinematicId, number> {
 
 /** `duration_ms` per cinematic, from content/cinematics.json (both sides read the same file). */
 export const DURATIONS = loadDurations();
+
+/** `retry_duration_ms` where cinematics.json has one (only p1_intro: 3200 on a retry, §A10). */
+function loadRetryDurations(): Partial<Record<CinematicId, number>> {
+  const file: unknown = JSON.parse(readFileSync(contentPath("cinematics.json"), "utf8"));
+  const cins = get(file, "cinematics");
+  const out: Partial<Record<CinematicId, number>> = {};
+  for (const id of Object.keys(DURATIONS)) {
+    const ms = get(get(cins, id), "retry_duration_ms");
+    if (typeof ms === "number" && isCinematicId(id)) out[id] = ms;
+  }
+  return out;
+}
+const RETRY_DURATIONS = loadRetryDurations();
+
+function isCinematicId(id: string): id is CinematicId {
+  return id in DURATIONS;
+}
 
 export const STATION_OF: Record<PhaseNo, StationId> = { 1: "overhead", 2: "pedestal", 3: "front" };
 
@@ -395,9 +412,9 @@ export interface CardInput {
   total: number;
   phase: PhaseNo;
   lang: Lang;
-  /** The control the rule row draws (the expected one). */
-  control: StationControl;
-  verb: Verb;
+  /** The controls the rule row draws, in order. */
+  steps: { control: StationControl; verb: Verb; count: number; value?: "on" | "off" }[];
+  ordered: boolean;
   quick?: QuickLine;
   lastWrong?: ManualCard["last_wrong"];
 }
@@ -408,15 +425,29 @@ const PHASE_NAMES: Record<PhaseNo, Record<Lang, string>> = {
   3: { en: "Storm Landing", hi: "तूफ़ान में लैंडिंग" },
 };
 
-/** A say-only style card with one rule row that draws the expected control. Localized by `lang`. */
+/** The state a control is in after a correct step. */
+export function targetOf(
+  c: StationControl,
+  verb: Verb,
+  value: "on" | "off" | undefined,
+): ObjectState {
+  switch (c.default.kind) {
+    case "toggle":
+      return { kind: "toggle", value: value ?? (c.default.value === "on" ? "off" : "on") };
+    case "handle":
+      return { kind: "handle", value: "out" };
+    case "lever":
+      return { kind: "lever", value: verb === "move_up" ? "up" : "down" };
+    case "notch":
+      return { kind: "notch", value: verb === "move_up" ? 0 : 2 };
+    default:
+      return c.default;
+  }
+}
+/** A say-only style card with one rule row that draws the expected controls. Localized by `lang`. */
 export function manualCard(c: CardInput): ManualCard {
   const hi = c.lang === "hi";
-  const target: ObjectState =
-    c.control.default.kind === "toggle"
-      ? { kind: "toggle", value: c.control.default.value === "on" ? "off" : "on" }
-      : c.control.default.kind === "handle"
-        ? { kind: "handle", value: "out" }
-        : c.control.default;
+  const ids = c.steps.map((s) => s.control.id).join(hi ? " फिर " : " then ");
   return {
     action_id: c.action_id,
     index: c.index,
@@ -431,18 +462,16 @@ export function manualCard(c: CardInput): ManualCard {
     rows: [
       {
         when: null,
-        do: [plain(hi ? `${c.control.id} इस्तेमाल करो` : `Use ${c.control.id}`)],
-        controls: [
-          {
-            object_id: c.control.id,
-            type: c.control.type,
-            label: null,
-            color: "grey",
-            target,
-            count: 1,
-          },
-        ],
-        order: "single",
+        do: [plain(hi ? `${ids} इस्तेमाल करो` : `Use ${ids}`)],
+        controls: c.steps.map((s) => ({
+          object_id: s.control.id,
+          type: s.control.type,
+          label: null,
+          color: "grey",
+          target: targetOf(s.control, s.verb, s.value),
+          count: s.count,
+        })),
+        order: c.steps.length === 1 ? "single" : c.ordered ? "ordered" : "unordered",
       },
     ],
     hint: hi ? "ध्यान से बोलो" : "Say it slowly",
@@ -454,7 +483,7 @@ export function manualCard(c: CardInput): ManualCard {
     last_wrong: c.lastWrong ?? null,
     stamp: c.phase === 2 ? "emergency" : null,
     smudges: c.phase === 3,
-    highlight: { circled: [c.control.id], question: [] },
+    highlight: { circled: c.steps.map((s) => s.control.id), question: [] },
     quick_say: c.quick ? { ask: null, say: c.quick, branches: [] } : null,
   };
 }
@@ -471,7 +500,7 @@ export const cinematic = (
   type: "cinematic",
   id,
   start_at_ms: Date.now() + 300,
-  duration_ms: DURATIONS[id],
+  duration_ms: params.retry === true ? (RETRY_DURATIONS[id] ?? DURATIONS[id]) : DURATIONS[id],
   params,
   ...over,
 });
@@ -529,7 +558,7 @@ const GLOSS: Record<ConceptId, Record<Lang, string>> = {
 };
 
 /**
- * Words → segments for a listener: keywords become chips; level 1 glosses every keyword in the
+ * Words → segments for a listener: keywords become chips; levels 0 and 1 gloss every keyword in the
  * listener's language, levels 2 and 3 gloss nothing (good enough for the fake).
  */
 export function segmentsFor(text: string, level: number, listenerLang: Lang): Segment[] {
@@ -542,7 +571,7 @@ export function segmentsFor(text: string, level: number, listenerLang: Lang): Se
         text: w,
         kind: "keyword",
         concept,
-        gloss: level === 1 ? GLOSS[concept][listenerLang] : null,
+        gloss: level <= 1 ? GLOSS[concept][listenerLang] : null,
       });
     } else if (w) {
       const last = out[out.length - 1];
