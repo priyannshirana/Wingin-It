@@ -2,31 +2,40 @@ import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import { Color, type FogExp2 } from "three";
 import type { Weather } from "../../net/protocol";
-import { useStore } from "../../state/store";
+import { WEATHER } from "./drivers";
+import { currentWorld, dampK, worldSync } from "./worldSync";
 
-// SPEC-ASSUMPTION: until the M3a Sky dome exists, the background is the sky's top color
-// (§F9.7) so the windows read as night / storm / dawn.
-const SKY_TOP: Record<Weather, string> = {
-  clouds_night: "#0B1026",
-  rain: "#0A0F1A",
-  storm: "#0A0F1A",
-  rain_light: "#0A0F1A",
-  clear_dawn: "#FFB36B",
+// Fog color per weather (§F0.2): night #1a2140, storm a cold slate, dawn a warm peach haze.
+const FOG_COLOR: Record<Weather, string> = {
+  clouds_night: "#1a2140",
+  rain: "#1a212c",
+  storm: "#161c26",
+  rain_light: "#252d3a",
+  clear_dawn: "#e8b48c",
 };
 
-const bg = new Color();
+/** Parsed once (no Color.set(string) inside useFrame). */
+const FOG: Record<Weather, Color> = {
+  clouds_night: new Color(FOG_COLOR.clouds_night),
+  rain: new Color(FOG_COLOR.rain),
+  storm: new Color(FOG_COLOR.storm),
+  rain_light: new Color(FOG_COLOR.rain_light),
+  clear_dawn: new Color(FOG_COLOR.clear_dawn),
+};
 
-/** Scene background + fogExp2 (density = world.fog, eased ~2 s). */
+/**
+ * Scene fog (§F9.7): FogExp2 density = `WEATHER.fog` (synced to `world.fog` over 2 s by Weather,
+ * tweened by timelines, e.g. the p3_runway_reveal thinning). The sky dome covers the background.
+ */
 export function Atmosphere() {
   const fog = useRef<FogExp2>(null);
-  useFrame(({ scene }, dt) => {
-    const world = useStore.getState().flyer.world;
-    if (fog.current && world) {
-      fog.current.density += (world.fog - fog.current.density) * (1 - Math.exp(-dt / 2));
-    }
-    if (scene.background instanceof Color && world) {
-      scene.background.lerp(bg.set(SKY_TOP[world.weather]), 1 - Math.exp(-dt));
-    }
+  useFrame((_, dt) => {
+    const f = fog.current;
+    if (!f) return;
+    f.density = WEATHER.fog;
+    const target = FOG[currentWorld().weather];
+    if (worldSync.instant) f.color.copy(target);
+    else f.color.lerp(target, dampK(1.5, dt));
   });
   return (
     <>
