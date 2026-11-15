@@ -1,6 +1,6 @@
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useRef } from "react";
-import { Color, type Mesh, type MeshStandardMaterial } from "three";
+import { Color, type MeshStandardMaterial } from "three";
 import { PALETTE } from "../../content/stations";
 import { serverNow } from "../../net/clock";
 import { useStore } from "../../state/store";
@@ -12,15 +12,14 @@ const OFF = new Color(LAMP_OFF);
 const scratch = new Color();
 
 // Lamp (§F9.4): a dome on a bezel. Lit = palette color + emissive 2.5 (blooms); `blinking` = 1 Hz
-// with the phase from serverNow() so both screens agree; `attention` = a pulsing white ring.
+// with the phase from serverNow() so both screens agree. `attention` is never rendered (§A6): the
+// Flyer has to work out which lamp the Tower means by talking.
 export function Lamp({ control }: PartProps) {
   const big = control.size === "big";
   const r = big ? 0.06 : 0.03;
   const state = useStore((s) => s.flyer.objects[control.id]);
   const lamp = state?.kind === "lamp" ? state : null;
   const dome = useRef<MeshStandardMaterial>(null);
-  const ring = useRef<Mesh>(null);
-  const ringMat = useRef<MeshStandardMaterial>(null);
   // Timeline override (flicker, the p1_outro green sweep): null = follow the server state.
   const override = useRef<{ intensity: number | null; color: string | null }>({
     intensity: null,
@@ -59,15 +58,6 @@ export function Lamp({ control }: PartProps) {
         m.emissiveIntensity = 0;
       }
     }
-    if (ring.current && ringMat.current) {
-      const on = lamp?.attention === true;
-      ring.current.visible = on;
-      if (on) {
-        const k = 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2 * 1.5);
-        ring.current.scale.setScalar(1 + 0.15 * k);
-        ringMat.current.opacity = 0.4 + 0.6 * k;
-      }
-    }
   });
 
   return (
@@ -83,17 +73,6 @@ export function Lamp({ control }: PartProps) {
           color={LAMP_OFF}
           emissive={LAMP_OFF}
           roughness={0.35}
-          toneMapped={false}
-        />
-      </mesh>
-      <mesh ref={ring} position={[0, 0, 0.006]} visible={false}>
-        <torusGeometry args={[r * 1.6, 0.004, 8, 48]} />
-        <meshStandardMaterial
-          ref={ringMat}
-          color="#ffffff"
-          emissive="#ffffff"
-          emissiveIntensity={1.5}
-          transparent
           toneMapped={false}
         />
       </mesh>

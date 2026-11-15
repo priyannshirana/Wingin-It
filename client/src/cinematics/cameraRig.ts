@@ -35,23 +35,41 @@ export interface Shot {
 }
 
 const P = EXTERIOR_PLANE;
-const ext = (dx: number, dy: number, dz: number): Shot => ({
+/** An exterior shot: camera and aim point as offsets from the plane (aim ahead = lead room). */
+const ext = (
+  dx: number,
+  dy: number,
+  dz: number,
+  aim: readonly [number, number, number] = [0, 0, 0],
+): Shot => ({
   position: [P.x + dx, P.y + dy, P.z + dz],
-  target: [P.x, P.y, P.z],
+  target: [P.x + aim[0], P.y + aim[1], P.z + aim[2]],
 });
 
+// Station shots are tuned by eye against §F0.3 in /dev/scene (the build-spec values framed the
+// overhead canted and too tight, and hid the front panel's lever row behind the pedestal):
+// OVERHEAD sits near the panel normal so its rows read level with a slight three-quarter turn;
+// FRONT leans up over the yokes so the lever row clears the pedestal's raised top edge.
 export const SHOTS: Readonly<Record<ShotId, Shot>> = {
   FLYER_DEFAULT: { position: [0.5, 1.3, 0.35], target: [0.2, 1.0, -1.0] },
-  OVERHEAD: { position: [0.35, 1.35, 0.25], target: [0, 1.95, -0.3] },
-  PEDESTAL: { position: [0.4, 1.35, 0.25], target: [0, 0.75, -0.45] },
-  FRONT: { position: [0.45, 1.3, 0.3], target: [0.1, 0.98, -0.95] },
-  RIGHT_WINDOW: { position: [0.5, 1.3, 0.35], target: [3.0, 1.1, -0.2] },
-  LEFT_WINDOW: { position: [0.3, 1.3, 0.3], target: [-3.0, 1.1, -0.2] },
-  PILOT: { position: [0.4, 1.35, 0.4], target: [-0.5, 1.1, -0.1] },
-  WIDE_INTERIOR: { position: [0, 1.6, 1.4], target: [0, 1.1, -0.8] },
-  EXT_SIDE: ext(6, 1, 4),
-  EXT_CHASE: ext(0, 1.5, 7),
-  EXT_FRONT_LOW: ext(0, -0.5, -8),
+  OVERHEAD: { position: [0.29, 1.17, 0.44], target: [-0.01, 1.875, -0.3] },
+  // PEDESTAL keeps the lever row (phase 2 targets) above the subtitle zone (upper 70%).
+  PEDESTAL: { position: [0.36, 1.45, 0.33], target: [0, 0.55, -0.54] },
+  FRONT: { position: [0.2, 1.86, 0.14], target: [0.02, 0.95, -0.95] },
+  // Window shots look down onto the wing so it runs as a diagonal through the lower third with
+  // the sill and frame as foreground (from seat height the wing hid below the sill).
+  RIGHT_WINDOW: { position: [0.62, 1.42, 0.32], target: [2.9, 1.12, -0.5] },
+  LEFT_WINDOW: { position: [-0.56, 1.48, 0.06], target: [-2.9, 1.12, -0.6] },
+  // Front-right three-quarter from beside the pedestal: cap, mustache and the Zzz against the side
+  // window, the seat behind him and the throttle knobs as foreground.
+  PILOT: { position: [0.45, 1.25, -0.6], target: [-0.5, 1.08, 0.18] },
+  // From the doorway, high enough that both heads clear the seat backs against the windshield.
+  WIDE_INTERIOR: { position: [0.05, 1.84, 1.5], target: [0, 1.14, -0.6] },
+  // Exterior shots aim ahead of the plane so it sits on a thirds line flying into open frame;
+  // the chase is slightly low (§F0.3).
+  EXT_SIDE: ext(9.5, 1.5, 2.0, [0.4, 0.1, -2.6]),
+  EXT_CHASE: ext(-2.2, -0.7, 9.5, [1.2, 1.0, -6]),
+  EXT_FRONT_LOW: ext(2.4, -0.75, -8.5, [-1.0, 0.9, 0]),
 };
 
 export const SHOT_IDS = Object.keys(SHOTS) as ShotId[];

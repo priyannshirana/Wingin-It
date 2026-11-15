@@ -10,6 +10,7 @@ const proxyTarget = process.env.VITE_PROXY_TARGET ?? "http://localhost:8000";
 // §F2: content lives outside the client root; docker compose mounts it at CONTENT_DIR=/content.
 export default defineConfig({
   plugins: [react(), tailwind()],
+  optimizeDeps: { include: ["@react-three/postprocessing", "postprocessing"] },
   resolve: {
     alias: { "@content": process.env.CONTENT_DIR ?? path.resolve(here, "../content") },
   },
