@@ -26,9 +26,12 @@ describe("Home game modes", () => {
   beforeEach(() => createRoom.mockClear());
   afterEach(cleanup);
 
-  it("shows the how-to blurb on the landing page", () => {
+  it("shows the how-to blurb in the How to play popup, not on the landing page", () => {
     renderHome();
-    expect(screen.getByText(/Hold Space to talk/)).toBeTruthy();
+    expect(screen.queryByText(/Hold Space to talk/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "How to play" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/Hold Space to talk/)).toBeTruthy();
   });
 
   it("builds ?demo=1&voice=1 and creates the room with demo+voice", async () => {

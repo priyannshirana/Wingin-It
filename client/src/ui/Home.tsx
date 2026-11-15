@@ -145,15 +145,6 @@ export function Home() {
         {t("app.tagline")}
       </p>
 
-      <ul
-        lang={uiLang}
-        className="max-w-xl space-y-1 text-center font-display text-lg text-cream/75"
-      >
-        {(["home.blurb_1", "home.blurb_2", "home.blurb_3"] as const).map((k) => (
-          <li key={k}>{t(k)}</li>
-        ))}
-      </ul>
-
       <div
         ref={menuRef}
         onKeyDown={onMenuKey}

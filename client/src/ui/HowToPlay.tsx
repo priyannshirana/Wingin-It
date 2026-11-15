@@ -23,8 +23,11 @@ export function HowToPlay({ onClose }: Props) {
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-8 bg-night/85 p-8 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-6 bg-night/85 p-8 backdrop-blur-sm"
     >
+      <p className="max-w-3xl text-center font-display text-xl text-cream/85">
+        {t("home.blurb_1")} {t("home.blurb_2")} {t("home.blurb_3")}
+      </p>
       <div className="grid max-w-5xl grid-cols-3 gap-6">
         <Card index={0} text={t("home.how_1")}>
           <div className="flex items-end justify-center -space-x-4">
