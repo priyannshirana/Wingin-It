@@ -135,16 +135,20 @@ def template_report(room: Room, p: Player, words: list[DeckWord]) -> str:
 
 PROMPT = (
     "Write an upbeat mission report for a co-op game where two people who don't share a "
-    "language landed a plane. Language: {language}. Plain text only: no Markdown, no "
-    "heading or title, no bullet points, no emoji. Exactly 2 or 3 short sentences. Use ONLY "
-    "the facts below and never invent numbers, words or events. Mention the names and the "
-    "fuel left, written exactly as: {fuel_phrase}. {words_rule} Use the players' genders "
-    "for pronouns and, in Hindi, for verb agreement. Facts: {facts}"
+    "language landed a plane. It is read by one player, the reader (reader_name, the "
+    '{reader_role}); address the reader as "{you}" in the second person. Language: '
+    "{language}. Plain text only: no Markdown, no heading or title, no bullet points, no "
+    "emoji. Exactly 2 or 3 short sentences, each under 20 words. Use ONLY the facts below "
+    "and never invent numbers, words or events. Mention both names and the fuel left, "
+    "written exactly as: {fuel_phrase}. {words_rule} Use the players' genders for pronouns "
+    "and, in Hindi, for verb agreement. Facts: {facts}"
 )
 WORDS_RULE = (
-    "Mention one or two of learned_words, spelled exactly as given, and no other words.",
+    "learned_words are the words the READER learned (not the partner): credit them to the "
+    "reader only, mention one or two of them spelled exactly as given, and no other words.",
     "learned_words is empty, so do not mention any specific words.",
 )
+YOU = {"en": "you", "hi": "आप / आपने"}
 LANGUAGE_NAME = {"hi": "Hindi (Devanagari script)", "en": "English"}
 
 
@@ -219,6 +223,9 @@ def report_prompt(room: Room, p: Player, words: list[DeckWord]) -> str:
         "flyer_gender": flyer.gender if flyer else "",
         "tower": tower.name if tower else "",
         "tower_gender": tower.gender if tower else "",
+        "reader_name": p.name,
+        "reader_role": p.role,
+        "reader_gender": p.gender,
         "fuel_left_l": fuel_l,
         "fuel_left_s": fuel_s,
         "total_time_s": round(g.total_time_s),
@@ -226,6 +233,8 @@ def report_prompt(room: Room, p: Player, words: list[DeckWord]) -> str:
         "learned_words": learned,
     }
     return PROMPT.format(
+        reader_role=p.role,
+        you=YOU[p.lang],
         language=LANGUAGE_NAME[p.lang],
         fuel_phrase=FUEL_PHRASE[p.lang].format(fuel_l=fuel_l, fuel_s=fuel_s),
         words_rule=WORDS_RULE[0] if learned else WORDS_RULE[1],

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import wave
 from decimal import Decimal
 from typing import Any
 
+import pytest
 from botocore.exceptions import ClientError
 
 from app import audio, deck
@@ -15,6 +17,7 @@ from app.deck import BedrockReporter, ReportError, clean_report
 from app.language.lexicon import Lexicon
 from app.language.normalize import tokenize
 from app.persistence import DynamoPersister, NoopPersister, to_dynamo
+from app.protocol import Lang
 from app.speech.base import Utterance, WordItem
 from tests.conftest import MakeRoom, Table
 
@@ -191,6 +194,31 @@ async def test_report_facts_have_litres_and_seconds(make_room: MakeRoom) -> None
         assert "no Markdown" in p and "never invent" in p
     assert any(f"{fuel} litres ({fuel} s) of fuel" in p for p in rep.prompts)
     assert any(f"{fuel} लीटर ({fuel} सेकंड) ईंधन" in p for p in rep.prompts)
+
+
+@pytest.mark.parametrize("langs", [("en", "hi"), ("hi", "en")])
+async def test_report_facts_carry_the_reader(make_room: MakeRoom, langs: tuple[Lang, Lang]) -> None:
+    t = await make_room(seed=5, mock=False, bedrock_model_id="anthropic.test", langs=langs)
+    clients = {"flyer": FakeBedrockClient("ok."), "tower": FakeBedrockClient("ok.")}
+    t.room.svc.reporter = None
+    await t.play_to_deck(naturally=True)
+    room = t.room
+    for role, gender in (("flyer", "female"), ("tower", "male")):
+        p = room.players[role]
+        q = room.partner(p)
+        assert q is not None
+        words = deck.build_words(room, p, q)
+        r = BedrockReporter("us-east-1", "m", client=clients[role])
+        await r.report(deck.report_prompt(room, p, words))
+        prompt = clients[role].prompts[-1]
+        facts = json.loads(prompt.split("Facts: ", 1)[1])
+        assert facts["reader_name"] == p.name
+        assert facts["reader_role"] == role
+        assert facts["reader_gender"] == gender
+        assert facts["learned_words"] == [w.word for w in words if w.learned][:3]
+        assert f"the {role})" in prompt and "words the READER learned" in prompt
+        assert "under 20 words" in prompt
+        assert ('"आप / आपने"' if p.lang == "hi" else '"you"') in prompt
 
 
 async def test_report_prompt_with_no_learned_words(make_room: MakeRoom) -> None:
