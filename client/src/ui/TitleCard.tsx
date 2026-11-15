@@ -104,9 +104,9 @@ function CardView({
           manual cover title, the cream fade, bright sky in the 3D scene). */}
       <div
         data-testid="title-panel"
-        className="flex flex-col items-center gap-2 rounded-[36px] bg-night/70 px-12 pt-6 pb-5 text-center shadow-[0_12px_40px_rgb(0_0_0/0.35)] backdrop-blur-[3px]"
+        className="flex max-w-[min(1100px,92vw)] flex-col items-center gap-2 rounded-[36px] bg-night/70 px-12 pt-6 pb-5 text-center shadow-[0_12px_40px_rgb(0_0_0/0.35)] backdrop-blur-[3px]"
       >
-        <h2 className="font-display text-[64px] leading-none font-extrabold text-cream [-webkit-text-stroke:2px_#0B1026] [paint-order:stroke_fill] text-shadow-extrude">
+        <h2 className="font-display text-[64px] leading-none text-balance font-extrabold text-cream [-webkit-text-stroke:2px_#0B1026] [paint-order:stroke_fill] text-shadow-extrude">
           {title}
         </h2>
         {subs.map((sub, i) => (

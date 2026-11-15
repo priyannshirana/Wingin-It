@@ -1,7 +1,7 @@
 {
   "lead_ms": 300,
   "cinematics": {
-    "prologue":         {"kind": "state",    "duration_ms": 12000, "demo_duration_ms": 6000, "skippable": true},
+    "prologue":         {"kind": "state",    "duration_ms": 28000, "demo_duration_ms": 12000, "skippable": true},
     "p1_intro":         {"kind": "state",    "duration_ms": 1200,  "retry_duration_ms": 3200, "skippable": true},
     "p1_seat":          {"kind": "in_phase", "duration_ms": 3000,  "skippable": true},
     "p1_outro":         {"kind": "state",    "duration_ms": 6000,  "skippable": true},

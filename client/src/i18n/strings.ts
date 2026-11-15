@@ -135,6 +135,15 @@ export const STRINGS = {
   "lifeline.decoding": { en: "Decoding…", hi: "अनुवाद हो रहा है…" },
   "cin.skip": { en: "Skip", hi: "छोड़ो" },
   "cin.skip_waiting": { en: "Waiting for your partner to skip", hi: "साथी के छोड़ने का इंतज़ार" },
+  "cin.time_skip": { en: "1.5 hours later", hi: "1.5 घंटे बाद" },
+  "cin.take_control_flyer": {
+    en: "The pilot is out cold. You have to fly the plane!",
+    hi: "पायलट बेहोश है। अब विमान तुम्हें उड़ाना है!",
+  },
+  "cin.take_control_tower": {
+    en: "The pilot is out cold. Guide the passenger down!",
+    hi: "पायलट बेहोश है। यात्री को सही-सलामत उतरवाओ!",
+  },
   "crash.title": { en: "OUT OF FUEL", hi: "ईंधन ख़त्म" },
   "crash.retry": { en: "Retry", hi: "फिर से कोशिश करो" },
   "crash.waiting": { en: "Waiting for your partner…", hi: "साथी का इंतज़ार…" },

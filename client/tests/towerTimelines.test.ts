@@ -95,8 +95,9 @@ type CueSpec = [CueName, number, number | null]; // on at, off at (null = held t
 
 const CUES: Record<CinematicId, CueSpec[]> = {
   prologue: [
-    ["radar_boot", 0, 2.5],
-    ["mayday_stamp", 8.5, null],
+    // the 12 s layout scaled to the 28 s message (Tower prologue rewrite pending, §F14.4)
+    ["radar_boot", 0, 2.5 * (28 / 12)],
+    ["mayday_stamp", 8.5 * (28 / 12), null],
   ],
   p1_intro: [["manual_open", 0, null]],
   p1_seat: [],
@@ -161,20 +162,23 @@ describe("Tower timelines: beats at their spec times (§F14.4)", () => {
     });
   }
 
-  it("prologue: 8.5 MAYDAY slam with radio crackle, stamp thump and a flash; 10–12 title", () => {
+  // SPEC-ASSUMPTION: the Tower prologue is still laid out on the old 12 s beats until its §F14.4
+  // rewrite; the 28 s message scales them by 28/12.
+  it("prologue (28 s): the 12 s layout scaled: MAYDAY slam, stamp thump, flash, title", () => {
+    const k = 28 / 12;
     const rec = playThrough("prologue");
-    near(sfxAt(rec, "radio_crackle"), 8.5);
-    near(sfxAt(rec, "stamp"), 8.68);
-    near(flashAt(rec)?.t, 8.5);
-    near(titleAt(rec, { kind: "phase", phase: 1 }), 10);
-    near(titleAt(rec, null), 12);
+    near(sfxAt(rec, "radio_crackle"), 8.5 * k);
+    near(sfxAt(rec, "stamp"), 8.5 * k + 0.18);
+    near(flashAt(rec)?.t, 8.5 * k);
+    near(titleAt(rec, { kind: "phase", phase: 1 }), 10 * k);
+    near(titleAt(rec, null), 28);
   });
 
-  it("prologue demo (6 s): every beat at ×0.5", () => {
+  it("prologue demo (12 s): the 12 s layout as is", () => {
     const rec = playThrough("prologue", { demo: true });
-    near(cueAt(rec, "mayday_stamp", true), 4.25);
-    near(titleAt(rec, { kind: "phase", phase: 1 }), 5);
-    near(titleAt(rec, null), 6);
+    near(cueAt(rec, "mayday_stamp", true), 8.5);
+    near(titleAt(rec, { kind: "phase", phase: 1 }), 10);
+    near(titleAt(rec, null), 12);
   });
 
   it("p1_intro retry (3.2 s): the title for 2 s, then the manual opens", () => {
@@ -247,15 +251,16 @@ describe("Tower timelines: seek and skip are exact (§F14.1)", () => {
     const tl = build("prologue", rec);
     tl.progress(1, false);
     expect(rec.cues.mayday_stamp).toBe(true);
-    tl.seek(6, false);
+    const k = 28 / 12; // the Tower prologue keeps its 12 s layout, scaled to the 28 s message
+    tl.seek(6 * k, false);
     expect(rec.cues.mayday_stamp).toBe(false);
     expect(rec.title.card).toBeNull();
-    tl.seek(10.5, false);
+    tl.seek(10.5 * k, false);
     expect(rec.cues.mayday_stamp).toBe(true);
     expect(rec.title.card).toEqual({ kind: "phase", phase: 1 });
     // Seeking back from exactly a beat (GSAP skips the call there) still takes it off.
-    tl.seek(8.5, false);
-    tl.seek(8.4, false);
+    tl.seek(8.5 * k, false);
+    tl.seek(8.4 * k, false);
     expect(rec.cues.mayday_stamp).toBe(false);
     tl.kill();
   });

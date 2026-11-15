@@ -5,6 +5,7 @@ import { buildFlyerTimeline } from "../cinematics/timelines";
 import { CockpitCanvas } from "../scene/CockpitCanvas";
 import { FlyerFeedback } from "./FlyerFeedback";
 import { FlyerHUD } from "./FlyerHUD";
+import { CineFade } from "./CineFade";
 import { FxOverlays } from "./FxOverlays";
 
 function hasWebGL2(): boolean {
@@ -32,6 +33,7 @@ export function FlyerScreen() {
   return (
     <main data-screen="flyer" className="relative h-full overflow-hidden bg-night">
       <CockpitCanvas freeLook />
+      <CineFade />
       <FlyerHUD />
       <FxOverlays />
       <FlyerFeedback />

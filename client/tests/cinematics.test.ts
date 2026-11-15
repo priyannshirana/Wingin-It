@@ -11,8 +11,8 @@ describe("cinematics.json (§A10)", () => {
   it("has every cinematic id with the contract durations", () => {
     expect(Object.keys(CINEMATICS_FILE.cinematics).sort()).toEqual([...CINEMATIC_IDS].sort());
     expect(CINEMATICS_FILE.lead_ms).toBe(300);
-    expect(cinematicDurationMs("prologue")).toBe(12000);
-    expect(cinematicDurationMs("prologue", { demo: true })).toBe(6000);
+    expect(cinematicDurationMs("prologue")).toBe(28000);
+    expect(cinematicDurationMs("prologue", { demo: true })).toBe(12000);
     expect(cinematicDurationMs("p1_intro")).toBe(1200);
     expect(cinematicDurationMs("p1_intro", { retry: true })).toBe(3200);
     expect(cinematicDurationMs("p2_intro", { retry: true })).toBe(9000);
