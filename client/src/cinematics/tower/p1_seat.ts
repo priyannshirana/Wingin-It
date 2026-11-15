@@ -1,6 +1,5 @@
-// Tower `p1_seat` timeline (§F14.4). Owned by the Tower cinematics work; edit only this file.
 import { type Builder } from "../timelineKit";
 
-export const p1_seat: Builder = () => {
-  // M3b: the §F14.4 Tower beats.
-};
+// §F14.4 p1_seat: nothing on the Tower (the radar keeps sweeping). `buildTimeline` pads the
+// timeline to its exact length.
+export const p1_seat: Builder = () => {};

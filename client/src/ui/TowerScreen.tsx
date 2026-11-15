@@ -17,6 +17,7 @@ import { Settings } from "./Settings";
 import { SignalBars } from "./SignalBars";
 import { Subtitles } from "./Subtitles";
 import { TitleCard } from "./TitleCard";
+import { TowerCueLayer } from "./tower/TowerCueLayer";
 
 // SPEC-ASSUMPTION: columns 24 / 54 / 22 % instead of §F12.1's 30 / 45 / 25 % — the panel
 // drawing's 64-unit cells and 11 px control names (§F12.3) don't fit a 45 % spread at 1440 px.
@@ -98,6 +99,7 @@ export function TowerScreen() {
         </aside>
       </div>
       <TitleCard />
+      <TowerCueLayer />
     </main>
   );
 }
