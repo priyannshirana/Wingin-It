@@ -391,7 +391,7 @@ Single source: `content/cinematics.json` (both sides read it; durations must mat
 | `crash` | state | 5000 | 5000 | no | CRASH | — | — |
 
 - `fire_side`, `stopped_side`, `damaged_side` are `"left"` / `"right"` and are **never** sent to the Tower.
-- **Prologue change (Nov 14 2026, pending):** the prologue is now a 28 s movie-style opening (12 s in demo): takeoff, a "1.5 hours later" black card, the pilot dozing off, a "take control" card, black, then a zoom into the Flyer's eyes (Frontend §F14.2, §F14.4, §F12.7). `content/cinematics.json` must be updated to the new durations when this is built.
+- **Prologue change (Nov 14 2026, built):** the prologue is a 28 s movie-style opening (12 s in demo): takeoff, a "1.5 hours later" black card, the pilot dozing off, a "take control" card, black, then a zoom into the Flyer's eyes (Frontend §F14.2, §F14.4, §F12.7). `content/cinematics.json` carries the new durations (28000 / 12000); the server reads them from there and needs no other change.
 - The server sends `cinematic` with `start_at_ms = server_now + 300`. A client that receives it late seeks the timeline forward by `serverNow() - start_at_ms`.
 - **Skip:** each player sends `skip_cinematic`; the server broadcasts `skip_votes`; when both roles have voted (bots vote instantly) the server broadcasts `cinematic_skip {id}` and advances immediately. Clients call `timeline.progress(1)` so every end state is applied. `crash` is not skippable (it waits for Retry instead).
 - After a `state` cinematic ends the server enters the next state. After an `in_phase` or `event` cinematic ends the server sends the post-cinematic `flyer_view` (world end state) and activates the next action (or, for `event`, makes the current action active).
@@ -558,7 +558,7 @@ Clients map each code to a localized toast (Frontend §F7). The server's `messag
 ```
 both: join {name, role, lang, gender}, ready → server: room_state(can_start) → status PROLOGUE
 server → both: game_state{status:PROLOGUE}, cinematic{prologue}
-(12 s or double skip) → PHASE_INTRO(1): game_state, cinematic{p1_intro}, manual_card{null}
+(28 s, demo 12 s, or double skip) → PHASE_INTRO(1): game_state, cinematic{p1_intro}, manual_card{null}
 (1.2 s) → PLAYING(1): world = phase-1 start; flyer_view; game_state{fuel 150, draining}
 → activate P1_A1 (see below)
 ```
@@ -688,18 +688,18 @@ Setup: two laptops back to back on stage, real speech (`MOCK_SPEECH=0`), room cr
 
 | Clock | Screen | Who says / does what |
 | --- | --- | --- |
-| 0:00 | Prologue (6 s): toy plane at night, pilot slumps, MAYDAY on the Tower radar, title "PHASE 1 — PILOT DOWN / SIGNAL STRONG" | Presenter: "The pilot passed out. One of them sees the cockpit, the other has the manual. They don't share a language." |
-| 0:08 | P1_A1, master lamp blinking **red** | Tower: "Kaun si light jal rahi hai — laal ya neeli?" → Flyer sees *Kaun si [which] light jal rahi hai — laal [red] ya neeli [blue]?* → Flyer: "Red! The red one!" → Tower sees *Red [laal]! The red [laal] one!* → Tower: "Ek number button dabao — teen nahi!" → Flyer presses button 1. Alarm stops, cabin turns amber. |
-| 0:30 | P1_A3 | Tower: "Teen number lever kheencho — chaar nahi!" → Flyer pulls handle 3 → `p1_seat`: pilot slides back snoring. |
-| 0:42 | P1_A7 | Tower: "Chaar number switch band karo, phir ek number lever kheencho." → Flyer does both → `p1_outro`, "AUTOPILOT ENGAGED". |
-| 0:55 | `p2_intro`: right engine explodes, "PHASE 2 — ENGINE FIRE / SIGNAL WEAK" | Presenter: "Now the signal weakens. Watch the brackets disappear for words they already know." Bots play B1 and B3 on screen. With the Phase 1 lines above, the Flyer sees *Daayan [right] laal [red] lever kheencho baayan [left] nahi!*: the new Phase 2 words keep their brackets, while *kheencho* and *nahi* (already glossed twice in Phase 1) have lost theirs. Exact output depends on what was actually said in Phase 1. |
-| 1:25 | `p2_extinguish`, `p2_outro` into the storm | |
-| 1:35 | `p3_intro`: "PHASE 3 — STORM LANDING / SIGNAL LOST", three lifeline dots | Presenter: "No translation at all now." |
-| 1:45 | P3_C4 | Tower: "Peela switch chalu karo." → Flyer: "Yellow switch… on!" → runway reveal. |
-| 2:00 | P3_C5, lightning, warning lamp **red** | Tower: "Kaun si light jal rahi hai — neeli ya laal?" → Flyer: "Laal!" (CROSSOVER! +5s toast) → Tower: "Teen number button dabao — ek nahi!" → Flyer taps the subtitle once to show the lifeline, then presses 3. |
-| 2:20 | P3_C7 | Tower: "Ek number aur do number lever neeche karo." → touchdown, sparks. |
-| 2:35 | P3_C8 | Tower: "Laal lever kheencho! Phir engine band karo!" → `landing` at dawn, pilot wakes, "?" |
-| 2:45 | `ending` → word deck | Flyer's deck: "Your partner taught you N words", ▶ plays the Tower's real voice saying *laal*. |
+| 0:00 | Prologue (12 s): toy plane at night, pilot slumps, MAYDAY on the Tower radar, title "PHASE 1 — PILOT DOWN / SIGNAL STRONG" | Presenter: "The pilot passed out. One of them sees the cockpit, the other has the manual. They don't share a language." |
+| 0:14 | P1_A1, master lamp blinking **red** | Tower: "Kaun si light jal rahi hai — laal ya neeli?" → Flyer sees *Kaun si [which] light jal rahi hai — laal [red] ya neeli [blue]?* → Flyer: "Red! The red one!" → Tower sees *Red [laal]! The red [laal] one!* → Tower: "Ek number button dabao — teen nahi!" → Flyer presses button 1. Alarm stops, cabin turns amber. |
+| 0:36 | P1_A3 | Tower: "Teen number lever kheencho — chaar nahi!" → Flyer pulls handle 3 → `p1_seat`: pilot slides back snoring. |
+| 0:48 | P1_A7 | Tower: "Chaar number switch band karo, phir ek number lever kheencho." → Flyer does both → `p1_outro`, "AUTOPILOT ENGAGED". |
+| 1:01 | `p2_intro`: right engine explodes, "PHASE 2 — ENGINE FIRE / SIGNAL WEAK" | Presenter: "Now the signal weakens. Watch the brackets disappear for words they already know." Bots play B1 and B3 on screen. With the Phase 1 lines above, the Flyer sees *Daayan [right] laal [red] lever kheencho baayan [left] nahi!*: the new Phase 2 words keep their brackets, while *kheencho* and *nahi* (already glossed twice in Phase 1) have lost theirs. Exact output depends on what was actually said in Phase 1. |
+| 1:31 | `p2_extinguish`, `p2_outro` into the storm | |
+| 1:41 | `p3_intro`: "PHASE 3 — STORM LANDING / SIGNAL LOST", three lifeline dots | Presenter: "No translation at all now." |
+| 1:51 | P3_C4 | Tower: "Peela switch chalu karo." → Flyer: "Yellow switch… on!" → runway reveal. |
+| 2:06 | P3_C5, lightning, warning lamp **red** | Tower: "Kaun si light jal rahi hai — neeli ya laal?" → Flyer: "Laal!" (CROSSOVER! +5s toast) → Tower: "Teen number button dabao — ek nahi!" → Flyer taps the subtitle once to show the lifeline, then presses 3. |
+| 2:26 | P3_C7 | Tower: "Ek number aur do number lever neeche karo." → touchdown, sparks. |
+| 2:41 | P3_C8 | Tower: "Laal lever kheencho! Phir engine band karo!" → `landing` at dawn, pilot wakes, "?" |
+| 2:51 | `ending` → word deck | Flyer's deck: "Your partner taught you N words", ▶ plays the Tower's real voice saying *laal*. |
 
 **Demo safety nets:** if AWS speech fails on stage, create the room with `{"demo": true, "mock": true}` and use the type box; presenter key `N` completes a stuck action; `P` jumps to the next phase. Rehearse with the exact forced values above.
 

@@ -6,6 +6,7 @@ import re
 
 import pytest
 
+from app.content import Content
 from app.protocol import Lang, Role
 from tests.conftest import Harness, MakeRoom, Table
 from tests.test_privacy import P1, P2, P3, forces
@@ -181,19 +182,21 @@ def text_of(msg: dict[str, object]) -> str:
     return "".join(s["text"] for s in segs)
 
 
-async def run_of_show(t: Table) -> dict[str, object]:
+async def run_of_show(t: Table, content: Content) -> dict[str, object]:
     """One §A17 run, line by line. Returns the observable outputs for comparison."""
     room = t.room
     out: dict[str, object] = {}
+    t0 = t.clock.t
+    prologue = content.cinematics.cinematics["prologue"]
     assert t.last("flyer", "cinematic")["id"] == "prologue"
-    assert t.last("flyer", "cinematic")["duration_ms"] == 6000
+    assert t.last("flyer", "cinematic")["duration_ms"] == prologue.demo_duration_ms
     t.until_active()
     g = room.game
     assert g is not None and t.action_id == "P1_A1"
     gs = t.last("tower", "game_state")
     assert gs["fuel_s"] == 300 and gs["total_actions"] == 3
     assert g.objects["OH_MASTER_LAMP"].color == "red"  # type: ignore[union-attr]
-    # 0:08 P1_A1
+    # 0:14 P1_A1
     await t.say("tower", "Kaun si light jal rahi hai — laal ya neeli?")
     m = t.last("flyer", "utterance")
     assert text_of(m) == "Kaun si light jal rahi hai — laal ya neeli?"
@@ -206,13 +209,13 @@ async def run_of_show(t: Table) -> dict[str, object]:
     t.advance(1300)
     assert t.last("flyer", "action_result")["success"] is True
     assert g.world.alarm is False
-    # 0:30 P1_A3
+    # 0:36 P1_A3
     t.until_active()
     assert t.action_id == "P1_A3"
     await t.say("tower", "Teen number lever kheencho — chaar nahi!")
     await t.click("OH_HANDLE_3", "pull")
     assert t.last("flyer", "cinematic")["id"] == "p1_seat"
-    # 0:42 P1_A7
+    # 0:48 P1_A7
     t.until_active()
     assert t.action_id == "P1_A7"
     await t.say("tower", "Chaar number switch band karo, phir ek number lever kheencho.")
@@ -221,7 +224,7 @@ async def run_of_show(t: Table) -> dict[str, object]:
     assert t.last("flyer", "action_result")["success"] is True
     t.run_until(lambda: t.status == "PHASE_OUTRO")  # after the 1.5 s gap
     assert t.last("flyer", "cinematic")["id"] == "p1_outro"
-    # 0:55 p2_intro: right engine; bots play B1 and B3.
+    # 1:01 p2_intro: right engine; bots play B1 and B3.
     t.run_until(lambda: t.status == "PHASE_INTRO" and g.phase == 2)
     intro = t.last("flyer", "cinematic")
     assert intro["id"] == "p2_intro" and intro["params"]["fire_side"] == "right"
@@ -243,7 +246,7 @@ async def run_of_show(t: Table) -> dict[str, object]:
         "P2_B1",
         "P2_B3",
     ]
-    # 1:35 p3_intro: preset, three lifelines.
+    # 1:41 p3_intro: preset, three lifelines.
     t.run_until(lambda: t.status == "PLAYING" and g.phase == 3)
     t.until_active()
     assert t.action_id == "P3_C4"
@@ -252,12 +255,12 @@ async def run_of_show(t: Table) -> dict[str, object]:
     for oid, kind_value in (("FP_LEVER_4", "down"), ("FP_FLAP_L", 2), ("FP_FLAP_R", 1)):
         assert g.objects[oid].value == kind_value  # type: ignore[union-attr]
     assert all(g.objects[f"FP_GEAR_LAMP_{i}"].color == "green" for i in (1, 2, 3))  # type: ignore[union-attr]
-    # 1:45 P3_C4
+    # 1:51 P3_C4
     await t.say("tower", "Peela switch chalu karo.")
     await t.say("flyer", "Yellow switch… on!")
     await t.click("FP_LAND_SW", "toggle")
     assert t.last("flyer", "cinematic")["id"] == "p3_runway_reveal"
-    # 2:00 P3_C5: lightning, red warning lamp, crossover, lifeline.
+    # 2:06 P3_C5: lightning, red warning lamp, crossover, lifeline.
     t.run_until(lambda: g.cinematic is not None and g.cinematic.id == "lightning_strike")
     t.until_active()
     assert g.objects["FP_WARN_LAMP"].color == "red"  # type: ignore[union-attr]
@@ -277,14 +280,14 @@ async def run_of_show(t: Table) -> dict[str, object]:
     assert tr["text"] == "Press button three — not one!" and tr["lifelines_left"] == 2
     await t.click("FP_BTN_3", "press")
     t.advance(1300)
-    # 2:20 P3_C7
+    # 2:26 P3_C7
     t.until_active()
     assert t.action_id == "P3_C7"
     await t.say("tower", "Ek number aur do number lever neeche karo.")
     await t.click("FP_LEVER_1", "move_down")
     await t.click("FP_LEVER_2", "move_down")
     assert t.last("flyer", "cinematic")["id"] == "p3_touchdown"
-    # 2:35 P3_C8
+    # 2:41 P3_C8
     t.until_active()
     assert t.action_id == "P3_C8"
     await t.say("tower", "Laal lever kheencho! Phir engine band karo!")
@@ -292,10 +295,13 @@ async def run_of_show(t: Table) -> dict[str, object]:
     await t.click("FP_ENGINE_SW", "toggle")
     t.run_until(lambda: t.status == "PHASE_OUTRO")
     assert t.last("flyer", "cinematic")["id"] == "landing"
-    # 2:45 ending → deck
+    # 2:51 ending → deck
     t.run_until(lambda: t.status == "ENDING")
     assert t.last("flyer", "cinematic")["duration_ms"] == 4000
     t.run_until(lambda: t.status == "DECK")
+    # §A17 fits in 3 minutes: the scripted turns here are near-instant, so this is the fixed
+    # cinematic + bot time (about 104 s with the 12 s demo prologue), leaving the rest for speech.
+    assert t.clock.t - t0 < 180
     deck = t.last("flyer", "deck")
     red = next(w for w in deck["words"] if w["concept"] == "RED")
     assert red["learned"] and red["word"] == "laal"
@@ -310,7 +316,7 @@ async def run_of_show(t: Table) -> dict[str, object]:
     return out
 
 
-async def test_demo_run_of_show_three_times_in_a_row(make_room: MakeRoom) -> None:
+async def test_demo_run_of_show_three_times_in_a_row(make_room: MakeRoom, content: Content) -> None:
     t = await make_room(seed=None, demo=True, mock=True, dev_mode=False)
     assert t.room.demo and t.flyer.msgs[0]["demo"] is True
     results = []
@@ -320,7 +326,7 @@ async def test_demo_run_of_show_three_times_in_a_row(make_room: MakeRoom) -> Non
             await t.flyer.send({"type": "play_again"})
             await t.tower.send({"type": "play_again"})
             assert t.status == "PROLOGUE"
-        results.append(await run_of_show(t))
+        results.append(await run_of_show(t, content))
     assert results[0] == results[1] == results[2]
     assert not t.flyer.of("dev_state")
 

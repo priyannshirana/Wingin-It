@@ -1328,7 +1328,8 @@ def fuel_tick(room: Room) -> None:
         if g.fuel.value() <= 0:
             on_fuel_empty(room)
             room.after_handle()
-        elif (now - g.last_fuel_broadcast) * 1000 >= FUEL_BROADCAST_MS:
+        # Half-ms slack: float drift (1030.8 - 1029.8 < 1.0) would otherwise slip a beat to 1.1 s.
+        elif (now - g.last_fuel_broadcast) * 1000 >= FUEL_BROADCAST_MS - 0.5:
             g.last_fuel_broadcast = now
             broadcast_game_state(room)
             room.after_handle()

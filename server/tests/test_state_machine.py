@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
+from app.content import Content
 from app.game import action_active
 from tests.conftest import Harness, MakeRoom, Table
 
@@ -159,20 +160,23 @@ async def test_one_person_finishes_the_whole_game(make_room: MakeRoom) -> None:
     assert not [r for r in t.flyer.of("action_result") if not r["success"]]
 
 
-async def test_cinematic_lead_and_durations(make_room: MakeRoom) -> None:
+async def test_cinematic_lead_and_durations(make_room: MakeRoom, content: Content) -> None:
+    prologue_ms = content.cinematics.cinematics["prologue"].duration_ms  # §A10: 28 s movie
     t = await make_room(seed=3)
     cin = t.last("flyer", "cinematic")
-    assert cin["id"] == "prologue" and cin["duration_ms"] == 12000
+    assert cin["id"] == "prologue" and cin["duration_ms"] == prologue_ms
     gs = t.last("flyer", "game_state")
     assert cin["start_at_ms"] - gs["server_ms"] == 300
-    t.advance(12300)
+    t.advance(prologue_ms - 100)
+    assert t.status == "PROLOGUE"  # still playing: the 300 ms lead counts
+    t.advance(400)
     intro = t.last("flyer", "cinematic")
     assert intro["id"] == "p1_intro" and intro["duration_ms"] == 1200
     assert intro["params"] == {"retry": False}
     assert t.last("tower", "manual_card")["card"] is None
 
 
-async def test_double_skip(make_room: MakeRoom) -> None:
+async def test_double_skip(make_room: MakeRoom, content: Content) -> None:
     t = await make_room(seed=3)
     await t.flyer.send({"type": "skip_cinematic"})
     assert t.status == "PROLOGUE"
@@ -182,7 +186,7 @@ async def test_double_skip(make_room: MakeRoom) -> None:
     assert t.status == "PHASE_INTRO"
     t.advance(100)
     # The old prologue finish timer must not fire later (generation-guarded).
-    t.advance(13000)
+    t.advance(content.cinematics.cinematics["prologue"].duration_ms + 1000)
     assert t.status == "PLAYING"
     assert cinematic_ids(t).count("p1_intro") == 1
 
