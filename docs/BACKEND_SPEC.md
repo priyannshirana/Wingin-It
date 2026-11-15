@@ -2557,12 +2557,24 @@ IAM for the task role: `transcribe:StartStreamTranscription`, `transcribe:StartS
 
 ```
 fade.example.com {
-    encode gzip
-    handle /ws/*    { reverse_proxy server:8000 }
-    handle /api/*   { reverse_proxy server:8000 }
-    handle /clips/* { reverse_proxy server:8000 }
-    handle /health  { reverse_proxy server:8000 }
-    handle          { root * /srv/client; try_files {path} /index.html; file_server }
+	encode gzip
+	handle /ws/* {
+		reverse_proxy server:8000
+	}
+	handle /api/* {
+		reverse_proxy server:8000
+	}
+	handle /clips/* {
+		reverse_proxy server:8000
+	}
+	handle /health {
+		reverse_proxy server:8000
+	}
+	handle {
+		root * /srv/client
+		try_files {path} /index.html
+		file_server
+	}
 }
 ```
 

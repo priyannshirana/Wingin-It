@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -19,9 +20,14 @@ ROOT = Path(__file__).resolve().parent.parent
 DIGITS = re.compile(r"^[0-9०-९]+$")
 
 
+def fold_unsupported(word: str) -> str:
+    """Drop the nukta (U+093C) that Transcribe hi-IN rejects: क़->क, ज़->ज, फ़->फ."""
+    return unicodedata.normalize("NFC", unicodedata.normalize("NFD", word).replace("\u093c", ""))
+
+
 def phrase(word: str) -> str | None:
     """Transcribe phrases: no digits-only entries, words joined with hyphens."""
-    w = word.strip()
+    w = unicodedata.normalize("NFC", fold_unsupported(word)).strip()
     if not w or DIGITS.match(w):
         return None
     return "-".join(w.split())
