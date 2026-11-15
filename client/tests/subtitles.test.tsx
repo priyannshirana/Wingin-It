@@ -191,7 +191,7 @@ describe("Subtitles stack (§F13)", () => {
     render(<Subtitles stack={3} fontSize={26} />);
     const lines = screen.getAllByTestId("subtitle-line");
     expect(lines.map((l) => l.style.opacity)).toEqual(["0.35", "0.6", "1"]);
-    expect(lines.map((l) => l.style.fontSize)).toEqual(["21px", "21px", "26px"]);
+    expect(lines.map((l) => l.style.fontSize)).toEqual(["23px", "23px", "26px"]);
   });
 
   it("the Tower stack of 5 fades 35% / 50% / 65% / 80% / 100%", () => {
@@ -202,7 +202,7 @@ describe("Subtitles stack (§F13)", () => {
     render(<Subtitles stack={5} fontSize={20} />);
     const lines = screen.getAllByTestId("subtitle-line");
     expect(lines.map((l) => l.style.opacity)).toEqual(["0.35", "0.5", "0.65", "0.8", "1"]);
-    expect(lines.map((l) => l.style.fontSize)).toEqual(["16px", "16px", "16px", "16px", "20px"]);
+    expect(lines.map((l) => l.style.fontSize)).toEqual(["18px", "18px", "18px", "18px", "20px"]);
   });
 
   it("a line pushed out of the stack fades out, then is gone", () => {
