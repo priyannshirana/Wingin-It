@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
+from app.protocol import Lang, Role
 from tests.conftest import Harness, MakeRoom, Table
 from tests.test_privacy import P1, P2, P3, forces
 
@@ -19,9 +22,44 @@ def successes(t: Table) -> list[str]:
     return [r["action_id"] for r in t.flyer.of("action_result") if r["success"]]
 
 
+PAIRINGS: list[tuple[Lang, Lang]] = [("en", "hi"), ("hi", "en")]
+DEVA = re.compile(r"[\u0900-\u097F]")
+REPORT_START = {"en": "Flyer and Tower landed with ", "hi": "Flyer और Tower ने "}
+
+
+def assert_language_paths(t: Table, langs: tuple[Lang, Lang]) -> None:
+    """§A2 rule 9 / §B18: Latin segments, listener-language glosses, Tower-language manual."""
+    lexicon = t.room.svc.lexicon
+    for client, lang in ((t.flyer, langs[0]), (t.tower, langs[1])):
+        utts = client.of("utterance")
+        assert utts, "no subtitles reached this listener"
+        glossed = 0
+        for u in utts:
+            for seg in u["segments"]:
+                assert not DEVA.search(seg["text"]), seg
+                gloss = seg.get("gloss")
+                if gloss is None:
+                    continue
+                assert not DEVA.search(gloss), seg
+                ids = seg.get("concepts") or [seg["concept"]]
+                assert gloss == " ".join(lexicon.display(c, lang) for c in ids), seg
+                glossed += 1
+        assert glossed > 0
+    cards = [m["card"] for m in t.tower.of("manual_card") if m["card"] is not None]
+    assert cards and all(c["lang"] == langs[1] for c in cards)
+    titles = "".join(c["title"] + c["sticky"] for c in cards)
+    assert bool(DEVA.search(titles)) == (langs[1] == "hi")
+    for reply in (r for m in t.flyer.of("flyer_view") for r in m["quick_replies"] or []):
+        assert not DEVA.search(reply["text"])
+        assert ("alt_text" in reply) == (langs[0] == "hi")
+
+
+@pytest.mark.parametrize("langs", PAIRINGS, ids=["flyer_en", "flyer_hi"])
 @pytest.mark.parametrize("k", range(max(len(P1), len(P2), len(P3))))
-async def test_bots_finish_every_path(make_room: MakeRoom, k: int) -> None:
-    t = await make_room(seed=10 + k)
+async def test_bots_finish_every_path(
+    make_room: MakeRoom, k: int, langs: tuple[Lang, Lang]
+) -> None:
+    t = await make_room(seed=10 + k, langs=langs)
     g = t.room.game
     assert g is not None
     f = forces(k)
@@ -34,12 +72,18 @@ async def test_bots_finish_every_path(make_room: MakeRoom, k: int) -> None:
     assert not [r for r in t.flyer.of("action_result") if not r["success"]]
     deck = t.last("flyer", "deck")
     assert len(deck["words"]) == 20 and deck["report_pending"] is False
-    assert deck["report"].startswith("Flyer and Tower landed with ")
-    assert t.last("tower", "deck")["report"].startswith("Flyer और Tower ने ")
+    assert deck["report"].startswith(REPORT_START[langs[0]])
+    assert t.last("tower", "deck")["report"].startswith(REPORT_START[langs[1]])
+    for client, own, partner in ((t.flyer, langs[0], langs[1]), (t.tower, langs[1], langs[0])):
+        d = client.last("deck")
+        assert d["partner_lang"] == partner
+        assert {w["meaning_script"] for w in d["words"]} == {"deva" if own == "hi" else "latin"}
+        assert not any(DEVA.search(w["word"]) for w in d["words"])
     # Bot speech produced real subtitles and exposure for both humans.
     assert sum(t.room.players["flyer"].stats.heard.values()) > 20
     assert sum(t.room.players["tower"].stats.heard.values()) > 0
     assert t.last("flyer", "deck")["learned_count"] > 0
+    assert_language_paths(t, langs)
 
 
 async def test_human_flyer_with_virtual_auto_tower(harness: Harness) -> None:
@@ -71,6 +115,28 @@ async def test_virtual_bots_pick_different_languages(harness: Harness) -> None:
     await t.tower.send({"type": "dev", "cmd": "bots", "args": {"flyer": True}})
     assert t.room.players["flyer"].lang == "en" and t.room.players["flyer"].is_bot
     del c
+
+
+@pytest.mark.parametrize(
+    ("human_role", "human_lang", "bot_role", "bot_lang"),
+    [("tower", "en", "flyer", "hi"), ("flyer", "hi", "tower", "en")],
+)
+async def test_virtual_bot_language_follows_human_not_role(
+    harness: Harness, human_role: Role, human_lang: Lang, bot_role: Role, bot_lang: Lang
+) -> None:
+    """§A2 rule 9: the bot takes the opposite of the human's language, never its role's."""
+    t = Table(harness, harness.make())
+    await t.join(human_role, human_lang, ready=False)
+    human = t.flyer if human_role == "flyer" else t.tower
+    await human.send({"type": "dev", "cmd": "bots", "args": {bot_role: True}})
+    bot = t.room.players[bot_role]
+    assert bot.is_bot and bot.lang == bot_lang
+    await human.send({"type": "dev", "cmd": "bots", "args": {human_role: True}})
+    await human.send({"type": "ready"})
+    assert t.status == "PROLOGUE"
+    run_to_deck(t)
+    assert len([r for r in human.of("action_result") if r["success"]]) == 21
+    assert human.last("deck")["partner_lang"] == bot_lang
 
 
 async def test_bots_stop_on_pause_and_resume(make_room: MakeRoom) -> None:

@@ -193,6 +193,7 @@ def restore_auto_bots(room: Room) -> None:
 
 def set_bots(room: Room, *, flyer: object = None, tower: object = None) -> None:
     """Dev `bots {flyer?, tower?}`: toggle bots; an empty role in LOBBY gets a virtual player."""
+    from app.game import role_lang
     from app.rooms import broadcast_room_state, maybe_start, new_player
 
     newly_on: list[Role] = []
@@ -205,12 +206,8 @@ def set_bots(room: Room, *, flyer: object = None, tower: object = None) -> None:
         room.bots[role] = on
         held = room.players.get(role)
         if on and held is None and room.status == "LOBBY":
-            other = room.players.get("tower" if role == "flyer" else "flyer")
-            lang: Lang
-            if other is not None:
-                lang = "hi" if other.lang == "en" else "en"
-            else:
-                lang = "en" if role == "flyer" else "hi"
+            # §B16.1: the opposite of the human's language, never chosen by role (§A2 rule 9).
+            lang: Lang = role_lang(room, role)
             name = "Auto Tower" if role == "tower" else "Auto Flyer"
             gender: Gender = "male" if role == "tower" else "female"
             room.players[role] = new_player(name, role, lang, gender, bot=True)

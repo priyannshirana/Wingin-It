@@ -9,6 +9,7 @@ import pytest
 
 from app.content import Content
 from app.language.normalize import norm_line
+from app.protocol import Lang
 from tests.conftest import MakeRoom, Table
 
 P1 = list(itertools.product(["RED", "BLUE"], ["YES", "NO"], ["GREEN", "RED"]))
@@ -95,13 +96,19 @@ def assert_private(t: Table, content: Content) -> None:
                 )
 
 
+@pytest.mark.parametrize("langs", [("en", "hi"), ("hi", "en")], ids=["flyer_en", "flyer_hi"])
 @pytest.mark.parametrize("driver", ["natural", "bots"])
 @pytest.mark.parametrize("seed", [1, 2])
 @pytest.mark.parametrize("k", range(8))
 async def test_complete_games_every_path_are_private(
-    make_room: MakeRoom, content: Content, seed: int, k: int, driver: str
+    make_room: MakeRoom,
+    content: Content,
+    seed: int,
+    k: int,
+    driver: str,
+    langs: tuple[Lang, Lang],
 ) -> None:
-    t = await make_room(seed=seed)
+    t = await make_room(seed=seed, langs=langs)
     g = t.room.game
     assert g is not None
     f = forces(k)

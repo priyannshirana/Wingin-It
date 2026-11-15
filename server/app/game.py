@@ -95,6 +95,7 @@ from app.protocol import (
     Verb,
     World,
     dump,
+    other_role,
 )
 from app.rng import Roller, new_seed
 from app.rooms import (
@@ -231,16 +232,27 @@ def template_vars(g: Game) -> dict[str, str]:
     return out
 
 
+def role_lang(room: Room, role: Role) -> Lang:
+    """The language of the player holding `role`; never derived from the role (§A2 rule 9)."""
+    p = room.players.get(role)
+    if p is not None:
+        return p.lang
+    partner = room.players.get(other_role(role))
+    # SPEC-ASSUMPTION: an empty slot takes the opposite of the partner's language (else "en")
+    # — nobody receives role-filtered output for an empty slot, so any fixed choice is safe.
+    if partner is not None:
+        return "hi" if partner.lang == "en" else "en"
+    return "en"
+
+
 def tower_lang(room: Room) -> Lang:
     """The Tower's language (manual labels)."""
-    t = room.players.get("tower")
-    return t.lang if t is not None else "hi"
+    return role_lang(room, "tower")
 
 
 def flyer_lang(room: Room) -> Lang:
     """The Flyer's language (quick replies)."""
-    f = room.players.get("flyer")
-    return f.lang if f is not None else "en"
+    return role_lang(room, "flyer")
 
 
 # ------------------------------------------------------------------------ messages (§B8.3)
