@@ -1,19 +1,19 @@
 import { type Builder } from "../timelineKit";
 import { beats, TITLE_OUT_S } from "./beats";
+import { windowShot } from "./window";
 
-// §F14.4 crash (5 s, not skippable): the blip spirals off the radar and pops into a tiny POOF
-// (the hero); 4 `crash.title`; the Retry overlay (Overlays.tsx) takes over from 5 s.
+// §F14.4 crash: the tower window shows the spiral and the POOF on the horizon (0–3.2); then the
+// blip spirals off the radar and pops, and crash.title at 4.
+const WINDOW_S = 3.2;
+const POOF_S = 2.6;
+
 export const crash: Builder = (tl, ctx, at) => {
   const b = beats(tl, ctx);
+  windowShot(tl, b, "crash", 0, at(WINDOW_S));
   b.sound("whoosh", 0);
-  // Held: the real blip stays hidden under the Retry card until the next cinematic.
-  b.cue("blip_spiral", 0);
-  // SPEC-ASSUMPTION: the POOF at 2.6 s, after a 2.5 s spiral — "spirals off … pops" has no time;
-  // it lands well before the 4 s title so each beat reads alone.
-  tl.addLabel("hero", at(2.6));
-  b.sound("boom", at(2.6));
-  b.cue("poof", at(2.6));
-  // SPEC-ASSUMPTION: crash.title is cleared 0.4 s before 5 s, so its fade-out ends exactly when
-  // CrashCard shows the same title with Retry (§F20) — never two titles at once.
+  tl.addLabel("hero", at(POOF_S));
+  b.sound("boom", at(POOF_S));
+  b.cue("blip_spiral", at(WINDOW_S));
+  b.cue("poof", at(WINDOW_S) + 0.7); // the radar spiral takes 0.7 s
   b.title({ kind: "text", key: "crash.title" }, at(4), at(5) - TITLE_OUT_S);
 };

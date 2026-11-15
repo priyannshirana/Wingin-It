@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useCue } from "./useCue";
 import { BLIP, BLIP_CORE, RADAR_C, radarPoint } from "./towerDom";
 
-const SPIRAL_S = 2.5;
+const SPIRAL_S = 0.7;
 const TURNS = 2.25;
 const R_END = 112;
 const R_MIN = 12;
@@ -25,7 +25,7 @@ function spiralAt(sp: Spiral, s: number): { x: number; y: number } {
 }
 
 /**
- * The crash on the radar (§F14.4): the blip spirals outward off its route (2.5 s, `power2.in`,
+ * The crash on the radar (§F14.4): the blip spirals outward off its route (0.7 s, `power2.in`,
  * leaving a fading trail) and pops into a tiny cartoon POOF cloud. Drawn inside the radar SVG
  * through a portal, so it shares the radar's 280 × 280 coordinates; the real blip is hidden while
  * either cue is on and restored (GSAP revert) after.
