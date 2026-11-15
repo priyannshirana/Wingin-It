@@ -735,17 +735,26 @@ def test_http_endpoints_and_ws_handshake() -> None:
             assert ws.receive_json()["room_code"] == "TEST"
 
 
-def test_overrides_ignored_without_dev_or_demo() -> None:
+def test_demo_and_mock_honored_per_room_seed_only_in_dev() -> None:
     from fastapi.testclient import TestClient
 
     from app.main import create_app
     from tests.conftest import make_settings
 
-    app = create_app(make_settings(dev_mode=False))
+    app = create_app(make_settings(dev_mode=False, demo_mode=False, mock_speech=False))
     with TestClient(app) as client:
-        code = client.post("/api/rooms", json={"demo": True, "seed": 9, "mock": False}).json()
+        plain = client.post("/api/rooms", json={}).json()["code"]
+        r0 = app.state.registry.get(plain)
+        assert r0.demo is False and r0.mock_speech is False
+        code = client.post("/api/rooms", json={"demo": True, "seed": 9, "mock": True}).json()
         room = app.state.registry.get(code["code"])
-        assert room.demo is False and room.seed_override is None and room.mock_speech is True
+        assert room.demo is True and room.mock_speech is True and room.seed_override is None
+        assert client.get(f"/api/rooms/{code['code']}").json()["demo"] is True
+        with client.websocket_connect(f"/ws/{code['code']}") as ws:
+            assert ws.receive_json()["mock_speech"] is True
+            assert ws.receive_json()["mock_speech"] is True
+        with client.websocket_connect(f"/ws/{plain}") as ws:
+            assert ws.receive_json()["mock_speech"] is False
         with client.websocket_connect("/ws/QQQQ") as ws:
             assert ws.receive_json()["code"] == "room_not_found"
         with (

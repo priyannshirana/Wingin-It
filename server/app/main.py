@@ -190,10 +190,9 @@ def _routes(app: FastAPI, s: Settings) -> None:
         if len(registry.rooms) >= s.max_rooms:
             return JSONResponse({"error": "too many rooms"}, status_code=503)
         req = body or CreateRoomReq()
-        overrides = s.dev_mode or s.demo_mode
         room = registry.create(
-            demo=req.demo if overrides else None,
-            mock=req.mock if overrides else None,
+            demo=req.demo,
+            mock=req.mock,
             seed=req.seed if s.dev_mode else None,
         )
         return JSONResponse({"code": room.code})

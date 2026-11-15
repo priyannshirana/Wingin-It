@@ -95,7 +95,7 @@ These hold everywhere. Tests on both sides check them.
 | Method + path | Request | Response | Notes |
 | --- | --- | --- | --- |
 | `GET /health` | — | `{"ok": true, "mock_speech": bool, "dev_mode": bool, "demo_mode": bool, "rooms": int, "version": "0.1.0"}` | ALB health check. 200 when content validated. |
-| `POST /api/rooms` | `{"demo"?: bool, "seed"?: int, "mock"?: bool}` | `{"code": "KXPD"}` | Creates a room. `demo` and `mock` overrides are honored only when the server has `DEV_MODE=1` or `DEMO_MODE=1` **[ASSUMPTION]**. `seed` honored only in Dev Mode. |
+| `POST /api/rooms` | `{"demo"?: bool, "seed"?: int, "mock"?: bool}` | `{"code": "KXPD"}` | Creates a room. `demo` and `mock` are always honored per room (the client sends them from `?demo=1` / `?mock=1`); `DEMO_MODE=1` still makes every room a demo room. `seed` honored only in Dev Mode. |
 | `GET /api/rooms/{code}` | — | `{"exists": bool, "status": Status, "roles_taken": Role[], "demo": bool}` | Used by the join form before opening the socket. 404 → `{"exists": false}`. |
 | `GET /clips/{clip_id}.wav` | — | `audio/wav` (16 kHz mono PCM16) | 404 if unknown. `Cache-Control: private, max-age=3600`. |
 | `WS /ws/{code}` | — | — | One socket per player tab. Origin checked against `ALLOWED_ORIGINS`. |
