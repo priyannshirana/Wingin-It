@@ -145,6 +145,7 @@ export interface Welcome {
   mock_speech: boolean;
   dev_mode: boolean;
   demo: boolean;
+  voice: boolean; // voice room: the partner's live audio arrives as binary frames
   gloss_threshold: number;
   version: string;
 }
@@ -179,6 +180,7 @@ export interface RoomState {
   status: Status;
   demo: boolean;
   mock_speech: boolean;
+  voice: boolean;
   players: PlayerPublic[];
   can_start: boolean;
   block_reason: null | "missing_player" | "same_language" | "not_ready";

@@ -1,6 +1,7 @@
 // The one WebSocket per tab (§A5, §F5.1): handshake, clock pings, join with the stored token,
 // reconnect with backoff. A module-level singleton per room code, so React StrictMode's double
 // effects and re-renders never open a second socket.
+import { receivePartnerAudio } from "../audio/partnerVoice";
 import { WS_BASE } from "../config";
 import { useStore } from "../state/store";
 import { onPong, seedFromWelcome } from "./clock";
@@ -210,6 +211,11 @@ class RoomSocket implements Socket {
   }
 
   private onMessage(ev: MessageEvent): void {
+    // Binary frames are the partner's live voice (voice rooms); they never reach the store.
+    if (ev.data instanceof ArrayBuffer) {
+      receivePartnerAudio(ev.data);
+      return;
+    }
     if (typeof ev.data !== "string") return;
     let parsed: unknown;
     try {
