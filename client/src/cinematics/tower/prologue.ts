@@ -1,23 +1,77 @@
 import { type Builder, phaseCard } from "../timelineKit";
-import { beats, STAMP_IMPACT_S } from "./beats";
+import { beats, STAMP_IMPACT_S, TITLE_OUT_S } from "./beats";
+import { windowShot } from "./window";
 
-// §F14.4 prologue (12 s; demo 6 s = every time ×0.5): the radar boots while the blip cruises.
-// 8.5 is the hero beat: a radio crackle, the MAYDAY stamp slam (thump + jolt) and a soft red
-// flash. 10–12 the phase 1 title card (the stamp sits below it).
-export const prologue: Builder = (tl, ctx, at) => {
+// Tower prologue (§F14.4), on the Flyer prologue's server-clock beats (cinematics/flyer/
+// prologue.ts): the tower window shows the takeoff, the radar boots as it closes, the
+// time-skip black, the cruising radar, MAYDAY, the take-control card, black, the manual cover
+// and the phase 1 title. The demo (12 s) is compressed per beat, like the Flyer's.
+interface Beat {
+  window: number; // the window slides closed; the radar boots
+  black: [number, number]; // the time-skip black (the card sits inside it)
+  card: [number, number];
+  mayday: number; // the blip turns red, the radio crackles, the stamp slams
+  stampOff: number; // the stamp leaves, hidden under the black
+  take: [number, number]; // "take control" card + dim
+  black2: [number, number] | null; // black before the manual cover (full version only)
+  title: [number, number];
+}
+
+const FULL: Beat = {
+  window: 7.5,
+  black: [8, 10.5],
+  card: [8.4, 10.1],
+  mayday: 17,
+  stampOff: 20.4,
+  take: [17, 20],
+  black2: [20, 21],
+  title: [25.5, 27.6],
+};
+
+const DEMO: Beat = {
+  window: 2.5,
+  black: [3, 4.2],
+  card: [3.2, 4.0],
+  mayday: 7.7,
+  stampOff: 9.2,
+  take: [7.7, 9.2],
+  black2: null,
+  title: [11, 11.6],
+};
+
+export const prologue: Builder = (tl, ctx) => {
+  const D = tl.duration();
+  const B = D < 20 ? DEMO : FULL;
   const b = beats(tl, ctx);
-  tl.addLabel("boot", 0);
-  // SPEC-ASSUMPTION: the boot animation runs in the first 2.5 s (×0.5 in demo) — "0–8.5" names
-  // the cruise; a short boot then a live sweep reads better and keeps a late join from replaying it.
-  b.cue("radar_boot", 0, at(2.5));
-  tl.addLabel("hero", at(8.5));
-  b.sound("radio_crackle", at(8.5));
-  b.sound("stamp", at(8.5) + STAMP_IMPACT_S);
-  // SPEC-ASSUMPTION: a soft red flash (160 ms at 25 %) completes the hero triple (§F0.5) on a
-  // screen that has no camera shake — the Tower's beat otherwise has only sound and the slam.
-  b.flash(at(8.5), "#E5484D", 160, 0.25);
-  // SPEC-ASSUMPTION: the stamp holds to the end and leaves with the next cinematic (the runner
-  // clears cues) — the spec gives its start only; holding avoids a pop before PHASE_INTRO.
-  b.cue("mayday_stamp", at(8.5));
-  b.title(phaseCard(1), at(10), at(12));
+
+  // The takeoff from the tower window: it opens at 0 and slides away over 0.5 s from B.window.
+  tl.addLabel("takeoff", 0);
+  windowShot(tl, b, "takeoff", 0, B.window);
+  b.sound("whoosh", B.window * 0.5);
+
+  // The radar boots as the window closes.
+  tl.addLabel("boot", B.window);
+  b.cue("radar_boot", B.window, B.black[1]);
+
+  // Time skip.
+  tl.addLabel("time_skip", B.black[0]);
+  b.cue("fade_black", B.black[0], B.black[1]);
+  b.title({ kind: "text", key: "cin.time_skip" }, B.card[0], B.card[1]);
+
+  // Hero: the blip turns red, the radio crackles, MAYDAY slams (flash + sound + shake triple).
+  tl.addLabel("hero", B.mayday);
+  b.sound("radio_crackle", B.mayday);
+  b.sound("stamp", B.mayday + STAMP_IMPACT_S);
+  b.flash(B.mayday, "#E5484D", 160, 0.25);
+  b.cue("mayday_stamp", B.mayday, B.stampOff);
+
+  // "Take control": the dimmed screen and the card.
+  tl.addLabel("take_control", B.take[0]);
+  b.cue("fade_dim", B.take[0], B.take[1]);
+  b.title({ kind: "text", key: "cin.take_control_tower" }, B.take[0], B.take[1] - TITLE_OUT_S);
+  if (B.black2) b.cue("fade_black", B.black2[0], B.black2[1]);
+
+  // The manual cover (the desk's resting state), then the phase 1 title over it.
+  tl.addLabel("title", B.title[0]);
+  b.title(phaseCard(1), B.title[0], B.title[1]);
 };

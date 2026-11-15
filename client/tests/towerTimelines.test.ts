@@ -95,9 +95,11 @@ type CueSpec = [CueName, number, number | null]; // on at, off at (null = held t
 
 const CUES: Record<CinematicId, CueSpec[]> = {
   prologue: [
-    // the 12 s layout scaled to the 28 s message (Tower prologue rewrite pending, §F14.4)
-    ["radar_boot", 0, 2.5 * (28 / 12)],
-    ["mayday_stamp", 8.5 * (28 / 12), null],
+    ["tower_window_takeoff", 0, 7.5],
+    ["radar_boot", 7.5, 10.5],
+    ["fade_black", 8, 10.5],
+    ["mayday_stamp", 17, 20.4],
+    ["fade_dim", 17, 20],
   ],
   p1_intro: [["manual_open", 0, null]],
   p1_seat: [],
@@ -124,17 +126,19 @@ const CUES: Record<CinematicId, CueSpec[]> = {
   p3_runway_reveal: [["runway_pulse", 0.5, 3]],
   p3_touchdown: [["blip_touchdown", 2, 3]],
   landing: [
-    ["landed_stamp", 3, null],
-    ["confetti", 3, 5],
-    ["dawn_warm", 3, null],
+    ["tower_window_landing", 0, 5.5],
+    ["landed_stamp", 6, null],
+    ["confetti", 6, 7],
+    ["dawn_warm", 6, null],
   ],
   ending: [
     ["dawn_warm", 0, null],
     ["fade_cream", 4, null],
   ],
   crash: [
-    ["blip_spiral", 0, null],
-    ["poof", 2.6, null],
+    ["tower_window_crash", 0, 3.2],
+    ["blip_spiral", 3.2, null],
+    ["poof", 3.9, null],
   ],
 };
 
@@ -162,23 +166,26 @@ describe("Tower timelines: beats at their spec times (§F14.4)", () => {
     });
   }
 
-  // SPEC-ASSUMPTION: the Tower prologue is still laid out on the old 12 s beats until its §F14.4
-  // rewrite; the 28 s message scales them by 28/12.
-  it("prologue (28 s): the 12 s layout scaled: MAYDAY slam, stamp thump, flash, title", () => {
-    const k = 28 / 12;
+  it("prologue (28 s): window takeoff, MAYDAY at 17, take-control card, black, phase 1 title", () => {
     const rec = playThrough("prologue");
-    near(sfxAt(rec, "radio_crackle"), 8.5 * k);
-    near(sfxAt(rec, "stamp"), 8.5 * k + 0.18);
-    near(flashAt(rec)?.t, 8.5 * k);
-    near(titleAt(rec, { kind: "phase", phase: 1 }), 10 * k);
-    near(titleAt(rec, null), 28);
+    near(cueAt(rec, "radar_boot", true), 7.5);
+    near(titleAt(rec, { kind: "text", key: "cin.time_skip" }), 8.4);
+    near(sfxAt(rec, "radio_crackle"), 17);
+    near(sfxAt(rec, "stamp"), 17.18);
+    near(flashAt(rec)?.t, 17);
+    near(titleAt(rec, { kind: "text", key: "cin.take_control_tower" }), 17);
+    near(cueAt(rec, "fade_black", false), 10.5);
+    near(titleAt(rec, { kind: "phase", phase: 1 }), 25.5);
+    expect(rec.title.card).toBeNull();
   });
 
-  it("prologue demo (12 s): the 12 s layout as is", () => {
+  it("prologue demo (12 s): compressed per beat like the Flyer's", () => {
     const rec = playThrough("prologue", { demo: true });
-    near(cueAt(rec, "mayday_stamp", true), 8.5);
-    near(titleAt(rec, { kind: "phase", phase: 1 }), 10);
-    near(titleAt(rec, null), 12);
+    near(cueAt(rec, "tower_window_takeoff", false), 2.5);
+    near(cueAt(rec, "mayday_stamp", true), 7.7);
+    near(titleAt(rec, { kind: "text", key: "cin.take_control_tower" }), 7.7);
+    near(titleAt(rec, { kind: "phase", phase: 1 }), 11);
+    expect(rec.title.card).toBeNull();
   });
 
   it("p1_intro retry (3.2 s): the title for 2 s, then the manual opens", () => {
@@ -217,9 +224,9 @@ describe("Tower timelines: beats at their spec times (§F14.4)", () => {
     expect(flashAt(rec)).toMatchObject({ color: "#FFFFFF", ms: 60, opacity: 0.3 });
   });
 
-  it("landing: the LANDED thump lands with the stamp at 3", () => {
+  it("landing: the LANDED thump lands with the stamp at 6, after the window closes", () => {
     const rec = playThrough("landing");
-    near(sfxAt(rec, "stamp"), 3.18);
+    near(sfxAt(rec, "stamp"), 6.18);
   });
 
   it("ending: the Flyer's title with fuel and time, from 0.5 to 6 (demo ×4/6)", () => {
@@ -237,7 +244,7 @@ describe("Tower timelines: beats at their spec times (§F14.4)", () => {
     near(cueAt(demo, "fade_cream", true), 4 * (4 / 6));
   });
 
-  it("crash: POOF at 2.6, crash.title at 4, cleared at 4.6 so its fade ends as CrashCard shows", () => {
+  it("crash: the window POOF + boom at 2.6, crash.title at 4, cleared at 4.6 so its fade ends as CrashCard shows", () => {
     const rec = playThrough("crash");
     near(sfxAt(rec, "boom"), 2.6);
     near(titleAt(rec, { kind: "text", key: "crash.title" }), 4);
@@ -250,18 +257,19 @@ describe("Tower timelines: seek and skip are exact (§F14.1)", () => {
     const rec = recorder();
     const tl = build("prologue", rec);
     tl.progress(1, false);
-    expect(rec.cues.mayday_stamp).toBe(true);
-    const k = 28 / 12; // the Tower prologue keeps its 12 s layout, scaled to the 28 s message
-    tl.seek(6 * k, false);
-    expect(rec.cues.mayday_stamp).toBe(false);
+    expect(rec.cues.mayday_stamp).toBeFalsy(); // gone under the black before the cover
     expect(rec.title.card).toBeNull();
-    tl.seek(10.5 * k, false);
+    tl.seek(6, false);
+    expect(rec.cues.mayday_stamp).toBeFalsy();
+    expect(rec.title.card).toBeNull();
+    tl.seek(18, false);
     expect(rec.cues.mayday_stamp).toBe(true);
-    expect(rec.title.card).toEqual({ kind: "phase", phase: 1 });
+    expect(rec.title.card).toEqual({ kind: "text", key: "cin.take_control_tower" });
     // Seeking back from exactly a beat (GSAP skips the call there) still takes it off.
-    tl.seek(8.5 * k, false);
-    tl.seek(8.4 * k, false);
+    tl.seek(17, false);
+    tl.seek(16.9, false);
     expect(rec.cues.mayday_stamp).toBe(false);
+    expect(rec.cues.fade_dim).toBeFalsy();
     tl.kill();
   });
 
@@ -357,6 +365,7 @@ describe("Tower files never pull in three.js (§F1.2)", () => {
       "../src/ui/tower/*.{ts,tsx}",
       "../src/cinematics/towerTimelines.ts",
       "../src/ui/TitleCard.tsx",
+      "!../src/ui/tower/TowerWindow.tsx", // the lazy three.js chunk (§F12.7), by design
     ],
     { query: "?raw", import: "default", eager: true },
   );
