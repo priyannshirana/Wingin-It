@@ -22,7 +22,9 @@ DIGITS = re.compile(r"^[0-9०-९]+$")
 
 def fold_unsupported(word: str) -> str:
     """Drop the nukta (U+093C) that Transcribe hi-IN rejects: क़->क, ज़->ज, फ़->फ."""
-    return unicodedata.normalize("NFC", unicodedata.normalize("NFD", word).replace("\u093c", ""))
+    return unicodedata.normalize(
+        "NFC", unicodedata.normalize("NFD", word).replace("\u093c", "")
+    )
 
 
 def phrase(word: str) -> str | None:
