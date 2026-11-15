@@ -333,6 +333,21 @@ async def test_freed_seat_drops_its_deck_vote(make_room: MakeRoom, vote: str) ->
     assert t.last("tower", "room_state")["play_again_votes"] == expected
 
 
+async def test_bot_toggle_on_empty_seat_is_not_a_deck_vote(make_room: MakeRoom) -> None:
+    """§B8.5: a bot toggle for a freed seat (nobody seated) never completes a deck vote."""
+    t = await make_room(seed=3)
+    await play_to_deck(t)
+    old = t.room.game
+    await t.disconnect("flyer")
+    t.advance(61_000)
+    assert "flyer" not in t.room.players
+    await t.tower.send({"type": "dev", "cmd": "bots", "args": {"flyer": True}})
+    assert t.room.bots["flyer"] is True and "flyer" not in t.room.players
+    await t.tower.send({"type": "play_again"})
+    assert t.status == "DECK" and t.room.game is old
+    assert t.last("tower", "room_state")["play_again_votes"] == ["tower"]
+
+
 async def test_virtual_bot_copies_the_humans_deck_vote(harness: Harness) -> None:
     """§B16.1: a seated bot votes at once, matching the human's current vote."""
     t = Table(harness, harness.make())
