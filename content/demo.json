@@ -1,0 +1,26 @@
+{
+  "fuel_s": 300,
+  "route": {
+    "1": ["P1_A1", "P1_A3", "P1_A7"],
+    "2": ["P2_B1", "P2_B3"],
+    "3": ["P3_C4", "P3_C5", "P3_C7", "P3_C8"]
+  },
+  "auto_phases": [2],
+  "force": {
+    "MASTER_COLOR": "RED",
+    "FIRE_SIDE": "RIGHT",
+    "STILL_BURNING": "YES",
+    "WARN_COLOR": "RED"
+  },
+  "phase3_preset": {
+    "objects": {
+      "FP_LEVER_4": {"kind": "lever", "value": "down"},
+      "FP_GEAR_LAMP_1": {"kind": "lamp", "color": "green", "blinking": false, "attention": false},
+      "FP_GEAR_LAMP_2": {"kind": "lamp", "color": "green", "blinking": false, "attention": false},
+      "FP_GEAR_LAMP_3": {"kind": "lamp", "color": "green", "blinking": false, "attention": false},
+      "FP_FLAP_L": {"kind": "notch", "value": 2},
+      "FP_FLAP_R": {"kind": "notch", "value": 1}
+    }
+  },
+  "presenter_keys": {"N": "next_action", "P": "next_phase"}
+}

@@ -1,0 +1,33 @@
+# Wingin' it! — single EC2 host with Caddy for HTTPS (docs/BACKEND_SPEC.md §B19.3).
+# Exactly one server container: game state is in memory. AWS credentials come from the
+# instance role, never from this file.
+services:
+  server:
+    build: { context: ., dockerfile: server/Dockerfile }
+    restart: unless-stopped
+    environment:
+      MOCK_SPEECH: "0"
+      DEV_MODE: "0"
+      DEMO_MODE: "${DEMO_MODE:-0}"
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+      TRANSCRIBE_MULTI_LANG: "${TRANSCRIBE_MULTI_LANG:-0}"
+      TRANSCRIBE_VOCAB_HI: "${TRANSCRIBE_VOCAB_HI:-}"
+      TRANSCRIBE_VOCAB_EN: "${TRANSCRIBE_VOCAB_EN:-}"
+      TRANSLATE_TERMINOLOGY: "${TRANSLATE_TERMINOLOGY:-}"
+      BEDROCK_MODEL_ID: "${BEDROCK_MODEL_ID:-}"
+      DDB_TABLE: "${DDB_TABLE:-wingin_games}"
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-https://wingin.example.com}"
+    expose: [ "8000" ]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: [ "80:80", "443:443" ]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./client/dist:/srv/client:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [ server ]
+volumes:
+  caddy_data: {}
+  caddy_config: {}

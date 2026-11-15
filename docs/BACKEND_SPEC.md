@@ -391,7 +391,7 @@ Single source: `content/cinematics.json` (both sides read it; durations must mat
 | `crash` | state | 5000 | 5000 | no | CRASH | — | — |
 
 - `fire_side`, `stopped_side`, `damaged_side` are `"left"` / `"right"` and are **never** sent to the Tower.
-- **Prologue change (Nov 14 2026, pending):** the prologue is now a 28 s movie-style opening (12 s in demo): takeoff, a "1.5 hours later" black card, the pilot dozing off, a "take control" card, black, then a zoom into the Flyer's eyes (Frontend §F14.2, §F14.4, §F12.7). `content/cinematics.json` must be updated to the new durations when this is built.
+- **Prologue change (Nov 14 2026, built):** the prologue is a 28 s movie-style opening (12 s in demo): takeoff, a "1.5 hours later" black card, the pilot dozing off, a "take control" card, black, then a zoom into the Flyer's eyes (Frontend §F14.2, §F14.4, §F12.7). `content/cinematics.json` carries the new durations (28000 / 12000); the server reads them from there and needs no other change.
 - The server sends `cinematic` with `start_at_ms = server_now + 300`. A client that receives it late seeks the timeline forward by `serverNow() - start_at_ms`.
 - **Skip:** each player sends `skip_cinematic`; the server broadcasts `skip_votes`; when both roles have voted (bots vote instantly) the server broadcasts `cinematic_skip {id}` and advances immediately. Clients call `timeline.progress(1)` so every end state is applied. `crash` is not skippable (it waits for Retry instead).
 - After a `state` cinematic ends the server enters the next state. After an `in_phase` or `event` cinematic ends the server sends the post-cinematic `flyer_view` (world end state) and activates the next action (or, for `event`, makes the current action active).
@@ -558,7 +558,7 @@ Clients map each code to a localized toast (Frontend §F7). The server's `messag
 ```
 both: join {name, role, lang, gender}, ready → server: room_state(can_start) → status PROLOGUE
 server → both: game_state{status:PROLOGUE}, cinematic{prologue}
-(12 s or double skip) → PHASE_INTRO(1): game_state, cinematic{p1_intro}, manual_card{null}
+(28 s, demo 12 s, or double skip) → PHASE_INTRO(1): game_state, cinematic{p1_intro}, manual_card{null}
 (1.2 s) → PLAYING(1): world = phase-1 start; flyer_view; game_state{fuel 150, draining}
 → activate P1_A1 (see below)
 ```
@@ -688,18 +688,18 @@ Setup: two laptops back to back on stage, real speech (`MOCK_SPEECH=0`), room cr
 
 | Clock | Screen | Who says / does what |
 | --- | --- | --- |
-| 0:00 | Prologue (6 s): toy plane at night, pilot slumps, MAYDAY on the Tower radar, title "PHASE 1 — PILOT DOWN / SIGNAL STRONG" | Presenter: "The pilot passed out. One of them sees the cockpit, the other has the manual. They don't share a language." |
-| 0:08 | P1_A1, master lamp blinking **red** | Tower: "Kaun si light jal rahi hai — laal ya neeli?" → Flyer sees *Kaun si [which] light jal rahi hai — laal [red] ya neeli [blue]?* → Flyer: "Red! The red one!" → Tower sees *Red [laal]! The red [laal] one!* → Tower: "Ek number button dabao — teen nahi!" → Flyer presses button 1. Alarm stops, cabin turns amber. |
-| 0:30 | P1_A3 | Tower: "Teen number lever kheencho — chaar nahi!" → Flyer pulls handle 3 → `p1_seat`: pilot slides back snoring. |
-| 0:42 | P1_A7 | Tower: "Chaar number switch band karo, phir ek number lever kheencho." → Flyer does both → `p1_outro`, "AUTOPILOT ENGAGED". |
-| 0:55 | `p2_intro`: right engine explodes, "PHASE 2 — ENGINE FIRE / SIGNAL WEAK" | Presenter: "Now the signal weakens. Watch the brackets disappear for words they already know." Bots play B1 and B3 on screen. With the Phase 1 lines above, the Flyer sees *Daayan [right] laal [red] lever kheencho baayan [left] nahi!*: the new Phase 2 words keep their brackets, while *kheencho* and *nahi* (already glossed twice in Phase 1) have lost theirs. Exact output depends on what was actually said in Phase 1. |
-| 1:25 | `p2_extinguish`, `p2_outro` into the storm | |
-| 1:35 | `p3_intro`: "PHASE 3 — STORM LANDING / SIGNAL LOST", three lifeline dots | Presenter: "No translation at all now." |
-| 1:45 | P3_C4 | Tower: "Peela switch chalu karo." → Flyer: "Yellow switch… on!" → runway reveal. |
-| 2:00 | P3_C5, lightning, warning lamp **red** | Tower: "Kaun si light jal rahi hai — neeli ya laal?" → Flyer: "Laal!" (CROSSOVER! +5s toast) → Tower: "Teen number button dabao — ek nahi!" → Flyer taps the subtitle once to show the lifeline, then presses 3. |
-| 2:20 | P3_C7 | Tower: "Ek number aur do number lever neeche karo." → touchdown, sparks. |
-| 2:35 | P3_C8 | Tower: "Laal lever kheencho! Phir engine band karo!" → `landing` at dawn, pilot wakes, "?" |
-| 2:45 | `ending` → word deck | Flyer's deck: "Your partner taught you N words", ▶ plays the Tower's real voice saying *laal*. |
+| 0:00 | Prologue (12 s): toy plane at night, pilot slumps, MAYDAY on the Tower radar, title "PHASE 1 — PILOT DOWN / SIGNAL STRONG" | Presenter: "The pilot passed out. One of them sees the cockpit, the other has the manual. They don't share a language." |
+| 0:14 | P1_A1, master lamp blinking **red** | Tower: "Kaun si light jal rahi hai — laal ya neeli?" → Flyer sees *Kaun si [which] light jal rahi hai — laal [red] ya neeli [blue]?* → Flyer: "Red! The red one!" → Tower sees *Red [laal]! The red [laal] one!* → Tower: "Ek number button dabao — teen nahi!" → Flyer presses button 1. Alarm stops, cabin turns amber. |
+| 0:36 | P1_A3 | Tower: "Teen number lever kheencho — chaar nahi!" → Flyer pulls handle 3 → `p1_seat`: pilot slides back snoring. |
+| 0:48 | P1_A7 | Tower: "Chaar number switch band karo, phir ek number lever kheencho." → Flyer does both → `p1_outro`, "AUTOPILOT ENGAGED". |
+| 1:01 | `p2_intro`: right engine explodes, "PHASE 2 — ENGINE FIRE / SIGNAL WEAK" | Presenter: "Now the signal weakens. Watch the brackets disappear for words they already know." Bots play B1 and B3 on screen. With the Phase 1 lines above, the Flyer sees *Daayan [right] laal [red] lever kheencho baayan [left] nahi!*: the new Phase 2 words keep their brackets, while *kheencho* and *nahi* (already glossed twice in Phase 1) have lost theirs. Exact output depends on what was actually said in Phase 1. |
+| 1:31 | `p2_extinguish`, `p2_outro` into the storm | |
+| 1:41 | `p3_intro`: "PHASE 3 — STORM LANDING / SIGNAL LOST", three lifeline dots | Presenter: "No translation at all now." |
+| 1:51 | P3_C4 | Tower: "Peela switch chalu karo." → Flyer: "Yellow switch… on!" → runway reveal. |
+| 2:06 | P3_C5, lightning, warning lamp **red** | Tower: "Kaun si light jal rahi hai — neeli ya laal?" → Flyer: "Laal!" (CROSSOVER! +5s toast) → Tower: "Teen number button dabao — ek nahi!" → Flyer taps the subtitle once to show the lifeline, then presses 3. |
+| 2:26 | P3_C7 | Tower: "Ek number aur do number lever neeche karo." → touchdown, sparks. |
+| 2:41 | P3_C8 | Tower: "Laal lever kheencho! Phir engine band karo!" → `landing` at dawn, pilot wakes, "?" |
+| 2:51 | `ending` → word deck | Flyer's deck: "Your partner taught you N words", ▶ plays the Tower's real voice saying *laal*. |
 
 **Demo safety nets:** if AWS speech fails on stage, create the room with `{"demo": true, "mock": true}` and use the type box; presenter key `N` completes a stuck action; `P` jumps to the next phase. Rehearse with the exact forced values above.
 
@@ -839,7 +839,7 @@ Read once at startup into a frozen `Settings` object (pydantic-settings or plain
 | `DEV_MODE` | `1` locally, `0` in prod images | Enables `dev` messages, `dev_state`, quick-say, ad-hoc room codes, `seed`. |
 | `DEMO_MODE` | `0` | `1` = every new room is a demo room (§A17). |
 | `AWS_REGION` | `us-east-1` | Must support Transcribe streaming for `hi-IN`. Check the supported-languages table before deploying. |
-| `TRANSCRIBE_MULTI_LANG` | `1` | `1` = multi-language identification (`hi-IN,en-US`, the speaker's language preferred). `0` = single language per speaker. See §B13.3. |
+| `TRANSCRIBE_MULTI_LANG` | `0` | `0` = single language per speaker (the default). `1` = opt-in multi-language identification (`hi-IN,en-US`, the speaker's language preferred). See §B13.3. |
 | `TRANSCRIBE_VOCAB_HI` / `TRANSCRIBE_VOCAB_EN` | empty | Optional custom vocabulary names. |
 | `TRANSLATE_TERMINOLOGY` | empty | Optional custom terminology, e.g. `wingin-terms`. |
 | `BEDROCK_MODEL_ID` | empty | Any text model enabled in the account. Empty = template report. |
@@ -1869,7 +1869,7 @@ Build it per role from `game` (identical for both roles: it contains no secrets)
 - If a cinematic was running when the pause began, remember it. **On resume** it is completed instantly (its `finish()` runs, applying the end state) **[ASSUMPTION]**. If the paused state was PLAYING with an active action, the action stays active and its partial press counts are reset. Any pending 1.5 s "next action" gap restarts in full.
 - Resume when every human player is connected again: `status = paused_from`, `fuel.resume()` if PLAYING, broadcast `game_state`, toast `toast.partner_back`.
 - `abandon()`: the game is dropped (persist nothing), `status = LOBBY`, the absent player removed, the present one set to not ready, toast `toast.partner_gone`.
-- In LOBBY and DECK a disconnect only marks the player disconnected; after 60 s the slot is freed.
+- In LOBBY and DECK a disconnect only marks the player disconnected; after 60 s the slot is freed. A slot freed in DECK also ends the finished game like `abandon()` (nothing more is persisted: the game was saved at ENDING): `status = LOBBY`, deck votes cleared, the remaining player set to not ready, `room_state` + `game_state` broadcast, toast `toast.partner_gone`. A new partner can then join the empty seat and both readying starts a new `Game` with a new seed.
 
 ### B8.5 Play again / swap roles (DECK only)
 
@@ -2342,7 +2342,8 @@ class Handler(TranscriptResultStreamHandler):
 ```
 
 - One stream per utterance. Any exception → `ok=False` → "Didn't catch that, try again".
-- Fallback when multi-language identification is unreliable: `TRANSCRIBE_MULTI_LANG=0`. Hindi speakers' English words then arrive as Devanagari loan spellings, which the shared-word table and the `en.crossover` lists already map (ओवरहेड → overhead, लेफ्ट → left).
+- Single-language is the default (`TRANSCRIBE_MULTI_LANG=0`): each speaker is transcribed in their own `lang`. Hindi speakers' English words then arrive as Devanagari loan spellings, which the shared-word table and the `en.crossover` lists already map (ओवरहेड → overhead, लेफ्ट → left).
+- Multi-language identification is opt-in (`TRANSCRIBE_MULTI_LANG=1`). A real-AWS smoke test showed it never switched language on short radio lines (it always returned the preferred language) and roughly tripled finish latency (about 500–760 ms vs 190–240 ms single-language), so it buys nothing for this game's utterance length.
 - On startup in real mode, log a warning if the region isn't one where `hi-IN` streaming is supported (keep a small allow-list in `config.py`; verify against AWS docs at deploy time).
 
 ### B13.4 Latency
@@ -2411,11 +2412,16 @@ def wav_bytes(pcm: bytes, rate=16000) -> bytes:
 
 ### B15.3 Mission report (Bedrock)
 
-- When `BEDROCK_MODEL_ID` is set and the room isn't mock: one Converse call per player, in parallel, in that player's language, `maxTokens 200`, `temperature 0.7`, timeout 5 s.
-- Prompt (build spec §15): "Write a 2–3 sentence, upbeat mission report for a co-op game where two people who don't share a language landed a plane. Mention the names, fuel left and two or three words the player learned. Language: {Hindi (Devanagari script) | English}. Facts: {json}." Facts = `{flyer, flyer_gender, tower, tower_gender, fuel_left_s, total_time_s, wrong_actions, learned_words: [w1, w2, w3]}`. Add to the prompt: "Use the players' genders for pronouns and, in Hindi, for verb agreement."
-- Fallback templates (used on timeout, error, empty model id or mock):
-  - en: "{flyer} and {tower} landed with {fuel}s of fuel to spare. You learned {n} words, including {w1} and {w2}."
-  - hi: "{flyer} और {tower} ने {fuel} सेकंड ईंधन बचाकर विमान उतार लिया। आपने {n} शब्द सीखे, जैसे {w1} और {w2}।"
+- When `BEDROCK_MODEL_ID` is set and the room isn't mock: one Converse call per player, in parallel, in that player's language, `maxTokens 400` (`BEDROCK_MAX_TOKENS`; Devanagari needs several tokens per word, 200 cut Hindi reports off), `temperature 0.7`, timeout 5 s.
+- Fuel units: the report states fuel as litres **and** seconds. `FUEL_LITRES_PER_S = 1.0` (backend constant in `constants.py`, Part B only; the in-game fuel gauge and every Part A field stay in seconds). The server precomputes both whole numbers so the model never converts: `fuel_left_l = round_half_up(fuel_left_s × FUEL_LITRES_PER_S)`, `fuel_left_s = round_half_up(fuel_left_s)`, rounding .5 up like the client's `Math.round` (not Python's banker's `round`), so 60.5 s reads "61" on the deck stats and in the report.
+- Prompt (build spec §15, tightened after a live test where reports came back as Markdown, overlong and with invented facts): "Write an upbeat mission report for a co-op game where two people who don't share a language landed a plane. It is read by one player, the reader (reader_name, the {flyer | tower}); address the reader as "{you | आप / आपने}" in the second person. Language: {Hindi (Devanagari script) | English}. Plain text only: no Markdown, no heading or title, no bullet points, no emoji. Exactly 2 or 3 short sentences, each under 20 words. Use ONLY the facts below and never invent numbers, words or events. Mention both names and the fuel left, written exactly as: {fuel phrase}. {words rule} Use the players' genders for pronouns and, in Hindi, for verb agreement. Facts: {json}."
+  - Fuel phrase: en "{fuel_l} litres ({fuel_s} s) of fuel", hi "{fuel_l} लीटर ({fuel_s} सेकंड) ईंधन".
+  - Words rule: "learned_words are the words the READER learned (not the partner): credit them to the reader only, mention one or two of them spelled exactly as given, and no other words." If `learned_words` is empty: "learned_words is empty, so do not mention any specific words."
+  - Facts = `{flyer, flyer_gender, tower, tower_gender, reader_name, reader_role, reader_gender, fuel_left_l, fuel_left_s, total_time_s (whole seconds, round_half_up like the client, so 124.5 → 125), wrong_actions, learned_words: [w1, w2, w3]}` (`learned_words` are the reader's own learned words and may be shorter or empty; the reader is the player the report is for).
+- Post-processing (safety net): strip leading Markdown heading lines and any stray `#` / `*`, collapse whitespace. If `stopReason == "max_tokens"`, trim to the last complete sentence: `.`, `!` or `?` followed by whitespace or the end (so `61.5` doesn't count), or `।` / `॥` anywhere (they never appear inside numbers), in each case including any closing quotes or brackets right after the mark. If nothing is left, use the template.
+- Fallback templates (used on timeout, error, empty or unusable model output, empty model id or mock):
+  - en: "{flyer} and {tower} landed with {fuel_l} litres ({fuel_s} s) of fuel to spare. You learned {n} words, including {w1} and {w2}."
+  - hi: "{flyer} और {tower} ने {fuel_l} लीटर ({fuel_s} सेकंड) ईंधन बचाकर विमान उतार लिया। आपने {n} शब्द सीखे, जैसे {w1} और {w2}।"
   - If fewer than 2 words were learned, drop the "including" clause ("You learned {n} words." / "आपने {n} शब्द सीखे।").
 - The deck is sent with `report_pending: true` if Bedrock hasn't returned by DECK entry; `deck_report` follows.
 
