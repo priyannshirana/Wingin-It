@@ -6,7 +6,7 @@ import { QuickSayButton } from "./QuickSayButton";
 /** ", " after a plain phrase; just a space after one that already ends in punctuation. */
 const joiner = (text: string) => (/[?!.।:,]$/.test(text.trim()) ? " " : ", ");
 
-// The module page's instruction line (§F12.3 left page, item 3). It describes the RULE, never a
+// The right page's instruction line (§F12.3 right page, item 3). It describes the RULE, never a
 // sentence to say aloud: observe → the breadcrumb as a sentence + "then follow the grid";
 // branch_on → known_from + "then follow the grid"; say-only → "Have the Flyer do this:".
 export function FindOut({ card }: { card: ManualCard }) {
@@ -14,7 +14,7 @@ export function FindOut({ card }: { card: ManualCard }) {
   const f = card.find_out;
   return (
     <section
-      className="flex flex-none flex-col items-center gap-1 text-center"
+      className="flex flex-none flex-col items-center gap-0.5 px-1 text-center"
       data-testid="find-out"
     >
       <p className="font-display text-[18px] leading-snug font-semibold" data-testid="instruction">
@@ -51,7 +51,9 @@ export function FindOut({ card }: { card: ManualCard }) {
           <QuickSayButton line={card.quick_say?.ask} />
         </span>
       </p>
-      <p className="-rotate-1 font-hand text-pencil-grey">{card.own_words_note}</p>
+      <p className="-rotate-1 font-hand text-[16px] leading-tight text-pencil-grey">
+        {card.own_words_note}
+      </p>
     </section>
   );
 }
