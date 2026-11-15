@@ -136,6 +136,7 @@ class Client:
         self.room = room
         self.conn = Connection()
         self.msgs: list[dict[str, Any]] = []
+        self.audio: list[bytes] = []  # relayed binary frames (voice rooms, §B13.5)
         self.role: Role | None = None
 
     def drain(self) -> list[dict[str, Any]]:
@@ -143,6 +144,9 @@ class Client:
         while not self.conn.queue.empty():
             raw = self.conn.queue.get_nowait()
             if raw is None:
+                continue
+            if isinstance(raw, bytes):
+                self.audio.append(raw)
                 continue
             data = orjson.loads(raw)
             S2C_ADAPTER.validate_python(data)  # every outbound frame obeys the contract

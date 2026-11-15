@@ -76,6 +76,7 @@ from app.rooms import (
     handle_ready,
     handle_update_player,
     on_disconnect,
+    relay_audio,
     room_state_msg,
     send,
     send_conn,
@@ -96,6 +97,7 @@ class CreateRoomReq(BaseModel):
     demo: bool | None = None
     seed: int | None = None
     mock: bool | None = None
+    voice: bool | None = None
 
 
 def build_services(settings: Settings, clock: Clock | None = None) -> Services:
@@ -193,6 +195,7 @@ def _routes(app: FastAPI, s: Settings) -> None:
         room = registry.create(
             demo=req.demo,
             mock=req.mock,
+            voice=req.voice,
             seed=req.seed if s.dev_mode else None,
         )
         return JSONResponse({"code": room.code})
@@ -209,6 +212,7 @@ def _routes(app: FastAPI, s: Settings) -> None:
                 "status": room.status,
                 "roles_taken": sorted(room.players),
                 "demo": room.demo,
+                "voice": room.voice,
             }
         )
 
@@ -243,7 +247,10 @@ async def _writer(ws: WebSocket, conn: Connection) -> None:
             data = await conn.queue.get()
             if data is None:
                 break
-            await ws.send_text(data)
+            if isinstance(data, bytes):
+                await ws.send_bytes(data)  # voice rooms: relayed partner audio (§B13.5)
+            else:
+                await ws.send_text(data)
     except (WebSocketDisconnect, RuntimeError, OSError):
         conn.closed = True
     except Exception:
@@ -315,6 +322,7 @@ def on_connect(room: Room, conn: Connection) -> None:
             mock_speech=room.mock_speech,
             dev_mode=room.svc.settings.dev_mode,
             demo=room.demo,
+            voice=room.voice,
             gloss_threshold=room.svc.settings.gloss_threshold,
             version=VERSION,
         ),
@@ -503,6 +511,7 @@ async def handle_audio(room: Room, conn: Connection, data: bytes) -> None:
             return
         tx.buffer += data
         tx.frames.put_nowait(data)
+        relay_audio(room, p, data)  # enqueue only; the partner's writer task does the send
 
 
 async def end_transmission(room: Room, tx: Transmission) -> None:

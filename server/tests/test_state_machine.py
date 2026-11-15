@@ -709,6 +709,7 @@ def test_http_endpoints_and_ws_handshake() -> None:
             "status": "LOBBY",
             "roles_taken": [],
             "demo": True,
+            "voice": False,
         }
         missing = client.get("/api/rooms/ZZZZ")
         assert missing.status_code == 404 and missing.json() == {"exists": False}

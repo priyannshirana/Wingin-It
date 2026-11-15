@@ -40,6 +40,7 @@ LATENCY_KEEP: Final = 20
 SAMPLE_RATE: Final = 16000
 BYTES_PER_SECOND: Final = SAMPLE_RATE * 2
 MAX_FRAME_BYTES: Final = 6400
+AUDIO_RELAY_MAX_QUEUED: Final = 25  # voice rooms: drop relayed frames past ~2.5 s backlog (§B13.5)
 MAX_TEXT_FRAME_BYTES: Final = 8 * 1024
 MAX_UTTERANCE_BUFFER_S: Final = 12.5
 MAX_NAME_CHARS: Final = 16
