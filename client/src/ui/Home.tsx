@@ -5,6 +5,8 @@ import { createRoom, getHealth, getRoom, normalizeCode } from "../net/api";
 import type { Lang } from "../net/protocol";
 import { useStore } from "../state/store";
 import { DemoBadge } from "./DemoBadge";
+import { GameModes } from "./GameModes";
+import { modesQuery, type ModeFlags } from "./modeFlags";
 import { HowToPlay } from "./HowToPlay";
 import { ToyButton } from "./ToyButton";
 
@@ -42,6 +44,7 @@ export function Home() {
   const [notFound, setNotFound] = useState(() => isNotFoundState(location.state));
   const [busy, setBusy] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
+  const [modesOpen, setModesOpen] = useState(false);
   const [demoServer, setDemoServer] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -55,11 +58,19 @@ export function Home() {
     };
   }, []);
 
-  async function start() {
+  async function start(flags?: ModeFlags) {
     setBusy(true);
     try {
-      const newCode = await createRoom(readCreateOptions(params));
-      void navigate(`/r/${newCode}${passThrough(params)}`);
+      const newCode = await createRoom(
+        flags
+          ? {
+              ...(flags.demo ? { demo: true } : {}),
+              ...(flags.mock ? { mock: true } : {}),
+              ...(flags.voice ? { voice: true } : {}),
+            }
+          : readCreateOptions(params),
+      );
+      void navigate(`/r/${newCode}${flags ? modesQuery(flags) : passThrough(params)}`);
     } catch (err) {
       console.warn("[wingin] could not create a room", err);
       setBusy(false);
@@ -96,7 +107,7 @@ export function Home() {
   }
 
   const menu = [
-    { key: "start", label: t("home.start"), variant: "primary" as const, onClick: start },
+    { key: "start", label: t("home.start"), variant: "primary" as const, onClick: () => start() },
     {
       key: "join",
       label: t("home.join"),
@@ -108,6 +119,12 @@ export function Home() {
       label: t("home.how"),
       variant: "ghost" as const,
       onClick: () => setHowOpen(true),
+    },
+    {
+      key: "modes",
+      label: t("home.modes"),
+      variant: "ghost" as const,
+      onClick: () => setModesOpen(true),
     },
   ];
 
@@ -128,10 +145,19 @@ export function Home() {
         {t("app.tagline")}
       </p>
 
+      <ul
+        lang={uiLang}
+        className="max-w-xl space-y-1 text-center font-display text-lg text-cream/75"
+      >
+        {(["home.blurb_1", "home.blurb_2", "home.blurb_3"] as const).map((k) => (
+          <li key={k}>{t(k)}</li>
+        ))}
+      </ul>
+
       <div
         ref={menuRef}
         onKeyDown={onMenuKey}
-        className="mt-10 flex w-80 flex-col items-stretch gap-4"
+        className="mt-4 flex w-80 flex-col items-stretch gap-4"
       >
         {menu.map((item, i) => (
           <div key={item.key} className="animate-pop" style={{ animationDelay: `${i * 60}ms` }}>
@@ -178,6 +204,13 @@ export function Home() {
         )}
       </div>
 
+      {modesOpen && (
+        <GameModes
+          busy={busy}
+          onClose={() => setModesOpen(false)}
+          onCreate={(f) => void start(f)}
+        />
+      )}
       {howOpen && <HowToPlay onClose={() => setHowOpen(false)} />}
     </main>
   );

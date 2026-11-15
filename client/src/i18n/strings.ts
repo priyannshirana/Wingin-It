@@ -42,6 +42,53 @@ export const STRINGS = {
     en: "The translator fades. Learn each other's words and land the plane!",
     hi: "अनुवाद धीरे-धीरे गायब होगा। एक-दूसरे के शब्द सीखो और विमान उतारो!",
   },
+  "home.blurb_1": {
+    en: "One of you is the Flyer in the cockpit. The other is the Tower, with the manual.",
+    hi: "एक खिलाड़ी कॉकपिट में फ्लायर है। दूसरा टावर है, जिसके पास मैनुअल है।",
+  },
+  "home.blurb_2": {
+    en: "You speak different languages, English and Hindi. Hold Space to talk; your partner sees subtitles.",
+    hi: "तुम अलग-अलग भाषाएँ बोलते हो, अंग्रेज़ी और हिंदी। बोलने के लिए Space दबाए रखो; साथी को सबटाइटल दिखते हैं।",
+  },
+  "home.blurb_3": {
+    en: "The help fades each phase, so you learn each other's words. Land the plane before the fuel runs out!",
+    hi: "हर चरण में मदद घटती जाती है, इसलिए तुम एक-दूसरे के शब्द सीखते हो। ईंधन खत्म होने से पहले विमान उतारो!",
+  },
+  "home.modes": { en: "Game modes", hi: "खेल के तरीके" },
+  "modes.title": { en: "Game modes", hi: "खेल के तरीके" },
+  "modes.intro": {
+    en: "Tick options to build the link. Nothing ticked is the normal game.",
+    hi: "लिंक बनाने के लिए विकल्प चुनो। कुछ न चुनो तो सामान्य खेल होगा।",
+  },
+  "modes.voice": {
+    en: "Hear your partner's voice live, plus subtitles (wear headphones).",
+    hi: "साथी की आवाज़ लाइव सुनो, सबटाइटल के साथ (हेडफ़ोन पहनो)।",
+  },
+  "modes.demo": {
+    en: "A 3-minute scripted run for presenting. N completes a step, P skips to the end of the phase.",
+    hi: "प्रस्तुति के लिए 3 मिनट का स्क्रिप्टेड खेल। N से एक कदम पूरा होता है, P से चरण के अंत तक पहुँचते हैं।",
+  },
+  "modes.mock": {
+    en: "No microphone: type what you would say instead of talking.",
+    hi: "माइक्रोफ़ोन नहीं: बोलने की जगह जो कहना है वह लिखो।",
+  },
+  "modes.combine": { en: "Combinations", hi: "मिले-जुले तरीके" },
+  "modes.demo_voice": {
+    en: "The scripted 3-minute demo where you also hear each other live (wear headphones).",
+    hi: "3 मिनट का स्क्रिप्टेड डेमो, जिसमें तुम एक-दूसरे की आवाज़ भी लाइव सुनते हो (हेडफ़ोन पहनो)।",
+  },
+  "modes.demo_mock": {
+    en: "The scripted demo with typing instead of speech: the stage backup if the mic or speech fails.",
+    hi: "बोलने की जगह लिखकर स्क्रिप्टेड डेमो: माइक या स्पीच खराब हो तो मंच का बैकअप।",
+  },
+  "modes.try": { en: "Try it", hi: "आज़माओ" },
+  "modes.na_typing": { en: "Not available with typing mode", hi: "टाइपिंग मोड के साथ उपलब्ध नहीं" },
+  "modes.na_voice": { en: "Not available with live voice", hi: "लाइव आवाज़ के साथ उपलब्ध नहीं" },
+  "modes.link": { en: "Link", hi: "लिंक" },
+  "modes.copy": { en: "Copy link", hi: "लिंक कॉपी करो" },
+  "modes.copied": { en: "Copied!", hi: "कॉपी हो गया!" },
+  "modes.create": { en: "Create game with these", hi: "इनके साथ खेल बनाओ" },
+  "modes.close": { en: "Close", hi: "बंद करो" },
   "home.back": { en: "Back", hi: "वापस" },
   "char.title": { en: "Choose your character", hi: "अपना किरदार चुनो" },
   "char.gender": { en: "Character", hi: "किरदार" },
