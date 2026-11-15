@@ -1,6 +1,12 @@
 # Local dev (§A3, §F2). The server service is owned by the backend; the client proxies
 # /api, /ws and /clips to it at http://server:8000.
 services:
+  server:
+    build: { context: ., dockerfile: server/Dockerfile }
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment: { MOCK_SPEECH: "1", DEV_MODE: "1", DEMO_MODE: "0", ALLOWED_ORIGINS: "http://localhost:5173" }
+    volumes: [ "./server/app:/app/app", "./content:/app/content" ]
+    ports: [ "8000:8000" ]
   client:
     image: node:24-alpine
     working_dir: /app
