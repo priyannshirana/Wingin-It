@@ -258,6 +258,18 @@ async def test_fuel_amounts_round_half_up(make_room: MakeRoom) -> None:
     assert deck.fuel_amounts(t.room) == (0, 0)
 
 
+async def test_report_total_time_rounds_half_up(make_room: MakeRoom) -> None:
+    t = await finished(make_room)
+    g = t.room.game
+    assert g is not None
+    g.total_time_s = 124.5
+    p = t.room.players["flyer"]
+    q = t.room.partner(p)
+    assert q is not None
+    prompt = deck.report_prompt(t.room, p, deck.build_words(t.room, p, q))
+    assert json.loads(prompt.split("Facts: ", 1)[1])["total_time_s"] == 125
+
+
 async def test_report_prompt_with_no_learned_words(make_room: MakeRoom) -> None:
     t = await finished(make_room)
     room = t.room

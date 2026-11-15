@@ -236,7 +236,7 @@ def report_prompt(room: Room, p: Player, words: list[DeckWord]) -> str:
         "reader_gender": p.gender,
         "fuel_left_l": fuel_l,
         "fuel_left_s": fuel_s,
-        "total_time_s": round(g.total_time_s),
+        "total_time_s": round_half_up(g.total_time_s),
         "wrong_actions": sum(ps.wrong for ps in g.phase_stats.values()),
         "learned_words": learned,
     }
