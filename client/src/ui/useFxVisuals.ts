@@ -1,5 +1,5 @@
 // Store `fx` → visuals (§A12, §F15). Mounted once per game screen; the Flyer runs the camera,
-// lamp and wing-fire effects, both screens run the 2D overlays. Only batches that arrive after
+// lamp and wing-fire effects, both screens run the signal-bar flash. Only batches that arrive after
 // mounting play (like useWorldAudio), so a rejoin never replays old one-shots.
 import { useEffect } from "react";
 import { fxPitchDip, fxShake, fxYaw } from "../cinematics/cameraFx";
@@ -9,10 +9,6 @@ import { getRef } from "../scene/sceneRefs";
 import { useStore } from "../state/store";
 import { assertNever } from "../util/assertNever";
 import { useFxOverlayStore, visualFor, type VisualEffect } from "./fxVisuals";
-
-// SPEC-ASSUMPTION: a burst also gives a soft white screen flash (180 ms at 0.3) — the puff sits
-// on the wing, which is off-camera at the pedestal, and the flash tells the Flyer it happened.
-export const BURST_FLASH = { color: "#ffffff", ms: 180, opacity: 0.3 } as const;
 
 export function playVisual(effect: VisualEffect): void {
   switch (effect.kind) {
@@ -35,14 +31,10 @@ export function playVisual(effect: VisualEffect): void {
       // The puff goes on the burning wing (World `fire.side`; never sent to the Tower).
       const side = useStore.getState().flyer.world?.fire.side;
       if (side) getRef(side === "left" ? "wingFireLeft" : "wingFireRight")?.burst(effect.burst);
-      useStore.getState().flash(BURST_FLASH.color, BURST_FLASH.ms, BURST_FLASH.opacity);
       return;
     }
-    case "static_dip":
-      useFxOverlayStore.getState().bump("staticDip");
-      return;
     case "signal_flash":
-      useFxOverlayStore.getState().bump("signalFlash");
+      useFxOverlayStore.getState().bumpSignalFlash();
       return;
     default:
       assertNever(effect);

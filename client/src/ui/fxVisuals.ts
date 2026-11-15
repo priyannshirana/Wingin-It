@@ -11,7 +11,6 @@ export type VisualEffect =
   | { kind: "lamp_flicker"; objectId: string }
   | { kind: "flicker_stop" }
   | { kind: "burst"; burst: "foam" | "snuff" }
-  | { kind: "static_dip" }
   | { kind: "signal_flash" };
 
 /** `fx:*` effects are the Flyer's; `both:*` go to both screens (§A9, §A12). */
@@ -33,7 +32,7 @@ export function parseVisual(effect: string): ParsedVisual | null {
   const [head, ...rest] = effect.split(":");
   if (head === "both") {
     const name = rest.join(":");
-    if (name === "static_dip") return { audience: "both", effect: { kind: "static_dip" } };
+    // `both:static_dip` is audio only (§F15): audio/useWorldAudio.ts drops the static gain.
     if (name === "signal_flash") return { audience: "both", effect: { kind: "signal_flash" } };
     return null;
   }
@@ -71,24 +70,21 @@ export function visualFor(role: Role, effect: string): VisualEffect | null {
   return parsed.effect;
 }
 
-/** §A12: both `both:*` one-shots last 1.2 s. */
-export const STATIC_DIP_MS = 1200;
+/** §A12: the signal icon flashes full bars for 1.2 s. */
 export const SIGNAL_FLASH_MS = 1200;
 
 /** Where a screen's signal bars are (SignalBars.tsx renders them; it stays untouched). */
 export const SIGNAL_BARS = '[data-testid="signal"] [aria-hidden="true"] > span';
 
-/** Ids of the screen-wide 2D one-shots; each bump replays the overlay once (keyed by id). */
+/** Id of the latest signal flash; each bump replays it once. */
 interface FxOverlayState {
-  staticDip: number;
   signalFlash: number;
-  bump: (key: "staticDip" | "signalFlash") => void;
+  bumpSignalFlash: () => void;
   reset: () => void;
 }
 
 export const useFxOverlayStore = create<FxOverlayState>()((set) => ({
-  staticDip: 0,
   signalFlash: 0,
-  bump: (key) => set((s) => ({ [key]: s[key] + 1 })),
-  reset: () => set({ staticDip: 0, signalFlash: 0 }),
+  bumpSignalFlash: () => set((s) => ({ signalFlash: s.signalFlash + 1 })),
+  reset: () => set({ signalFlash: 0 }),
 }));

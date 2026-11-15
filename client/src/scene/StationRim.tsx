@@ -7,8 +7,8 @@ import { useStore } from "../state/store";
 import { resetStationRim, rimFx } from "./rimFx";
 
 const GREEN = new Color("#30A46C");
-// SPEC-ASSUMPTION: the rim peaks at 1.6× the palette green — just over the bloom threshold, so it
-// glows softly for its 400 ms without outshining the lamps (§F0.2).
+// SPEC-ASSUMPTION: the rim peaks at 1.6× the palette green (luminance ≈ 0.45) — it stays below the
+// bloom threshold (1.0) by design: only lamps and fire bloom (§F0.1); the rim reads by its color.
 const PEAK = 1.6;
 /** The frame lies on the station's outer bezel (StationGroup: size + 0.1, i.e. 0.05 a side). */
 const INSET = 0.034;

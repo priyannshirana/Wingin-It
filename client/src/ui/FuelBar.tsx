@@ -7,6 +7,7 @@ import { FuelDelta } from "./FuelDelta";
 export function FuelBar({ className = "" }: { className?: string }) {
   const t = useT();
   const fuel = useStore((s) => s.game?.fuel_s ?? 0);
+  const flyer = useStore((s) => s.me?.role === "flyer");
   const max = useStore((s) => s.game?.fuel_max_s ?? 1);
   const frac = Math.min(1, Math.max(0, fuel / Math.max(1, max)));
   const low = fuel <= LOW_FUEL_S;
@@ -25,7 +26,7 @@ export function FuelBar({ className = "" }: { className?: string }) {
           style={{ width: `${frac * 100}%` }}
         />
       </div>
-      <FuelDelta />
+      <FuelDelta bonus={flyer} />
     </div>
   );
 }

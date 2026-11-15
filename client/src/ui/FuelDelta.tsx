@@ -10,9 +10,10 @@ interface DeltaItem {
 
 let nextId = 1;
 
-// §F15: the fuel bar's floating "−10" (wrong action, both screens) and "+5" (crossover, both
-// screens). Mounted inside FuelBar; only results / toasts that arrive after mounting show.
-export function FuelDelta() {
+// §F15: the fuel bar's "−10" (wrong action, both screens) and "+5" (crossover: the Flyer's bar
+// only; the Tower gets just the toast). Mounted inside FuelBar; only results / toasts that arrive
+// after mounting show.
+export function FuelDelta({ bonus }: { bonus: boolean }) {
   const [items, setItems] = useState<DeltaItem[]>([]);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
@@ -35,7 +36,7 @@ export function FuelDelta() {
         lastResult = s.lastResult;
         if (s.lastResult.fuel_delta < 0) push(s.lastResult.fuel_delta);
       }
-      if (s.toasts !== p.toasts) {
+      if (bonus && s.toasts !== p.toasts) {
         for (const t of s.toasts) {
           if (!seenToasts.has(t.id) && t.key === "toast.crossover") push(CROSSOVER_BONUS_S);
         }
@@ -47,7 +48,7 @@ export function FuelDelta() {
       live.forEach(clearTimeout);
       live.clear();
     };
-  }, []);
+  }, [bonus]);
 
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden="true">

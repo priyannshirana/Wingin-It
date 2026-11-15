@@ -101,7 +101,7 @@ export function TowerScreen() {
       </div>
       <TitleCard />
       <TowerCueLayer />
-      <FxOverlays role="tower" />
+      <FxOverlays />
       <TowerFeedback />
     </main>
   );

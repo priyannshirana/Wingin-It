@@ -33,7 +33,7 @@ export function FlyerScreen() {
     <main data-screen="flyer" className="relative h-full overflow-hidden bg-night">
       <CockpitCanvas />
       <FlyerHUD />
-      <FxOverlays role="flyer" />
+      <FxOverlays />
       <FlyerFeedback />
     </main>
   );
