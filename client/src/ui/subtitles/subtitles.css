@@ -1,0 +1,60 @@
+/* Subtitle motion that index.css doesn't define (§F13). Slide-in uses the shared animate-slide-up. */
+
+/* Phase 3: a faint 1 px RGB-split text shadow that flickers once when the line appears. */
+@keyframes wingin-sub-glitch {
+  0%,
+  100% {
+    text-shadow: none;
+  }
+  8% {
+    text-shadow:
+      1px 0 rgba(255, 70, 110, 0.75),
+      -1px 0 rgba(70, 220, 255, 0.75);
+  }
+  18% {
+    text-shadow: none;
+  }
+  30% {
+    text-shadow:
+      -1px 0 rgba(255, 70, 110, 0.75),
+      1px 0 rgba(70, 220, 255, 0.75);
+  }
+  42% {
+    text-shadow:
+      1px 0 rgba(255, 70, 110, 0.6),
+      -1px 0 rgba(70, 220, 255, 0.6);
+  }
+  52% {
+    text-shadow: none;
+  }
+}
+
+/* No fill mode: once the flicker ends the shadow is gone, and a column-level glitch (the
+   subtitle_glitch cue) can still be inherited by the lines. */
+.wingin-sub-glitch {
+  animation: wingin-sub-glitch 0.6s steps(1, end) 1;
+}
+
+/* A phase 3 line: the same slide-in as every line (animate-slide-up) (index.css keyframes) plus the flicker, in one
+   declaration so neither animation overrides the other. */
+.wingin-sub-glitch-in {
+  animation:
+    slide-up 0.2s ease-out both,
+    wingin-sub-glitch 0.6s steps(1, end) 1;
+}
+
+/* A line pushed out of the stack fades out where it was instead of vanishing. */
+@keyframes wingin-sub-leave {
+  from {
+    opacity: var(--wingin-leave-from, 0.35);
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.wingin-sub-leave {
+  animation: wingin-sub-leave 0.2s ease-in forwards;
+}
