@@ -47,7 +47,7 @@ This is the complete brief for the **Python game server and the content pipeline
 
 ## A1. Product in one paragraph
 
-**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** (default English) sits in a first-person 3D toy cockpit. A **Tower** (default Hindi) has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** sits in a first-person 3D toy cockpit. A **Tower** has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
 
 **Presentation is 3D-first and cinematic.** The Flyer's whole experience is a real-time 3D toy world with scripted camera cinematics between and inside phases; the Tower's 2D screen plays synchronized 2D cinematic beats on the same server clock. The server's job is to cue them exactly (`cinematic`, `fx`, `World`); the client's job is to make every cued frame look great (Frontend §F0).
 
@@ -67,7 +67,8 @@ These hold everywhere. Tests on both sides check them.
 6. **Only the current station's controls are clickable**, and only while an action is active and no cinematic or event is running.
 7. **During any cinematic, all input except push-to-talk is disabled.**
 8. **Fun, never scary.** Crashes end in a cartoon "POOF" cloud.
-9. **Characters.** Each player picks a **gender (male / female)** for their role's character on joining. The Flyer's character is the passenger in the right-hand seat (a 3D toy model in the cockpit and a 2D portrait); the Tower's character is the air-traffic controller (a 2D portrait with a headset). Gender is public (it's in `room_state`), stays with the player across play again / swap roles, and also drives **Hindi grammatical gender** in UI strings that refer to that player (`बोल रहा है` / `बोल रही है`). The unconscious captain (the NPC pilot in the left seat) is not player-selectable.
+9. **Languages are interchangeable between roles.** Each player picks English or Hindi in the lobby, independently of their role. The only rule is that the two players pick **different** languages. Both pairings are first-class and must work everywhere (content, manual, subtitles, glosses, lifelines, quick-say, bots, deck, report, UI strings, tests): **(Flyer English, Tower Hindi)** and **(Flyer Hindi, Tower English)**. "Default English / default Hindi" in older text only means the demo's usual setup, never a code path. Nothing may branch on role to pick a language; always use the player's `lang`.
+10. **Characters.** Each player picks a **gender (male / female)** for their role's character on joining. The Flyer's character is the passenger in the right-hand seat (a 3D toy model in the cockpit and a 2D portrait); the Tower's character is the air-traffic controller (a 2D portrait with a headset). Gender is public (it's in `room_state`), stays with the player across play again / swap roles, and also drives **Hindi grammatical gender** in UI strings that refer to that player (`बोल रहा है` / `बोल रही है`). The unconscious captain (the NPC pilot in the left seat) is not player-selectable.
 
 ## A3. Ports, URLs and environment
 
@@ -165,7 +166,7 @@ type ObjectState =
   | { kind: "screen"; on: boolean };                          // decorative screens (AP screen)
 ```
 
-`attention: true` draws the pulsing white ring around a lamp the Tower is asking about. `blinking` = 1 Hz blink. A lamp with `color: null` is dark grey with no emissive.
+`attention` stays in the protocol (the server still sets it on the lamp the Tower is asking about), but **the client never renders it: no ring, glow or any other marker.** The Flyer has to work out which lamp is meant from what the Tower says (product decision, Nov 14 2026). `blinking` = 1 Hz blink. A lamp with `color: null` is dark grey with no emissive.
 
 **Verb ↔ part type**
 
@@ -2490,7 +2491,7 @@ Test helpers (`conftest.py`): `FakeClock` (patches `monotonic` and the scheduler
 | `test_privacy.py` | play complete games (bots, every path, both seeds) and assert: no Tower message has type `flyer_view`/`object_state`; no Tower `cinematic.params` contains `fire_side`/`stopped_side`/`damaged_side`; no Tower `game_state`/`fx`/`toast` contains a rolled value; no Flyer message has type `manual_card` or contains any branch line text; `dev_state` is never sent with `DEV_MODE=0` |
 | `test_manual.py` | rule labels: "हरा बटन तीन बार दबाओ", "दो नंबर स्विच चालू करो", "बायाँ लाल लीवर खींचो"; English equivalents; count shown when siblings differ (B3 NO "लाल बटन एक बार दबाओ"); keywords highlighted, no glosses; `quick_say` present only in mock/dev |
 | `test_state_machine.py` | `join` without a valid `gender` is rejected (`bad_message`); `gender` appears in `room_state` and survives rejoin, play again and swap roles; LOBBY → PROLOGUE only with both ready and different languages; full sequence of states and cinematic ids; double skip; crash/retry; pause/resume within 60 s; abandon after 60 s; play again; swap roles keeps languages |
-| `test_full_game_bots.py` | for every combination of variable values (forced), bots finish the whole game; the deck is produced; mission report falls back to the template |
+| `test_full_game_bots.py` | for every combination of variable values (forced) **and both language pairings** (Flyer en/Tower hi and Flyer hi/Tower en), bots finish the whole game; segments are Latin for both listeners, glosses are in the listener's language, the manual card is in the Tower's language; the deck is produced; mission report falls back to the template |
 | `test_mock_translate.py` | every authored line translates to its counterpart in both directions; the keyword-substitution fallback |
 | `test_deck.py` | learned = understood ≥ 1 or spoken ≥ 1; ordering; Hindi meanings in Devanagari; clips cut with padding and a valid WAV header |
 | `content/validate_content.py` | runs as its own CI step |
@@ -2586,7 +2587,7 @@ Jobs: `content` (`python content/validate_content.py`), `server` (`pip install -
 - [ ] Server refuses to start when content is invalid; `/health` 200 otherwise.
 - [ ] `join` requires `gender`; it shows in `room_state`, the deck (`partner_gender`), the Bedrock facts and the DynamoDB item, and is kept on swap roles.
 - [ ] `docker compose up` + `/dev/split`: prologue plays and Phase 1 starts with no other steps.
-- [ ] The full game finishes in Mock Mode on **both values of every variable** (forced with `dev force` or seeds).
+- [ ] The full game finishes in Mock Mode on **both values of every variable** (forced with `dev force` or seeds), **in both language pairings** (Flyer en/Tower hi and Flyer hi/Tower en). No code picks a language from the role.
 - [ ] Wrong action: −10 s, `action_result` with the reason, the Tower gets `used` with the control name in its language, and `last_wrong` on the card.
 - [ ] Fuel reaching 0 → `CRASH`; Retry by both → same phase from action 1, full fuel, new rolls, lifelines 3, exposure kept.
 - [ ] Phase 1 glosses every keyword; Phase 2 only new or not-yet-learned (per listener); Phase 3 none.

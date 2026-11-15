@@ -119,6 +119,8 @@ A change by one owner inside the other owner's paths, or in `docs/`, is automati
   - `ptt_end` is always sent.
   - No PTT in mock rooms.
 - i18n: no hard-coded user-facing strings; every key has both `en` and `hi`. Gendered Hindi keys have both `m`/`f` forms and pick the right person's gender (self / speaker / partner).
+- Cockpit hints: the client must never render `attention` on lamps (no ring, glow or marker, §A6). Flag any visual change to the frozen controls (`scene/parts/*`, `scene/stations/*`, `StationGroup.tsx`) other than removing that ring.
+- Language/role independence (§A2 rule 9): flag any code that derives a language, font or string from the role instead of the player's `lang`, and any test suite that covers only one language pairing.
 - Characters: `join` always carries `gender`; character select blocks Join until it's chosen; avatars and portraits follow `room_state` gender; the Flyer model is hidden in first-person shots.
 - Tokens are keyed by role in sessionStorage; anything synchronized uses `serverNow()`.
 - No external assets (drei `Cloud`/`Environment`/`Sky` presets fetch remote files).
@@ -129,6 +131,28 @@ A change by one owner inside the other owner's paths, or in `docs/`, is automati
   - Station framing keeps the controls clear of the subtitle stack.
   - Sandbox routes reuse the real components and timelines (no forked copies) and are compiled only in dev builds.
 - If the change is visual, check that the author's report lists the §F0.6 frames they screenshotted. If screenshots exist in `client/e2e/__screenshots__/` or `.playwright-mcp/`, `Read` them and judge them against §F0. A visual change with no visual check is a MAJOR finding (§F23 M3 done criteria).
+
+# Step 3b: Get it right in ONE pass (mandatory)
+
+The orchestrator does not want review ping-pong. **Your first review of a change must find everything a later review would find.** A re-review should only ever find problems in code changed *since* your last review. If a re-review turns up an old problem you missed, your process failed. These rules close the gaps seen so far:
+
+1. **Be exhaustive within scope.** Go through every changed file, not just the risky ones, and report every BLOCKER, MAJOR and MINOR you can substantiate in one report. Don't stop after a few findings, and don't hold back MINORs "for later".
+2. **Attack any checker, validator or guard the author wrote:** layout or geometry checks, content validators, privacy scans, schema parsers, invariant asserts.
+   - **Execute it** against the real data (e.g. `node --input-type=module -e` or `python -c`, in memory, writing nothing).
+   - Feed it **positive cases that must fail**: a crossing, a collinear overlap with float noise (`x` vs `x + 1e-13`), touching endpoints, an element type it doesn't model, an empty input.
+   - Check that the tests contain **positive cases**. A checker whose tests would still pass if it always returned "ok" is a MAJOR finding.
+   - List everything the real output draws or emits (lines, brackets, badges, labels) and confirm the checker covers each one.
+3. **Judge visuals with numbers, on fresh frames.**
+   - Compare each screenshot's modification time with the last edit of the code that renders it. If a screenshot is older, say it's stale, and treat that visual as **unverified**: a MAJOR if the change is visual. Don't judge old frames as if they were current.
+   - On every frame, check:
+     - overlaps (text/glyph/line/element) and text overflowing its container;
+     - text size and control size against the spec's minimums (e.g. ≥ 14 px callouts, "big" digits), estimated from pixel measurements;
+     - elements hidden behind borders or other UI;
+     - **every language variant** (Devanagari often renders wider than Latin estimates).
+   - Measure; don't eyeball "looks fine".
+4. **Follow numbers through.** Wherever the author estimates sizes, widths, timings or scales (`0.5 em per char`, `px/unit` calibration, fixed cell sizes), check the estimate against the real render or data for the worst case (the longest Hindi label, the densest station, the slowest path).
+5. **Trace edge sequences end to end,** not just the happy path: disconnect/rejoin/refresh in every state, skip during lead-in, hidden tab, swap roles in split view, both language pairings, both values of every variable.
+6. **One root cause, all locations.** When you find a bug, search the rest of the diff for the same pattern and list every location in that one finding.
 
 # Step 4: Run read-only checks (when the environment allows)
 

@@ -53,7 +53,7 @@ This is the complete brief for the **browser client** of *Wingin' it!*: the lobb
 
 ## A1. Product in one paragraph
 
-**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** (default English) sits in a first-person 3D toy cockpit. A **Tower** (default Hindi) has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
+**Wingin' it!** is a two-player co-op browser game built for a hackathon demo. A **Flyer** sits in a first-person 3D toy cockpit. A **Tower** has a 2D control-tower screen with a ring-bound flight manual and a radar, and never sees the cockpit. They talk out loud in the same room over a push-to-talk "radio". The server transcribes each transmission and shows the listener a subtitle **in Latin letters**, with keywords highlighted and, depending on the **signal level** (= phase number), glossed. Phase 1 glosses everything, Phase 2 glosses only new or not-yet-learned words, Phase 3 glosses nothing (3 lifelines per player reveal a full translation). Three phases: **Pilot Down** (Overhead panel, 7 actions, 150 s fuel), **Engine Fire** (Pedestal, 6 actions, 150 s), **Storm Landing** (Front panel, 8 actions, 180 s). The end screen is a **word deck** of partner-language words each player learned, played back in the partner's real recorded voice. Pitch line: *a translator designed to make itself unnecessary.*
 
 **Presentation is 3D-first and cinematic.** The Flyer's whole experience is a real-time 3D toy world with scripted camera cinematics between and inside phases; the Tower's 2D screen plays synchronized 2D cinematic beats on the same server clock. The server's job is to cue them exactly (`cinematic`, `fx`, `World`); the client's job is to make every cued frame look great (Frontend §F0).
 
@@ -73,7 +73,8 @@ These hold everywhere. Tests on both sides check them.
 6. **Only the current station's controls are clickable**, and only while an action is active and no cinematic or event is running.
 7. **During any cinematic, all input except push-to-talk is disabled.**
 8. **Fun, never scary.** Crashes end in a cartoon "POOF" cloud.
-9. **Characters.** Each player picks a **gender (male / female)** for their role's character on joining. The Flyer's character is the passenger in the right-hand seat (a 3D toy model in the cockpit and a 2D portrait); the Tower's character is the air-traffic controller (a 2D portrait with a headset). Gender is public (it's in `room_state`), stays with the player across play again / swap roles, and also drives **Hindi grammatical gender** in UI strings that refer to that player (`बोल रहा है` / `बोल रही है`). The unconscious captain (the NPC pilot in the left seat) is not player-selectable.
+9. **Languages are interchangeable between roles.** Each player picks English or Hindi in the lobby, independently of their role. The only rule is that the two players pick **different** languages. Both pairings are first-class and must work everywhere (content, manual, subtitles, glosses, lifelines, quick-say, bots, deck, report, UI strings, tests): **(Flyer English, Tower Hindi)** and **(Flyer Hindi, Tower English)**. "Default English / default Hindi" in older text only means the demo's usual setup, never a code path. Nothing may branch on role to pick a language; always use the player's `lang`.
+10. **Characters.** Each player picks a **gender (male / female)** for their role's character on joining. The Flyer's character is the passenger in the right-hand seat (a 3D toy model in the cockpit and a 2D portrait); the Tower's character is the air-traffic controller (a 2D portrait with a headset). Gender is public (it's in `room_state`), stays with the player across play again / swap roles, and also drives **Hindi grammatical gender** in UI strings that refer to that player (`बोल रहा है` / `बोल रही है`). The unconscious captain (the NPC pilot in the left seat) is not player-selectable.
 
 ## A3. Ports, URLs and environment
 
@@ -171,7 +172,7 @@ type ObjectState =
   | { kind: "screen"; on: boolean };                          // decorative screens (AP screen)
 ```
 
-`attention: true` draws the pulsing white ring around a lamp the Tower is asking about. `blinking` = 1 Hz blink. A lamp with `color: null` is dark grey with no emissive.
+`attention` stays in the protocol (the server still sets it on the lamp the Tower is asking about), but **the client never renders it: no ring, glow or any other marker.** The Flyer has to work out which lamp is meant from what the Tower says (product decision, Nov 14 2026). `blinking` = 1 Hz blink. A lamp with `color: null` is dark grey with no emissive.
 
 **Verb ↔ part type**
 
@@ -723,7 +724,7 @@ Setup: two laptops back to back on stage, real speech (`MOCK_SPEECH=0`), room cr
 2. **Light tells the story.** Each phase has one color script (§F0.2). Lamps and fire are the brightest things in frame and they bloom; everything else stays below the bloom threshold.
 3. **Depth in every shot.** Foreground (the cockpit frame or yoke edge), midground (the panel or wing), background (sky, clouds, runway). Never a flat, dead-on shot of a wall.
 4. **Motivated motion.** The camera moves only for a reason (a sound, an event, a question). It arrives and **holds 0.6–1.0 s** before moving again. Comedy comes from springy object motion, not from camera chaos.
-5. **Readable at a glance.** The current station fills most of the frame, the asked-about lamp is unmistakable, and the subtitles never cover the controls.
+5. **Readable at a glance.** The current station fills most of the frame, lit lamps are clearly lit and dark ones clearly dark, and the subtitles never cover the controls. Nothing in the cockpit marks which control the Tower is asking about; the players have to figure that out by talking.
 
 ### F0.2 Color script per phase
 
@@ -786,7 +787,8 @@ Before M3 counts as done (§F23), capture and review these frames at 1440 × 900
 3. `EXT_SIDE`, `EXT_CHASE`, `EXT_FRONT_LOW` (with the dawn sky for the last one).
 4. The hero beat of every cinematic in §F0.5, plus the end frame of every cinematic.
 5. The Tower screen in each phase: the manual open, the MAYDAY / LANDED stamps, the phase 2 EMERGENCY stamp, a wrong-action "Flyer used" slip.
-6. The home page, and character select with each of the four characters (Flyer male/female, Tower male/female) previewed; `WIDE_INTERIOR` in the prologue and the landing with each Flyer character.
+6. Both language pairings: the Tower screen in English (manual, callouts, rule table) and the Flyer HUD in Hindi (title cards, quick replies, toasts).
+7. The home page, and character select with each of the four characters (Flyer male/female, Tower male/female) previewed; `WIDE_INTERIOR` in the prologue and the landing with each Flyer character.
 
 Check each frame against: the §F0.2 color script, the §F0.3 composition rules, no clipping, glowing lamps clearly lit or clearly dark, labels readable, subtitles not covering controls, no console errors, and ≥ 45 fps in the sandbox on the dev machine.
 
@@ -1156,6 +1158,8 @@ Every UI string lives here with `en` and `hi`. A unit test fails if any key is m
 | `manual.col_control` | Control | कंट्रोल |
 | `manual.do_only` | Have them do | करवाओ |
 | `manual.last_try` | Last try: | पिछली बार: |
+| `manual.then_grid` | then follow the grid | फिर तालिका देखो |
+| `manual.instruction_do` | Have the Flyer do this: | फ़्लायर से यह करवाओ: |
 | `manual.emergency` | EMERGENCY | आपातकाल |
 | `manual.order_then` | in this order | इसी क्रम में |
 | `manual.order_any` | any order | कोई भी क्रम |
@@ -1220,7 +1224,7 @@ Shown when the player opens a room link and hasn't joined yet. One screen, three
 
 - **Role** — two large role cards side by side: **Flyer** (`lobby.flyer`, `lobby.flyer_desc`, cockpit icon) and **Tower** (`lobby.tower`, `lobby.tower_desc`, manual icon). A role already held by someone is disabled with `lobby.taken` (from `room_state` / `GET /api/rooms/:code`).
 - **Character (gender)** — on the selected role card, a two-option toggle `char.male` / `char.female`, each a small portrait thumbnail. Required: **Join** stays disabled until it's picked (`char.pick_all`). Never pre-selected for real players (split view and `?gender=` may prefill).
-- **Language** — the English / हिन्दी toggle (`lobby.language`).
+- **Language** — the English / हिन्दी toggle (`lobby.language`). **Independent of role:** a Hindi Flyer and an English Tower is just as valid as the reverse (§A2 rule 9). No default is derived from the role.
 - **Name** — 1–16 characters (`lobby.name`).
 - **Live preview** (`AvatarPreview.tsx`), large, on the left half of the screen:
   - Flyer: the 3D `FlyerAvatar` (§F9.8) on a slow turntable in a small canvas, under the night-calm rig, waving once when the gender changes.
@@ -1267,7 +1271,7 @@ Shown when the player opens a room link and hasn't joined yet. One screen, three
 | Element | Build |
 | --- | --- |
 | Floor | RoundedBox 2.4 × 0.06 × 2.2 at y 0.03, #3D4352 |
-| Shell | Cream #F2E8D5 rounded walls: left and right walls (RoundedBox 0.08 × 1.9 × 2.2 at x ±1.22), roof (2.4 × 0.08 × 1.6 at y 2.05, z −0.3), rear bulkhead (z 1.1). Window openings are left as gaps between wall pieces. |
+| Shell | Cream #F2E8D5 rounded walls: left and right walls (RoundedBox 0.08 × 1.9 × 2.2 at x ±1.22), roof (2.4 × 0.08 × 1.6 at **y 2.3**, z −0.3, with a slate housing and brow down to the overhead panel; the overhead face's far edge reaches y ≈ 2.16, so a lower roof would bury row 0), rear bulkhead (z 1.1) **with a doorway** so the `WIDE_INTERIOR` camera at z 1.4 can see in. Window openings are left as gaps between wall pieces. |
 | Windshield | Two panes, x −1.1…0 and 0…1.1, y 1.2–1.9, z −1.15, tilted 20° back: `meshStandardMaterial transparent opacity={0.12} color="#cfe8ff" roughness={0.05}`, thick cream frame bars (RoundedBox 0.06) around and between them |
 | Side windows | x ±1.2, y 1.2–1.7, z −0.6…0.4, the same glass material, rounded cream frames |
 | Glare shield | Slate #2B2F3A rounded hood above the front panel (x −1.05…1.05, y 1.17, z −1.0…−0.85) |
@@ -1306,7 +1310,7 @@ All dimensions in meters. Colors come from the `stations.json` palette. Labels a
 | PullHandle | Stem cylinder r 0.008 × 0.05 along +Z; T-bar capsule r 0.012 × 0.07; colored (grey #8B8D98 / red). Big: scale 1.5. | `in` = z 0; `out` = z +0.06 | Slide 0.06 in 250 ms (`power2.out`), stays out |
 | UpDownLever | Slot RoundedBox 0.03 × 0.09 × 0.01 (#1B1E26); shaft cylinder r 0.006 × 0.07 pivoting at the slot center; ball knob r 0.016 (#D9D9E0); label beside the slot | `up` = +12.5°, `down` = −12.5° (about local X) | Rotate 25° in 300 ms (`power3.inOut`) |
 | NotchLever | Like UpDownLever with 3 tick marks (boxes 0.012 × 0.002) beside the slot | notch 0 = +15°, 1 = 0°, 2 = −15° | Each move 15° in 150 ms + `click` sfx |
-| Lamp | Half-sphere dome r 0.03 (big 0.06) on a torus bezel (#3D4352) | `color null` = #3A3D46, no emissive; lit = color + emissive 2.5; `blinking` = 1 Hz (on 0.5 s / off 0.5 s, phase from `serverNow()`); `attention` = white torus ring r × 1.6, emissive 1.5, pulsing scale 1 → 1.15 and opacity 0.4 → 1 at 1.5 Hz | Color changes cross-fade 150 ms |
+| Lamp | Half-sphere dome r 0.03 (big 0.06) on a torus bezel (#3D4352) | `color null` = #3A3D46, no emissive; lit = color + emissive 2.5; `blinking` = 1 Hz (on 0.5 s / off 0.5 s, phase from `serverNow()`); `attention` = **ignored, nothing is drawn** (§A6) | Color changes cross-fade 150 ms |
 | FuelGauge | Dial cylinder r 0.05 (cream face), red zone = ring geometry over the first 20%, needle box 0.004 × 0.04 | Needle angle = −120° + 240° × `fuel_s / fuel_max_s` | Needle eases (damp 4/s); pulses red when fuel < 20 s |
 | Screen | RoundedBox 0.12 × 0.08 × 0.01; when on: emissive teal #2EC4B6 (1.2) with a small plane icon (3 flat boxes) | `on` / off | Boot: flicker 3× over 400 ms, then steady |
 
@@ -1477,9 +1481,9 @@ A dark slate desk (#1E222B with a subtle noise texture via an SVG filter), decor
 
 | Column | Width | Content |
 | --- | --- | --- |
-| Left | 30% | `Radar` (square, max 320 px), then the fuel bar with seconds, signal bars + label, phase title |
-| Center | 45% | `ManualCard`: the open ring-bound manual (two-page spread), or `ManualCover` when `card` is null |
-| Right | 25% | My `TowerPortrait` (top, 96 px, `talking` while I transmit), subtitles from the Flyer (last 5), `Lifelines` (phase 3), `PTTIndicator` + partial caption (or `MockTalkBox`), `Settings` |
+| Left | 24% | `Radar` (square, max 300 px), then the fuel bar with seconds, signal bars + label, phase title |
+| Center | 54% | `ManualCard`: the open ring-bound manual (two-page spread; the left page is one full-page diagram), or `ManualCover` when `card` is null |
+| Right | 22% | My `TowerPortrait` (top, 96 px, `talking` while I transmit), subtitles from the Flyer (last 5), `Lifelines` (phase 3), `PTTIndicator` + partial caption (or `MockTalkBox`), `Settings` |
 
 A CSS screen-shake class (`translate` jitter, 0.6 s) is applied to the whole screen by the `p2_intro` Tower timeline.
 
@@ -1499,32 +1503,69 @@ Below the radar: the fuel bar (same colors and pulse as the Flyer HUD, plus `{n}
 
 ### F12.3 The flight manual (`ui/ManualCard.tsx`)
 
-**Look:** a real ring-bound flight manual lying open on the desk, chunky cartoon style. Left page #F7F0E0, right page #FBF6EA, ink #1F1F1F, pencil orange #C2410C, sticky note #FFF1A8, highlighter #FFE066. Fonts: Baloo 2 for print, Kalam for handwriting. Page edges have a 2 px darker border and a soft drop shadow; the gutter has 5 metal rings (SVG circles with a grey gradient) over punched holes. **Original design: don't copy any other game's art.**
+**Look:** a ring-bound flight manual lying open on the desk. Each step is presented as a **module page**: one self-contained page with a heavy title, one big diagram, one bold instruction line and a pictogram rule grid. The art is clean, bold vector line art: thick rounded black outlines on white paper, flat color **only** where color carries meaning (lamp and control colors), chunky shapes, generous white space.
+- Pages: white #FFFFFF with a faint warm edge (#F4EFE4), a 2 px darker border and a soft drop shadow.
+- Ink #1F1F1F; outlines 3.5 px with round joins at 1440 × 900.
+- The gutter has 5 chunky metal rings (SVG, grey gradient) over punched holes.
+- Pencil orange #C2410C, sticky note #FFF1A8, highlighter #FFE066.
+- Fonts: Baloo 2 800 for titles, Baloo 2 600 for print, Kalam for handwritten notes.
+- **Original design: our own module layout, icons and art. Don't copy, trace or imitate any existing game's manual pages, icons or characters.**
 
-**Left page: the panel drawing (`ui/manual/PanelDrawing.tsx`).**
+> **PENDING LAYOUT CHANGE (Nov 14 2026, not implemented yet; do it the next time the manual is touched).** The M1 build put the whole step on the left page and left the right page nearly empty. It also clipped the rule grid at the bottom. The layout below is the correct one and supersedes M1.
 
-- An SVG ink drawing of the current station, generated from `stations.json` with the same grid as the 3D build (never placed by hand). Cell = 64 × 64 units; the panel is a rounded rectangle, stroke 2.5 ink. A hand-drawn wobble comes from an SVG filter (`feTurbulence baseFrequency 0.02` + `feDisplacementMap scale 1.5`).
-- Each control is drawn by type in its **default** position (never the live state): button = rounded square (big = circle); toggle = plate + bat up/down; handle = T-bar; lever = slot + knob; notch lever = slot + ticks; lamp = circle with a small dome highlight; gauge = dial with a needle; screen = small rectangle. Digits and arrows are drawn as in the cockpit. Colored controls get a light colored-pencil hatch fill in their color (the manual may show colors; subtitles may not).
-- Under each control: its `manual_name` in the Tower's language (11 px, ink 70%). The labels come from `stations.json` `manual_name[lang]`.
-- `card.highlight.circled`: an orange dashed pencil ellipse (#C2410C, stroke 2.5, dasharray 7 5, slightly rotated) around each listed control.
-- `card.highlight.question`: a handwritten "?" (Kalam 700, 28 px, orange) in a small circle beside each listed member.
-- Under the drawing: `card.hint` in Kalam (pencil grey #555, rotated −1.5°) and a yellow sticky note (#FFF1A8, rotated 3°, tape strip on top) with `card.sticky`.
+**The open book:** the manual is a real open book. **Two pages of equal width** sit either side of a center gutter with the metal rings, with a soft gutter shadow on both inner edges and a few stacked page edges along each outer side.
+- The whole spread **scales to fit** the center column: both its width and its **height** at 1440 × 900 and at 1280 × 720.
+- **Nothing on either page may be clipped or scroll.** A test asserts that every page element's bounding box is inside its page at both sizes.
+- The phase tabs stick out of the right page's outer edge but stay inside the manual's reserved width.
 
-**Right page: the step.**
+**Left page: the diagram (`PanelDrawing`).** A title bar on top, then the station diagram filling the rest of the page (≈ 80% of the page height). Nothing else goes on the left page.
 
-1. Header row: a step pill (`manual.step` with `index+1` / `total`), the phase name, and the module title `card.title` (Baloo 2 800, 28 px).
-2. **पता करो / Find out** (`FindOut.tsx`, only when `find_out` is set): a breadcrumb of chips `station_label → part_label → property_label`, then the possible values as chips, each with its swatch (color dot from the palette; ← / → arrow; ✓ / ✗ for yes/no) + its label segments.
-   - For `branch_on` actions show the `known_from.text` note instead (handwritten).
-   - Under it, the handwritten reminder `card.own_words_note` ("अपने शब्दों में पूछो") in Kalam, pencil grey.
-3. **नियम / Rule** (`RuleTable.tsx`): a table with columns `manual.col_if` · `manual.col_do` · `manual.col_control`. Each row: the `when` swatch + label · the `do` segments · the control drawings (`ControlDrawing.tsx`: a 48 px ink drawing of the control in its `target` state with a `×count` badge when count > 1; ordered multi-step rows show "1 → 2" between drawings with `manual.order_then`, unordered ones show "+" with `manual.order_any`). Say-only actions show a single row with `manual.do_only` in place of the condition column.
-4. **Keywords:** every keyword segment renders with the same yellow highlighter mark behind it: `background: linear-gradient(transparent 35%, #FFE066 35%, #FFE066 90%, transparent 90%)`, slight negative rotation via a pseudo-element, `padding: 0 .15em`. Identical for all keywords. No glosses on the manual.
-5. **Last try:** when `card.last_wrong` is set, a red handwritten note under the table: `manual.last_try` + the label segments + `×{count}` + ✗ (Kalam, #C81E1E, rotated −2°, with a scribble underline).
-6. **Progress** (`Checklist.tsx`): colored phase tabs sticking out of the right page edge (1 teal #2EC4B6, 2 orange #F97316, 3 blue #3E63DD; the current one is wider and labeled), and progress dots along the bottom (`card.progress`: done = black, current = the phase color, upcoming = beige #E8DCC0). This is the Tower's checklist; there is no separate checklist panel.
-7. **Phase flavor:** `stamp === "emergency"` → a red rotated (12°) rubber stamp `manual.emergency` in the right page's corner (mix-blend multiply, 85% opacity). `smudges` → 4 blurred blue-grey rain-drop smudges at fixed pseudo-random spots.
-8. **Motion:** when `card.action_id` changes, a 0.4 s page turn (the right page rotates on Y around the gutter, `transform-style: preserve-3d`, with the new content revealed). On `successStamp` for this action, a green "✓" rubber stamp scales in over the matching row (`row_index`): scale 1.6 → 1 with `back.out`, 250 ms, plus a `stamp` thump sfx.
-9. **Wrong action:** the rows flash a red ✗ for 600 ms, and a toast-like slip appears over the table for 3 s: `tower.flyer_used` with `used.label` (segments) + `×count` when > 1.
+1. **Title bar:** `card.title` in heavy caps (Baloo 2 800, 34 px, letter-spaced; Devanagari at the same weight, no caps transform) on the left; a small step pill (`manual.step`, `index+1` / `total`) and the phase name on the right.
+2. **The diagram** (`ui/manual/PanelDrawing.tsx`), filling the rest of the left page (≈ 80% of its height, full width), in a rounded-rectangle frame:
+   - **Source of truth:** generated from `stations.json` with the same grid as the 3D build, never placed by hand, scaled to fit (SVG `viewBox` + `preserveAspectRatio="xMidYMid meet"`, no fixed cell size).
+   - **Controls** are drawn by type, large, in their **default** position (never the live state):
+     - button = rounded square (big = circle); toggle = plate + bat; handle = T-bar; lever = slot + knob; notch lever = slot + ticks; lamp = a light-bulb icon (outlined bulb with rays, colored only if the control's palette color is meaningful); gauge = dial + needle; screen = rectangle.
+     - Digits and arrows are drawn big and bold on the controls, as in the cockpit.
+     - Colored controls get a flat fill in their palette color.
+   - **Names:** small callout tags outside the panel frame (Baloo 2 600, ≥ 14 px, the Tower's language), each joined to its control by a thin leader line with a dot. Callouts never overlap glyphs or each other.
+     - A numbered row (buttons 1–4, switches 1–4, levers 1–4) gets **one group callout** ("बटन" / "buttons", "स्विच" / "switches", "लीवर" / "levers": the shared word from `manual_name` with the number removed).
+     - Every other control gets its full `manual_name[lang]`.
+     - Placement comes from the grid: the top half above the frame, the bottom half below, the outer columns at the sides. Use a deterministic placement plus a collision pass.
+   - **This step's highlights:**
+     - `card.highlight.circled` → a thick orange dashed ring (#C2410C, stroke 4, dasharray 9 6) around each listed control, and its callout gets an orange underline.
+     - `card.highlight.question` → a bold "?" badge (white "?" on an orange circle, 32 px) beside each listed member.
+**Right page: the instruction, the rule and the notes (`FindOut`, `RuleTable`, notes).** Top to bottom: the instruction line, the rule grid, then the notes area (hint, sticky note, last try) and the progress dots at the bottom.
 
-**Quick-say (Mock/Dev only, `card.quick_say` present):** a small ▶ button next to the find-out header (sends `quick_say.ask`) and next to each rule row (sends that row's branch line, or `quick_say.say` for say-only). It sends `say_text` with `text`, or `alt_text` when `settings.sendDevanagari` is on (a dev-only toggle in the dev panel). Players in real mode never see these.
+3. **The instruction line** (`FindOut.tsx`), one or two lines of Baloo 2 600 (18 px), centered, with the important words **bold**:
+   - Observe actions: the breadcrumb as a sentence: **station_label → part_label → property_label**. Each chip is bold and the keyword segments get the highlighter. After it comes `manual.then_grid` ("then follow the grid" / "फिर तालिका देखो").
+   - `branch_on` actions: `known_from.text`, then `manual.then_grid`.
+   - Say-only actions: `manual.instruction_do` ("Have the Flyer do this:" / "फ़्लायर से यह करवाओ:").
+   - This describes the *rule*, never a sentence to say aloud (§A2 rule 5). A small handwritten `card.own_words_note` sits under it in Kalam, pencil grey.
+4. **The rule grid** (`RuleTable.tsx`), **pictogram-first**, under the instruction line on the right page (≈ 45–55% of the page height, always fully visible):
+   - **Header row** = one column per possible value (`rows[].when`), each a big pictogram in a rounded tab (≥ 48 px):
+     - a light-bulb icon filled with the value's color (color swatches);
+     - a bold ← or → arrow (sides; for `branch_on FIRE_SIDE`, a small flame next to the arrow);
+     - a ✓ or ✗ badge (yes/no).
+     - Under each icon, the value's label segments (small, highlighted keyword).
+   - **Cell row** = under each column, the action as pictures: the `ControlDrawing` (≥ 64 px) of the control in its `target` state, with a chunky `×count` badge when count > 1.
+     - Ordered multi-step rows show "1 → 2" between the drawings (`manual.order_then`); unordered ones show "+" (`manual.order_any`).
+     - The highlighted `do` label sits small under the drawings.
+   - **Say-only** actions: a single wide cell with a "do" pictogram (a pointing hand) as its header.
+   - The grid has thick rounded outer borders and thin inner dividers, like an illustrated rule card, not a spreadsheet.
+5. **Keywords** (on the instruction line, the value labels and the `do` labels): every keyword segment gets the same yellow highlighter mark behind it: `background: linear-gradient(transparent 35%, #FFE066 35%, #FFE066 90%, transparent 90%)`, `padding: 0 .15em`. It's identical for all keywords. No glosses on the manual.
+6. **Success:** on `successStamp` for this action, a green "✓" rubber stamp scales into the matching grid column (`row_index`): 1.6 → 1 with `back.out` over 250 ms, plus the `stamp` thump.
+7. **Wrong action:** the grid flashes a red ✗ for 600 ms, and a slip appears over it for 3 s: `tower.flyer_used` + `used.label` (segments) + `×count` when > 1.
+8. **Motion:** when `card.action_id` changes, a 0.4 s page turn (the right page flips over the gutter onto the left, `transform-style: preserve-3d`, revealing the new step on both pages).
+
+**Right page, lower part: notes and progress (handwritten).** They sit below the rule grid in the remaining space.
+
+1. **Hint:** `card.hint` as a pencil annotation (Kalam 20 px, #555, rotated −2°) in the upper half, with a small curved arrow pointing toward the left page.
+2. **Sticky note:** `card.sticky` on a yellow sticky note (#FFF1A8, rotated 3–5°, a tape strip on top, a soft shadow), Kalam 22 px.
+3. **Last try:** when `card.last_wrong` is set, a red handwritten note: `manual.last_try` + label segments + `×{count}` + ✗ (Kalam, #C81E1E, rotated −2°, scribble underline).
+4. **Progress** (`Checklist.tsx`): progress dots in a row near the bottom (`card.progress`: done = black, current = the phase color, upcoming = beige #E8DCC0). Colored phase tabs stick out of the right page edge (1 teal #2EC4B6, 2 orange #F97316, 3 blue #3E63DD; the current one is wider and labeled). This is the Tower's checklist; there's no separate checklist panel.
+5. **Phase flavor:** `stamp === "emergency"` → a red rotated (12°) rubber stamp `manual.emergency` on the right page (mix-blend multiply, 85%). `smudges` → 4 blurred blue-grey rain-drop smudges across **both** pages.
+
+**Quick-say (Mock/Dev only, `card.quick_say` present):** a small ▶ button at the end of the instruction line (sends `quick_say.ask`) and one under each grid column (that column's branch line, or `quick_say.say` for say-only). It sends `say_text` with `text`, or `alt_text` when `settings.sendDevanagari` is on (a dev-only toggle in the dev panel). Players in real mode never see these.
 
 **ManualCover (`card === null`):** the closed manual: a teal hardback cover with `manual.cover_title`, a cartoon plane emblem, the phase tabs, and the upcoming phase's name. Shown in LOBBY→PROLOGUE, intros, outros, ENDING and CRASH.
 
@@ -1962,7 +2003,7 @@ These routes exist so 3D and cinematic work can be checked frame by frame withou
 ## F24. Frontend acceptance checklist
 
 - [ ] `docker compose up`, open `/dev/split`: the prologue plays and Phase 1 starts with no other steps.
-- [ ] The full game is finishable in Mock Mode with quick-say and quick replies, on both values of every variable.
+- [ ] The full game is finishable in Mock Mode with quick-say and quick replies, on both values of every variable, **in both language pairings**: (Flyer en, Tower hi) and (Flyer hi, Tower en). The English Tower's manual is fully in English; the Hindi Flyer's HUD, title cards and quick replies are in Hindi/Devanagari; subtitles are Latin for both.
 - [ ] Only the current station's controls react; nothing reacts during cinematics or the gap; wrong controls spring back.
 - [ ] A wrong action plays the buzzer, shake and red pulse, the fuel drops by 10, and the Tower sees "Flyer used …" in its language.
 - [ ] Fuel at 0 plays the crash; Retry (both) restarts the phase with full fuel.

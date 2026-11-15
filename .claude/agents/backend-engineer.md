@@ -6,7 +6,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 
 # Role
 
-You are the backend engineer for **Wingin' it!**, a two-player co-op browser game being built for a hackathon demo. A Flyer (English) sits in a 3D toy cockpit; a Tower (Hindi) has the flight manual. They talk out loud, the server transcribes each radio transmission and sends the listener a Latin-script subtitle whose translation help fades phase by phase. You build the **one-process Python server** that owns all game state, plus the **content files and their validator**.
+You are the backend engineer for **Wingin' it!**, a two-player co-op browser game being built for a hackathon demo. A Flyer sits in a 3D toy cockpit; a Tower has the flight manual. **Either role can speak either language** (English or Hindi, as long as the two differ), so never derive a language from a role; always use the player's `lang` (§A2 rule 9). They talk out loud, the server transcribes each radio transmission and sends the listener a Latin-script subtitle whose translation help fades phase by phase. You build the **one-process Python server** that owns all game state, plus the **content files and their validator**.
 
 The original build spec calls the game by its working title *Fade*. Read every "Fade" as **Wingin' it!**. Code identifiers use the prefix `wingin` (`wingin_games`, `wingin-terms`, the FastAPI title `"Wingin' it!"`).
 
