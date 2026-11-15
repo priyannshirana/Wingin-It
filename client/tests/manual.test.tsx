@@ -4,12 +4,14 @@ import { getStation, STATIONS_FILE } from "../src/content/stations";
 import type { Lang } from "../src/net/protocol";
 import { useStore } from "../src/state/store";
 import { ManualCard } from "../src/ui/ManualCard";
+import { DIAGRAM_U } from "../src/ui/manual/bookGeometry";
 import {
   boxesOverlap,
   glyphBox,
   groupName,
   layoutDiagram,
   layoutProblems,
+  PREFERRED,
   segmentHitsBox,
   segmentsIntersect,
   type Pt,
@@ -20,6 +22,8 @@ import { plain } from "./fixtures/messages";
 
 const DEVANAGARI = /[ऀ-ॿ]/;
 const LANGS: Lang[] = ["hi", "en"];
+/** The diagram as the manual draws it: at its left page's width. */
+const AT_PAGE = { u: DIAGRAM_U };
 
 /** The viewer is a Tower in `lang` (chrome strings follow me.lang, never the role). */
 function asTower(lang: Lang) {
@@ -197,15 +201,15 @@ describe("PanelDrawing diagram (§F12.3 left page, item 2)", () => {
   it("names every control exactly once: group callouts for numbered rows, one per other", () => {
     for (const lang of LANGS) {
       for (const station of STATIONS_FILE.stations) {
-        const { callouts } = layoutDiagram(station, lang);
+        const { callouts } = layoutDiagram(station, lang, AT_PAGE);
         const named = callouts.flatMap((c) => c.ids).sort();
         expect(named, `${station.id} ${lang}`).toEqual(station.controls.map((c) => c.id).sort());
       }
     }
-    const overhead = layoutDiagram(getStation("overhead"), "hi");
+    const overhead = layoutDiagram(getStation("overhead"), "hi", AT_PAGE);
     const groups = overhead.callouts.filter((c) => c.ids.length > 1).map((c) => c.text);
     expect(groups.sort()).toEqual(["बटन", "लीवर", "स्विच"]);
-    const en = layoutDiagram(getStation("overhead"), "en");
+    const en = layoutDiagram(getStation("overhead"), "en", AT_PAGE);
     expect(
       en.callouts
         .filter((c) => c.ids.length > 1)
@@ -217,7 +221,7 @@ describe("PanelDrawing diagram (§F12.3 left page, item 2)", () => {
   it("callout tags never overlap each other or the panel, in both languages", () => {
     for (const lang of LANGS) {
       for (const station of STATIONS_FILE.stations) {
-        const layout = layoutDiagram(station, lang);
+        const layout = layoutDiagram(station, lang, AT_PAGE);
         const boxes = layout.callouts.map((c) => c.box);
         boxes.forEach((a, i) => {
           expect(boxesOverlap(a, layout.panel), `${station.id} ${lang} ${i}`).toBe(false);
@@ -233,7 +237,7 @@ describe("PanelDrawing diagram (§F12.3 left page, item 2)", () => {
     const segs = (pts: Pt[]) => pts.slice(1).map((b, i) => [pts[i] ?? b, b] as const);
     for (const lang of LANGS) {
       for (const station of STATIONS_FILE.stations) {
-        const layout = layoutDiagram(station, lang);
+        const layout = layoutDiagram(station, lang, AT_PAGE);
         const where = `${station.id} ${lang}`;
         for (const c of layout.callouts) {
           for (const [a, b] of segs(c.leader)) {
@@ -265,7 +269,7 @@ describe("PanelDrawing diagram (§F12.3 left page, item 2)", () => {
   it("reports no layout problems for any station in either language", () => {
     for (const lang of LANGS) {
       for (const station of STATIONS_FILE.stations) {
-        const layout = layoutDiagram(station, lang);
+        const layout = layoutDiagram(station, lang, AT_PAGE);
         expect(
           layoutProblems(layout.callouts, layout.controls, layout.panel),
           `${station.id} ${lang}`,
@@ -274,16 +278,23 @@ describe("PanelDrawing diagram (§F12.3 left page, item 2)", () => {
     }
   });
 
-  it("puts the outer columns' callouts at the sides (§F12.3)", () => {
+  it("puts the outer columns' callouts in the side gutters the station's variant keeps (§F12.3)", () => {
     for (const lang of LANGS) {
       for (const station of STATIONS_FILE.stations) {
-        const { callouts } = layoutDiagram(station, lang);
+        const sides = PREFERRED[`${station.id}:${lang}`]?.sides ?? "sides";
+        const leftGutter = sides === "sides" || sides === "left";
+        const rightGutter = sides === "sides" || sides === "right";
+        const { callouts } = layoutDiagram(station, lang, AT_PAGE);
         for (const c of callouts.filter((x) => x.ids.length === 1)) {
           const control = station.controls.find((k) => k.id === c.ids[0]);
           if (!control) continue;
-          if (control.col === 0) expect(c.side, `${station.id} ${c.key}`).toBe("left");
-          if (control.col + control.span === station.grid.cols) {
-            expect(c.side, `${station.id} ${c.key}`).toBe("right");
+          const where = `${station.id} ${lang} ${c.key}`;
+          if (control.col === 0) {
+            if (leftGutter) expect(c.side, where).toBe("left");
+            else expect(["top", "bottom"], where).toContain(c.side);
+          } else if (control.col + control.span === station.grid.cols) {
+            if (rightGutter) expect(c.side, where).toBe("right");
+            else expect(["top", "bottom"], where).toContain(c.side);
           }
         }
       }

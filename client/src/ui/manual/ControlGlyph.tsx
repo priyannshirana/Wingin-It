@@ -1,4 +1,5 @@
 import type { ObjectState, PartType } from "../../net/protocol";
+import { ARROW_HALF, isArrow } from "./diagramLayout";
 import { meaningfulFill } from "./glyphColor";
 
 const INK = "#1F1F1F";
@@ -14,7 +15,15 @@ interface Props {
   style?: "mushroom" | "guarded" | null;
   /** Multiplies every stroke width (outlines are 3.5 px at 1440 × 900 wherever it's drawn). */
   weight?: number;
+  /**
+   * Minimum font size of the digit / arrow, in glyph units (the diagram passes the size that
+   * makes it ≥ DIGIT_PX on screen whatever the glyph scale). When it is larger than the authored
+   * size the label is centered on the control with a halo, so it stays inside the glyph's box.
+   */
+  minLabel?: number;
 }
+
+const HALO = "#FFFFFF";
 
 /**
  * One control as bold vector line art centered on (0, 0), about 48 units across, in `state`.
@@ -28,25 +37,59 @@ export function ControlGlyph({
   big = false,
   style = null,
   weight = 1,
+  minLabel = 0,
 }: Props) {
   const fill = meaningfulFill(color) ?? PAPER;
   const sw = 2.5 * weight;
   const w = (n: number) => n * weight;
-  const digit = (x: number, y: number, size: number, onFill = false) =>
-    label ? (
+  /** The digit / arrow at its authored spot, or centered and enlarged to the minimum size. */
+  const digit = (x: number, y: number, size: number, onFill = false) => {
+    if (!label) return null;
+    const grow = minLabel > size;
+    const light = onFill && meaningfulFill(color) !== null;
+    if (isArrow(label)) {
+      // ← / → drawn as a bold arrow (font independent; the same width everywhere)
+      const fs = grow ? minLabel : size;
+      const cx = grow ? 0 : x;
+      const cy = grow ? 1 : y;
+      const dir = label === "←" ? -1 : 1;
+      const L = ARROW_HALF * fs;
+      const hd = 0.24 * fs;
+      const d = `M${cx - L} ${cy} H${cx + L} M${cx + dir * L - dir * hd} ${cy - hd} L${cx + dir * L} ${cy} L${cx + dir * L - dir * hd} ${cy + hd}`;
+      return (
+        <g
+          data-testid="glyph-label"
+          data-size={fs}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {grow && <path d={d} stroke={light ? INK : HALO} strokeWidth={fs * 0.34} />}
+          <path d={d} stroke={light ? PAPER : INK} strokeWidth={fs * 0.12} />
+        </g>
+      );
+    }
+    return (
       <text
-        x={x}
-        y={y}
+        data-testid="glyph-label"
+        data-size={grow ? minLabel : size}
+        x={grow ? 0 : x}
+        y={grow ? 1 : y}
         textAnchor="middle"
         dominantBaseline="central"
         fontFamily="'Baloo 2', sans-serif"
         fontWeight="800"
-        fontSize={size}
-        fill={onFill && meaningfulFill(color) ? PAPER : INK}
+        fontSize={grow ? minLabel : size}
+        fill={light ? PAPER : INK}
+        stroke={grow ? (light ? INK : HALO) : undefined}
+        strokeWidth={grow ? minLabel * 0.22 : undefined}
+        strokeLinejoin="round"
+        paintOrder="stroke"
       >
         {label}
       </text>
-    ) : null;
+    );
+  };
 
   const body = (() => {
     switch (type) {
@@ -205,19 +248,7 @@ export function ControlGlyph({
               stroke={INK}
               strokeWidth={w(2)}
             />
-            {label && (
-              <text
-                x="0"
-                y="-1"
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize="12"
-                fontWeight="800"
-                fill={tint ? PAPER : INK}
-              >
-                {label}
-              </text>
-            )}
+            {digit(0, -1, 12, true)}
           </g>
         );
       }

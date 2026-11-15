@@ -18,8 +18,7 @@ import { SignalBars } from "./SignalBars";
 import { Subtitles } from "./Subtitles";
 import { TitleCard } from "./TitleCard";
 
-// SPEC-ASSUMPTION: columns 24 / 54 / 22 % instead of §F12.1's 30 / 45 / 25 % — the panel
-// drawing's 64-unit cells and 11 px control names (§F12.3) don't fit a 45 % spread at 1440 px.
+// Columns are 22 / 58 / 20 %: the open-book manual's two equal pages need the wider center (§F12.3).
 const NEXT_PHASE: Record<0 | PhaseNo, PhaseNo> = { 0: 1, 1: 2, 2: 3, 3: 3 };
 const MIN_W = 1280;
 const MIN_H = 720;
@@ -73,18 +72,18 @@ export function TowerScreen() {
         className="relative flex origin-top-left gap-6 p-6"
         style={{ width: w, height: h, transform: scale < 1 ? `scale(${scale})` : undefined }}
       >
-        <aside className="flex w-[24%] flex-col items-center gap-5 pt-4">
+        <aside className="flex w-[22%] flex-col items-center gap-5 pt-4">
           <Radar />
           <div className="flex w-full max-w-[320px] flex-col gap-4">
             <FuelBar />
             <SignalBars />
           </div>
         </aside>
-        <section className="relative flex w-[54%] items-center justify-center">
+        <section className="relative flex w-[58%] items-center justify-center">
           <Mug />
           {card ? <ManualCard card={card} /> : <ManualCover upcoming={upcoming} />}
         </section>
-        <aside className="flex w-[22%] flex-col gap-4">
+        <aside className="flex w-[20%] flex-col gap-4">
           <div className="flex items-start justify-between">
             <Settings />
             <TowerPortrait gender={gender} size={96} state={transmitting ? "talking" : "idle"} />
