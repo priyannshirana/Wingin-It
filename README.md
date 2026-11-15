@@ -12,6 +12,10 @@ The game listens to every word and slips the other player live subtitles with th
 
 **Wingin' It! is a translator designed to make itself unnecessary.**
 
+## ▶ Play now: **<https://44-214-130-227.sslip.io>**
+
+Grab a friend who speaks the other language, open the link on two devices, and allow the microphone. For live voice, use <https://44-214-130-227.sslip.io/?voice=1>.
+
 ---
 
 ## How a round goes
@@ -155,5 +159,31 @@ content/    lexicon, stations, phase scripts, cinematics, demo route, validator
 scripts/    AWS setup: DynamoDB table, Translate terminology, Transcribe vocabularies
 docs/       frontend and backend specs (shared contract in Part A)
 ```
+
+## License
+
+The code is released under the [MIT License](LICENSE).
+
+**Fonts** are licensed under the [SIL Open Font License 1.1](https://openfontlicense.org), which allows bundling and redistribution with software:
+
+- **Baloo 2**, © 2019 The Baloo 2 Project Authors ([EkType/Baloo2](https://github.com/EkType/Baloo2)). It's bundled as `client/public/fonts/Baloo2-Bold.ttf`, with its license in [`client/public/fonts/OFL.txt`](client/public/fonts/OFL.txt), and is also loaded through `@fontsource/baloo-2`.
+- **Kalam**, © 2014 Indian Type Foundry, loaded through `@fontsource/kalam`.
+
+**Third-party libraries** keep their own licenses:
+
+| | Libraries | License |
+| --- | --- | --- |
+| Client | React, three.js, React Three Fiber, drei, @react-three/postprocessing, zustand, Tailwind CSS | MIT |
+| | postprocessing | Zlib |
+| | qrcode.react | ISC |
+| | GSAP | [GSAP Standard "no charge" License](https://gsap.com/standard-license) (free, including for commercial use) |
+| Server | FastAPI, pydantic, RapidFuzz | MIT |
+| | Uvicorn | BSD-3-Clause |
+| | boto3, amazon-transcribe | Apache-2.0 |
+| | orjson | Apache-2.0 or MIT |
+
+Speech, translation and the mission report use Amazon Transcribe, Amazon Translate and Amazon Bedrock under the deploying account's AWS terms. There are no third-party art or audio assets: every model is built from primitives and every sound is generated in code.
+
+---
 
 Built for a hackathon by two people who once had to explain "the red button, no, the *other* red button" to each other.
