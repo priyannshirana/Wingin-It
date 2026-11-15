@@ -162,7 +162,10 @@ export const STRINGS = {
   "manual.instruction_do": { en: "Have the Flyer do this:", hi: "फ़्लायर से यह करवाओ:" },
   "deck.header": { en: "Your partner taught you {n} words", hi: "आपके साथी ने आपको {n} शब्द सिखाए" },
   /** Singular form used when learned_count === 1. */
-  "deck.header_one": { en: "Your partner taught you {n} word", hi: "आपके साथी ने आपको {n} शब्द सिखाया" },
+  "deck.header_one": {
+    en: "Your partner taught you {n} word",
+    hi: "आपके साथी ने आपको {n} शब्द सिखाया",
+  },
   "deck.still_learning": { en: "Still learning", hi: "अभी सीख रहे हैं" },
   "deck.understood": { en: "✓ Understood ×{n}", hi: "✓ समझा ×{n}" },
   "deck.said_it": { en: "★ You said it", hi: "★ आपने बोला" },

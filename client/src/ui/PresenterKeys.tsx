@@ -2,12 +2,15 @@ import { useEffect } from "react";
 import { useT } from "../i18n/useT";
 import { send } from "../net/socket";
 import { useStore } from "../state/store";
+import { DemoBadge } from "./DemoBadge";
 import { isTypingTarget } from "./isTypingTarget";
 
 /**
  * §F19 Demo mode (presenter).
  *
- * Renders the DEMO badge when in a demo room, and registers the N/P hotkeys:
+ * Renders the DEMO badge when in a demo room (fixed bottom-left, clear of the Flyer fuel bar
+ * at top-right, signal bars at top-left, and the mock talk-box at bottom-right), and registers
+ * the N/P hotkeys:
  *   N → presenter next_action (complete the current action)
  *   P → presenter next_phase  (jump to the current phase's outro)
  *
@@ -42,12 +45,13 @@ export function PresenterKeys() {
   if (!demo) return null;
 
   return (
+    // Bottom-left: clear of fuel bar (top-right), signal bars (top-left), PTT/talk-box (bottom-right)
+    // and subtitles (bottom-center). pointer-events-none so it doesn't eat clicks.
     <div
       data-testid="demo-badge"
-      aria-label={t("lobby.demo_badge")}
-      className="pointer-events-none fixed top-3 right-3 z-50 select-none rounded bg-amber/90 px-2 py-0.5 font-display text-xs font-extrabold tracking-widest text-night"
+      className="pointer-events-none fixed bottom-3 left-3 z-50 select-none"
     >
-      {t("lobby.demo_badge")}
+      <DemoBadge label={t("lobby.demo_badge")} />
     </div>
   );
 }
