@@ -97,7 +97,7 @@ npm run dev            # serves on localhost:5173
 
 Or run both with `docker compose up`.
 
-Open **http://localhost:5173/dev/split?room=TEST&seed=42** to see both screens side by side, with bots and a dev panel for skipping steps, adding fuel and jumping phases.
+Open <http://localhost:5173/dev/split?room=TEST&seed=42> to see both screens side by side, with bots and a dev panel for skipping steps, adding fuel and jumping phases.
 
 **Real speech locally:** run the server with `MOCK_SPEECH=0`, AWS credentials and a region where Transcribe streams `hi-IN`.
 
