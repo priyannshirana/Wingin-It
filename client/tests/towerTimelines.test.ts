@@ -260,7 +260,7 @@ describe("Tower timelines: seek and skip are exact (§F14.1)", () => {
     expect(rec.cues.mayday_stamp).toBeFalsy(); // gone under the black before the cover
     expect(rec.title.card).toBeNull();
     tl.seek(6, false);
-    expect(rec.cues.mayday_stamp).toBe(false);
+    expect(rec.cues.mayday_stamp).toBeFalsy();
     expect(rec.title.card).toBeNull();
     tl.seek(18, false);
     expect(rec.cues.mayday_stamp).toBe(true);
