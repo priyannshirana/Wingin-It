@@ -11,7 +11,7 @@ from typing import Any
 from botocore.exceptions import ClientError
 
 from app import audio, deck
-from app.deck import BedrockReporter, ReportError
+from app.deck import BedrockReporter, ReportError, clean_report
 from app.language.lexicon import Lexicon
 from app.language.normalize import tokenize
 from app.persistence import DynamoPersister, NoopPersister, to_dynamo
@@ -84,9 +84,127 @@ async def test_template_report_without_bedrock(make_room: MakeRoom) -> None:
 
 
 def test_template_drops_including_clause_below_two_words() -> None:
-    assert deck.TEMPLATES_SHORT["en"].format(flyer="A", tower="B", fuel=3, n=1) == (
-        "A and B landed with 3s of fuel to spare. You learned 1 words."
+    assert deck.TEMPLATES_SHORT["en"].format(flyer="A", tower="B", fuel_l=3, fuel_s=3, n=1) == (
+        "A and B landed with 3 litres (3 s) of fuel to spare. You learned 1 words."
     )
+
+
+def test_templates_state_fuel_in_litres_and_seconds() -> None:
+    f = {"flyer": "A", "tower": "B", "fuel_l": 61, "fuel_s": 61, "n": 2, "w1": "x", "w2": "y"}
+    assert deck.TEMPLATES["en"].format(**f) == (
+        "A and B landed with 61 litres (61 s) of fuel to spare. "
+        "You learned 2 words, including x and y."
+    )
+    assert deck.TEMPLATES["hi"].format(**f) == (
+        "A और B ने 61 लीटर (61 सेकंड) ईंधन बचाकर विमान उतार लिया। आपने 2 शब्द सीखे, जैसे x और y।"
+    )
+    assert (
+        deck.TEMPLATES_SHORT["hi"]
+        .format(**f)
+        .endswith("61 लीटर (61 सेकंड) ईंधन बचाकर विमान उतार लिया। आपने 2 शब्द सीखे।")
+    )
+
+
+async def test_template_report_uses_final_fuel(make_room: MakeRoom) -> None:
+    t = await finished(make_room)
+    g = t.room.game
+    assert g is not None
+    fuel = round(g.phase_stats[3].fuel_left_s)
+    assert f"{fuel} litres ({fuel} s) of fuel" in t.last("flyer", "deck")["report"]
+    assert f"{fuel} लीटर ({fuel} सेकंड) ईंधन" in t.last("tower", "deck")["report"]
+
+
+# ----------------------------------------------------------- report post-processing
+
+
+def test_clean_report_strips_markdown_heading_and_marks() -> None:
+    assert clean_report("# Mission Report: Landing\n\nAsha and **Sam** landed.", False) == (
+        "Asha and Sam landed."
+    )
+    assert clean_report("# मिशन रिपोर्ट\nआशा ने विमान उतारा।", False) == "आशा ने विमान उतारा।"
+    assert clean_report("## A\n# B\n* Great job.", False) == "Great job."
+
+
+def test_clean_report_trims_truncated_hindi_to_last_danda() -> None:
+    text = "आशा और सैम ने विमान उतारा। उन्होंने 61 लीटर ईंधन बचाया। फिर वे"
+    assert clean_report(text, True) == "आशा और सैम ने विमान उतारा। उन्होंने 61 लीटर ईंधन बचाया।"
+    assert clean_report("Great landing! Fuel was 61.2 litres and then", True) == "Great landing!"
+    # Not truncated: kept as is.
+    assert clean_report(text, False) == text
+
+
+def test_clean_report_empty_or_no_full_sentence_is_empty() -> None:
+    assert clean_report("", False) == ""
+    assert clean_report("# Mission Report", False) == ""
+    assert clean_report("Asha and Sam landed with 61.5 litres", True) == ""
+
+
+class FakeBedrockClient:
+    def __init__(self, text: str, stop: str = "end_turn") -> None:
+        self.text = text
+        self.stop = stop
+        self.prompts: list[str] = []
+
+    def converse(self, **kw: Any) -> dict[str, Any]:
+        self.prompts.append(kw["messages"][0]["content"][0]["text"])
+        return {"output": {"message": {"content": [{"text": self.text}]}}, "stopReason": self.stop}
+
+
+async def test_bedrock_max_tokens_with_no_full_sentence_uses_template(
+    make_room: MakeRoom,
+) -> None:
+    t = await make_room(seed=5, mock=False, bedrock_model_id="anthropic.test")
+    t.room.svc.reporter = BedrockReporter(
+        "us-east-1", "m", client=FakeBedrockClient("# मिशन\nआशा और सैम ने", "max_tokens")
+    )
+    await t.play_to_deck(naturally=True)
+    await t.settle()
+    assert t.last("tower", "deck_report")["report"].startswith("Flyer और Tower ने ")
+    assert t.last("flyer", "deck_report")["report"].startswith("Flyer and Tower landed with ")
+
+
+async def test_bedrock_report_heading_stripped_and_truncation_trimmed(
+    make_room: MakeRoom,
+) -> None:
+    t = await make_room(seed=5, mock=False, bedrock_model_id="anthropic.test")
+    t.room.svc.reporter = BedrockReporter(
+        "us-east-1",
+        "m",
+        client=FakeBedrockClient("# Report\nWhat a landing! And then", "max_tokens"),
+    )
+    await t.play_to_deck(naturally=True)
+    await t.settle()
+    assert t.last("flyer", "deck_report")["report"] == "What a landing!"
+
+
+async def test_report_facts_have_litres_and_seconds(make_room: MakeRoom) -> None:
+    t = await make_room(seed=5, mock=False, bedrock_model_id="anthropic.test")
+    rep = FakeReporter("ok")
+    t.room.svc.reporter = rep
+    await t.play_to_deck(naturally=True)
+    await t.settle()
+    g = t.room.game
+    assert g is not None
+    fuel = round(g.phase_stats[3].fuel_left_s * deck.FUEL_LITRES_PER_S)
+    for p in rep.prompts:
+        assert f'"fuel_left_l": {fuel}' in p and f'"fuel_left_s": {fuel}' in p
+        assert "no Markdown" in p and "never invent" in p
+    assert any(f"{fuel} litres ({fuel} s) of fuel" in p for p in rep.prompts)
+    assert any(f"{fuel} लीटर ({fuel} सेकंड) ईंधन" in p for p in rep.prompts)
+
+
+async def test_report_prompt_with_no_learned_words(make_room: MakeRoom) -> None:
+    t = await finished(make_room)
+    room = t.room
+    p = room.players["flyer"]
+    q = room.partner(p)
+    assert q is not None
+    words = [w.model_copy(update={"learned": False}) for w in deck.build_words(room, p, q)]
+    prompt = deck.report_prompt(room, p, words)
+    assert '"learned_words": []' in prompt
+    assert "do not mention any specific words" in prompt
+    learned = deck.report_prompt(room, p, [w.model_copy(update={"learned": True}) for w in words])
+    assert "do not mention any specific words" not in learned
 
 
 class FakeReporter:
@@ -158,7 +276,7 @@ async def test_bedrock_reporter_with_fake_client() -> None:
     c = FakeConverse()
     r = BedrockReporter("us-east-1", "m-1", client=c)
     assert await r.report("hi") == "Report!"
-    assert c.kw["inferenceConfig"] == {"maxTokens": 200, "temperature": 0.7}
+    assert c.kw["inferenceConfig"] == {"maxTokens": 400, "temperature": 0.7}
     assert c.kw["modelId"] == "m-1"
     bad = BedrockReporter("us-east-1", "m-1", client=FakeConverse(fail=True))
     try:

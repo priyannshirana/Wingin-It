@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from app import audio
-from app.constants import BEDROCK_TIMEOUT_S
+from app.constants import BEDROCK_MAX_TOKENS, BEDROCK_TIMEOUT_S, FUEL_LITRES_PER_S
 from app.logging_setup import log_event
 from app.protocol import (
     DeckMsg,
@@ -28,14 +29,20 @@ if TYPE_CHECKING:
 PHASE_NO: dict[int, Literal[1, 2, 3]] = {1: 1, 2: 2, 3: 3}
 
 TEMPLATES = {
-    "en": "{flyer} and {tower} landed with {fuel}s of fuel to spare. "
+    "en": "{flyer} and {tower} landed with {fuel_l} litres ({fuel_s} s) of fuel to spare. "
     "You learned {n} words, including {w1} and {w2}.",
-    "hi": "{flyer} और {tower} ने {fuel} सेकंड ईंधन बचाकर विमान उतार लिया। "
+    "hi": "{flyer} और {tower} ने {fuel_l} लीटर ({fuel_s} सेकंड) ईंधन बचाकर विमान उतार लिया। "
     "आपने {n} शब्द सीखे, जैसे {w1} और {w2}।",
 }
 TEMPLATES_SHORT = {
-    "en": "{flyer} and {tower} landed with {fuel}s of fuel to spare. You learned {n} words.",
-    "hi": "{flyer} और {tower} ने {fuel} सेकंड ईंधन बचाकर विमान उतार लिया। आपने {n} शब्द सीखे।",
+    "en": "{flyer} and {tower} landed with {fuel_l} litres ({fuel_s} s) of fuel to spare. "
+    "You learned {n} words.",
+    "hi": "{flyer} और {tower} ने {fuel_l} लीटर ({fuel_s} सेकंड) ईंधन बचाकर विमान उतार लिया। "
+    "आपने {n} शब्द सीखे।",
+}
+FUEL_PHRASE = {
+    "en": "{fuel_l} litres ({fuel_s} s) of fuel",
+    "hi": "{fuel_l} लीटर ({fuel_s} सेकंड) ईंधन",
 }
 
 
@@ -44,6 +51,13 @@ def _game(room: Room) -> Game:
     if g is None:
         raise RuntimeError("no game")
     return g
+
+
+def fuel_amounts(room: Room) -> tuple[int, int]:
+    """Final fuel as whole (litres, seconds) for the report (§B15.3)."""
+    g = _game(room)
+    fuel_s = g.phase_stats[3].fuel_left_s if 3 in g.phase_stats else 0.0
+    return round(fuel_s * FUEL_LITRES_PER_S), round(fuel_s)
 
 
 def build_words(room: Room, p: Player, q: Player) -> list[DeckWord]:
@@ -103,15 +117,15 @@ def build_stats(room: Room, p: Player, q: Player) -> Stats:
 
 def template_report(room: Room, p: Player, words: list[DeckWord]) -> str:
     """Fallback mission report in the player's language (§B15.3)."""
-    g = _game(room)
     flyer = room.players.get("flyer")
     tower = room.players.get("tower")
     learned = [w.word for w in words if w.learned]
-    fuel = g.phase_stats[3].fuel_left_s if 3 in g.phase_stats else 0.0
+    fuel_l, fuel_s = fuel_amounts(room)
     fields = {
         "flyer": flyer.name if flyer else "",
         "tower": tower.name if tower else "",
-        "fuel": round(fuel),
+        "fuel_l": fuel_l,
+        "fuel_s": fuel_s,
         "n": len(learned),
     }
     if len(learned) >= 2:
@@ -120,10 +134,16 @@ def template_report(room: Room, p: Player, words: list[DeckWord]) -> str:
 
 
 PROMPT = (
-    "Write a 2–3 sentence, upbeat mission report for a co-op game where two people who "
-    "don't share a language landed a plane. Mention the names, fuel left and two or three "
-    "words the player learned. Language: {language}. Facts: {facts}. Use the players' "
-    "genders for pronouns and, in Hindi, for verb agreement."
+    "Write an upbeat mission report for a co-op game where two people who don't share a "
+    "language landed a plane. Language: {language}. Plain text only: no Markdown, no "
+    "heading or title, no bullet points, no emoji. Exactly 2 or 3 short sentences. Use ONLY "
+    "the facts below and never invent numbers, words or events. Mention the names and the "
+    "fuel left, written exactly as: {fuel_phrase}. {words_rule} Use the players' genders "
+    "for pronouns and, in Hindi, for verb agreement. Facts: {facts}"
+)
+WORDS_RULE = (
+    "Mention one or two of learned_words, spelled exactly as given, and no other words.",
+    "learned_words is empty, so do not mention any specific words.",
 )
 LANGUAGE_NAME = {"hi": "Hindi (Devanagari script)", "en": "English"}
 
@@ -138,8 +158,23 @@ class Reporter(Protocol):
     async def report(self, prompt: str) -> str: ...
 
 
+_HEADING = re.compile(r"^\s*#.*(?:\n|$)")
+_SENTENCE_END = re.compile(r"[.!?।](?=\s|$)")
+
+
+def clean_report(text: str, truncated: bool) -> str:
+    """Strip Markdown; if cut at max_tokens keep whole sentences; "" = template (§B15.3)."""
+    while _HEADING.match(text):
+        text = _HEADING.sub("", text, count=1)
+    text = " ".join(text.replace("#", "").replace("*", "").split())
+    if truncated:
+        ends = list(_SENTENCE_END.finditer(text))
+        text = text[: ends[-1].end()] if ends else ""
+    return text
+
+
 class BedrockReporter:
-    """Bedrock Converse, maxTokens 200, temperature 0.7, 5 s timeout (§B15.3)."""
+    """Bedrock Converse, maxTokens 400, temperature 0.7, 5 s timeout (§B15.3)."""
 
     def __init__(self, region: str, model_id: str, client: Any = None) -> None:
         self.region = region
@@ -155,9 +190,13 @@ class BedrockReporter:
         resp = self._client.converse(
             modelId=self.model_id,
             messages=[{"role": "user", "content": [{"text": prompt}]}],
-            inferenceConfig={"maxTokens": 200, "temperature": 0.7},
+            inferenceConfig={"maxTokens": BEDROCK_MAX_TOKENS, "temperature": 0.7},
         )
-        return str(resp["output"]["message"]["content"][0]["text"]).strip()
+        text = str(resp["output"]["message"]["content"][0]["text"])
+        truncated = resp.get("stopReason") == "max_tokens"
+        if truncated:
+            log_event(log, "report_truncated", level=logging.WARNING)
+        return clean_report(text, truncated)
 
     async def report(self, prompt: str) -> str:
         from botocore.exceptions import BotoCoreError, ClientError
@@ -173,18 +212,24 @@ def report_prompt(room: Room, p: Player, words: list[DeckWord]) -> str:
     g = _game(room)
     flyer = room.players.get("flyer")
     tower = room.players.get("tower")
+    fuel_l, fuel_s = fuel_amounts(room)
+    learned = [w.word for w in words if w.learned][:3]
     facts = {
         "flyer": flyer.name if flyer else "",
         "flyer_gender": flyer.gender if flyer else "",
         "tower": tower.name if tower else "",
         "tower_gender": tower.gender if tower else "",
-        "fuel_left_s": g.phase_stats[3].fuel_left_s if 3 in g.phase_stats else 0.0,
-        "total_time_s": g.total_time_s,
+        "fuel_left_l": fuel_l,
+        "fuel_left_s": fuel_s,
+        "total_time_s": round(g.total_time_s),
         "wrong_actions": sum(ps.wrong for ps in g.phase_stats.values()),
-        "learned_words": [w.word for w in words if w.learned][:3],
+        "learned_words": learned,
     }
     return PROMPT.format(
-        language=LANGUAGE_NAME[p.lang], facts=json.dumps(facts, ensure_ascii=False)
+        language=LANGUAGE_NAME[p.lang],
+        fuel_phrase=FUEL_PHRASE[p.lang].format(fuel_l=fuel_l, fuel_s=fuel_s),
+        words_rule=WORDS_RULE[0] if learned else WORDS_RULE[1],
+        facts=json.dumps(facts, ensure_ascii=False),
     )
 
 

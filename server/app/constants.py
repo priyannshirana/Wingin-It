@@ -48,6 +48,8 @@ ROOM_CODE_ALPHABET: Final = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 ROOM_CLEANUP_INTERVAL_S: Final = 60
 TRANSLATE_TIMEOUT_S: Final = 5.0
 BEDROCK_TIMEOUT_S: Final = 5.0
+BEDROCK_MAX_TOKENS: Final = 400  # Devanagari costs several tokens per word (§B15.3)
+FUEL_LITRES_PER_S: Final = 1.0  # mission report shows fuel as litres and seconds (§B15.3)
 DDB_TIMEOUT_S: Final = 5.0
 
 # Rate limits per connection (§B17)

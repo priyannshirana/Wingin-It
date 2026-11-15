@@ -2412,11 +2412,16 @@ def wav_bytes(pcm: bytes, rate=16000) -> bytes:
 
 ### B15.3 Mission report (Bedrock)
 
-- When `BEDROCK_MODEL_ID` is set and the room isn't mock: one Converse call per player, in parallel, in that player's language, `maxTokens 200`, `temperature 0.7`, timeout 5 s.
-- Prompt (build spec §15): "Write a 2–3 sentence, upbeat mission report for a co-op game where two people who don't share a language landed a plane. Mention the names, fuel left and two or three words the player learned. Language: {Hindi (Devanagari script) | English}. Facts: {json}." Facts = `{flyer, flyer_gender, tower, tower_gender, fuel_left_s, total_time_s, wrong_actions, learned_words: [w1, w2, w3]}`. Add to the prompt: "Use the players' genders for pronouns and, in Hindi, for verb agreement."
-- Fallback templates (used on timeout, error, empty model id or mock):
-  - en: "{flyer} and {tower} landed with {fuel}s of fuel to spare. You learned {n} words, including {w1} and {w2}."
-  - hi: "{flyer} और {tower} ने {fuel} सेकंड ईंधन बचाकर विमान उतार लिया। आपने {n} शब्द सीखे, जैसे {w1} और {w2}।"
+- When `BEDROCK_MODEL_ID` is set and the room isn't mock: one Converse call per player, in parallel, in that player's language, `maxTokens 400` (`BEDROCK_MAX_TOKENS`; Devanagari needs several tokens per word, 200 cut Hindi reports off), `temperature 0.7`, timeout 5 s.
+- Fuel units: the report states fuel as litres **and** seconds. `FUEL_LITRES_PER_S = 1.0` (backend constant in `constants.py`, Part B only; the in-game fuel gauge and every Part A field stay in seconds). The server precomputes both whole numbers so the model never converts: `fuel_left_l = round(fuel_left_s × FUEL_LITRES_PER_S)`, `fuel_left_s = round(fuel_left_s)`.
+- Prompt (build spec §15, tightened after a live test where reports came back as Markdown, overlong and with invented facts): "Write an upbeat mission report for a co-op game where two people who don't share a language landed a plane. Language: {Hindi (Devanagari script) | English}. Plain text only: no Markdown, no heading or title, no bullet points, no emoji. Exactly 2 or 3 short sentences. Use ONLY the facts below and never invent numbers, words or events. Mention the names and the fuel left, written exactly as: {fuel phrase}. {words rule} Use the players' genders for pronouns and, in Hindi, for verb agreement. Facts: {json}."
+  - Fuel phrase: en "{fuel_l} litres ({fuel_s} s) of fuel", hi "{fuel_l} लीटर ({fuel_s} सेकंड) ईंधन".
+  - Words rule: "Mention one or two of learned_words, spelled exactly as given, and no other words." If `learned_words` is empty: "learned_words is empty, so do not mention any specific words."
+  - Facts = `{flyer, flyer_gender, tower, tower_gender, fuel_left_l, fuel_left_s, total_time_s (whole seconds), wrong_actions, learned_words: [w1, w2, w3]}` (`learned_words` may be shorter or empty).
+- Post-processing (safety net): strip leading Markdown heading lines and any stray `#` / `*`, collapse whitespace. If `stopReason == "max_tokens"`, trim to the last complete sentence (ending in `.`, `!`, `?` or `।` followed by whitespace or the end). If nothing is left, use the template.
+- Fallback templates (used on timeout, error, empty or unusable model output, empty model id or mock):
+  - en: "{flyer} and {tower} landed with {fuel_l} litres ({fuel_s} s) of fuel to spare. You learned {n} words, including {w1} and {w2}."
+  - hi: "{flyer} और {tower} ने {fuel_l} लीटर ({fuel_s} सेकंड) ईंधन बचाकर विमान उतार लिया। आपने {n} शब्द सीखे, जैसे {w1} और {w2}।"
   - If fewer than 2 words were learned, drop the "including" clause ("You learned {n} words." / "आपने {n} शब्द सीखे।").
 - The deck is sent with `report_pending: true` if Bedrock hasn't returned by DECK entry; `deck_report` follows.
 
