@@ -59,7 +59,7 @@ Add these to the landing page URL, or use the **Game modes** button on the landi
 
 ## How it works
 
-```
+```text
  Flyer's browser                    Server (FastAPI)                   Tower's browser
  ───────────────                    ────────────────                   ───────────────
  hold Space ─── mic audio ───────▶  Amazon Transcribe ──▶ language ──▶ subtitles, keywords
@@ -92,7 +92,7 @@ uvicorn app.main:app --port 8000 --reload
 cd client
 npm install
 echo "VITE_DEV_MODE=1" > .env.local
-npm run dev            # http://localhost:5173
+npm run dev            # serves on localhost:5173
 ```
 
 Or run both with `docker compose up`.
@@ -148,7 +148,7 @@ See §B22 for the defaults.
 
 ## Project layout
 
-```
+```text
 client/     browser game: React + three.js scene, Tower UI, audio, e2e kit
 server/     FastAPI game server: rooms, state machine, judge, language engine, speech
 content/    lexicon, stations, phase scripts, cinematics, demo route, validator
