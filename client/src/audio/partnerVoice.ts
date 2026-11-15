@@ -6,15 +6,15 @@
 //   source → high-pass 300 Hz → low-pass 3.4 kHz (walkie-talkie band) → partner gain → radio bus
 //
 // The jitter buffer re-primes on every new transmission (channel grant / release) and after an
-// underrun, and drops chunks that would push the queue past MAX_BUFFER_S, so latency stays capped.
-import { otherRole, selectVoice } from "../state/selectors";
+// underrun, and drops the oldest unplayed audio when the queue would pass MAX_BUFFER_S.
+import { otherRole, selectMock, selectVoice } from "../state/selectors";
 import { useStore, type StoreState } from "../state/store";
 import { runningRadioBus, sfx } from "./sfx";
 
 export const VOICE_RATE = 16000;
 /** Delay before the first chunk of a transmission plays (absorbs network jitter). */
 export const JITTER_TARGET_S = 0.12;
-/** Never queue more than this: later chunks are dropped until the queue drains. */
+/** Never queue more than this: the oldest unplayed audio is dropped to make room. */
 export const MAX_BUFFER_S = 0.5;
 export const BAND_LOW_HZ = 300;
 export const BAND_HIGH_HZ = 3400;
@@ -35,15 +35,29 @@ export type VoiceContext = Pick<
   "currentTime" | "createBuffer" | "createBufferSource"
 >;
 
-export type PushResult = "queued" | "dropped" | "empty";
+export type PushResult = "queued" | "trimmed" | "empty";
 
-/** Gapless scheduler for incoming chunks (works on any context; tests pass a fake one). */
+interface Scheduled {
+  buf: AudioBuffer;
+  src: AudioBufferSourceNode;
+  at: number;
+  dur: number;
+}
+
+/**
+ * Gapless scheduler for incoming chunks (works on any context; tests pass a fake one). Over the
+ * latency cap it drops the OLDEST audio that hasn't started yet (a push-to-talk burst is mostly
+ * pre-roll at its head) and reschedules the rest, so the newest words always play.
+ */
 export class PartnerVoicePlayer {
   private readonly ctx: VoiceContext;
   private readonly out: AudioNode;
-  private readonly live = new Set<AudioBufferSourceNode>();
+  /** Scheduled and not yet ended, in play order. */
+  private queue: Scheduled[] = [];
   private nextAt = 0;
-  private primed = false;
+  private fresh = true;
+  /** Chunks discarded by the latency cap (test / debug counter). */
+  dropped = 0;
 
   constructor(ctx: VoiceContext, out: AudioNode) {
     this.ctx = ctx;
@@ -55,51 +69,79 @@ export class PartnerVoicePlayer {
     if (samples === 0) return "empty";
     const dur = samples / VOICE_RATE;
     const now = this.ctx.currentTime;
-    if (!this.primed || this.nextAt < now) {
-      // a new transmission, or an underrun: start again behind the jitter target
-      this.nextAt = now + JITTER_TARGET_S;
-      this.primed = true;
-    } else if (this.nextAt + dur - now > MAX_BUFFER_S) {
-      return "dropped";
+    if (this.fresh || this.nextAt < now) {
+      // a new transmission or an underrun: start behind the jitter target, after any old tail
+      this.nextAt = Math.max(this.nextAt, now + JITTER_TARGET_S);
+      this.fresh = false;
     }
     const buf = this.ctx.createBuffer(1, samples, VOICE_RATE);
     decodePcm16(chunk, buf.getChannelData(0));
-    const src = this.ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(this.out);
-    src.onended = () => {
-      this.live.delete(src);
-      src.disconnect();
-    };
-    src.start(this.nextAt);
-    this.live.add(src);
-    this.nextAt += dur;
-    return "queued";
+    if (this.nextAt + dur - now <= MAX_BUFFER_S) {
+      this.schedule(buf, dur);
+      return "queued";
+    }
+    this.trim(buf, dur, now);
+    return "trimmed";
   }
 
   /** Seconds of audio scheduled but not yet played. */
   bufferedSeconds(): number {
-    return this.primed ? Math.max(0, this.nextAt - this.ctx.currentTime) : 0;
+    return Math.max(0, this.nextAt - this.ctx.currentTime);
   }
 
-  /** The next chunk starts a fresh transmission (what's already queued still plays out). */
+  /** The next chunk starts a fresh transmission (what's already queued still plays out first). */
   reset(): void {
-    this.primed = false;
+    this.fresh = true;
   }
 
   /** Silence everything now (leaving the room). */
   stop(): void {
-    for (const src of this.live) {
-      src.onended = null;
-      try {
-        src.stop();
-      } catch {
-        // never started
-      }
+    for (const e of this.queue) this.kill(e.src);
+    this.queue = [];
+    this.nextAt = 0;
+    this.fresh = true;
+  }
+
+  private schedule(buf: AudioBuffer, dur: number): void {
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(this.out);
+    const entry: Scheduled = { buf, src, at: this.nextAt, dur };
+    src.onended = () => {
+      const i = this.queue.indexOf(entry);
+      if (i >= 0) this.queue.splice(i, 1);
       src.disconnect();
+    };
+    src.start(this.nextAt);
+    this.queue.push(entry);
+    this.nextAt += dur;
+  }
+
+  /** Over the cap: unschedule what hasn't started, drop from its head, reschedule the rest. */
+  private trim(buf: AudioBuffer, dur: number, now: number): void {
+    const startedEnd = this.queue.reduce((end, e) => (e.at <= now ? e.at + e.dur : end), 0);
+    const pending = this.queue.filter((e) => e.at > now);
+    for (const e of pending) this.kill(e.src);
+    this.queue = this.queue.filter((e) => e.at <= now);
+    const kept = [...pending.map((e) => ({ buf: e.buf, dur: e.dur })), { buf, dur }];
+    const base = startedEnd > now ? startedEnd : now + JITTER_TARGET_S;
+    let total = kept.reduce((t, k) => t + k.dur, 0);
+    while (kept.length > 1 && base + total - now > MAX_BUFFER_S) {
+      total -= kept.shift()?.dur ?? 0;
+      this.dropped++;
     }
-    this.live.clear();
-    this.primed = false;
+    this.nextAt = base;
+    for (const k of kept) this.schedule(k.buf, k.dur);
+  }
+
+  private kill(src: AudioBufferSourceNode): void {
+    src.onended = null;
+    try {
+      src.stop();
+    } catch {
+      // never started
+    }
+    src.disconnect();
   }
 }
 
@@ -112,6 +154,12 @@ interface Chain {
 
 let chain: Chain | null = null;
 let enabled = false;
+let squelchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearSquelch(): void {
+  if (squelchTimer) clearTimeout(squelchTimer);
+  squelchTimer = null;
+}
 
 function partnerGain(): number {
   return useStore.getState().settings.partnerVolume * VOICE_MAKEUP;
@@ -139,6 +187,7 @@ function ensureChain(): Chain | null {
 }
 
 function teardown(): void {
+  clearSquelch();
   if (!chain) return;
   chain.player.stop();
   for (const n of chain.nodes) n.disconnect();
@@ -151,7 +200,7 @@ export function receivePartnerAudio(chunk: ArrayBuffer): void {
   ensureChain()?.player.push(chunk);
 }
 
-const voiceOn = (s: StoreState): boolean => selectVoice(s) && s.me !== null;
+const voiceOn = (s: StoreState): boolean => selectVoice(s) && !selectMock(s) && s.me !== null;
 
 /**
  * Follow the store while in a room: enable playback in voice rooms, re-prime the jitter buffer on
@@ -169,8 +218,18 @@ export function installPartnerVoice(): () => void {
     if (s.channel !== p.channel) {
       chain?.player.reset();
       const partner = s.me ? otherRole(s.me.role) : null;
-      if (s.channel === partner) sfx.play("radio_in");
-      else if (p.channel === partner) sfx.play("radio_out");
+      if (s.channel === partner) {
+        clearSquelch();
+        sfx.play("radio_in");
+      } else if (p.channel === partner) {
+        // the release squelch waits for the last scheduled word to play out
+        const tail = chain?.player.bufferedSeconds() ?? 0;
+        clearSquelch();
+        squelchTimer = setTimeout(() => {
+          squelchTimer = null;
+          sfx.play("radio_out");
+        }, tail * 1000);
+      }
     }
     if (s.settings.partnerVolume !== p.settings.partnerVolume && chain) {
       const g = chain.gain.gain;

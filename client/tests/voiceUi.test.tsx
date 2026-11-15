@@ -95,6 +95,13 @@ describe("voice UI", () => {
     expect(screen.queryByTestId("headphones-hint")).toBeNull();
   });
 
+  it("voice+mock rooms: no partner slider", () => {
+    enterRoom(true);
+    useStore.getState().receive(welcome({ mock_speech: true, voice: true }));
+    render(<Settings />);
+    expect(screen.queryByTestId("partner-volume")).toBeNull();
+  });
+
   it("voice rooms: the slider writes settings.partnerVolume (default 0.9)", () => {
     enterRoom(true);
     expect(useStore.getState().settings.partnerVolume).toBe(0.9);

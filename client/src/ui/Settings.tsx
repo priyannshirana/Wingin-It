@@ -1,6 +1,6 @@
 import { setMasterVolume, setMuted } from "../audio/sfx";
 import { useT } from "../i18n/useT";
-import { selectVoice } from "../state/selectors";
+import { selectMock, selectVoice } from "../state/selectors";
 import { useStore } from "../state/store";
 import { SENSITIVITY } from "../scene/freeLookHead";
 import { SpeakerIcon } from "./audio/SpeakerIcon";
@@ -15,7 +15,7 @@ export function Settings() {
   const muted = useStore((s) => s.settings.muted);
   const sensitivity = useStore((s) => s.settings.sensitivity);
   const flyer = useStore((s) => s.me?.role === "flyer");
-  const voice = useStore(selectVoice);
+  const voice = useStore((s) => selectVoice(s) && !selectMock(s));
   const partnerVolume = useStore((s) => s.settings.partnerVolume);
   return (
     <div
