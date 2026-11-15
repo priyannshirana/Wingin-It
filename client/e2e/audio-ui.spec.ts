@@ -3,7 +3,7 @@
 // both screens (idle / transmitting / busy) with real worklet frames, Settings and the sound
 // chip. PNGs land in e2e/__screenshots__/audio/ for review.
 import { expect, test, type Page } from "@playwright/test";
-import { fakeServer, roomUrl } from "./fakeServer";
+import { fakeServer, roomUrl } from "./fakeServer/singleTab";
 
 const SHOTS = "e2e/__screenshots__/audio";
 

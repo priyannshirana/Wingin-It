@@ -1,5 +1,6 @@
-// A tiny in-browser stand-in for the game server (Playwright `routeWebSocket`), speaking Part A
-// messages, so the audio UI can be driven and screenshotted without the backend.
+// A tiny single-tab stand-in for the game server (Playwright `routeWebSocket`), speaking Part A
+// messages, so the audio UI can be driven and screenshotted without the backend (audio-ui.spec).
+// The flow specs use the multi-player fake in ./index.ts instead.
 import type { Page, WebSocketRoute } from "@playwright/test";
 import type {
   C2S,
@@ -11,7 +12,7 @@ import type {
   RoomState,
   S2C,
   Status,
-} from "../src/net/protocol";
+} from "../../src/net/protocol";
 
 export interface FakeServer {
   /** Every client → server text message, in order. */
