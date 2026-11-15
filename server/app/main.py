@@ -413,7 +413,7 @@ async def handle_async(room: Room, conn: Connection, msg: LifelineMsg | PttEndMs
             return
         tx = room.transmission
         if isinstance(msg, PttEndMsg) and (tx is None or tx.player_id != p.id):
-            send_error(conn, "not_allowed_now", "not transmitting")
+            # §B13.2: a late/stray ptt_end from a non-holder is ignored silently.
             room.after_handle()
             return
     if isinstance(msg, PttEndMsg):

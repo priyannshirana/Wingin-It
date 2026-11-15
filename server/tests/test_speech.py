@@ -238,8 +238,22 @@ async def test_ptt_in_mock_room_is_mock_only(make_room: MakeRoom) -> None:
     t = await make_room(seed=1)
     await t.flyer.send({"type": "ptt_start"})
     assert t.last("flyer", "error")["code"] == "mock_only"
+    n_errors = len(t.flyer.of("error"))
     await t.flyer.send({"type": "ptt_end"})
-    assert t.last("flyer", "error")["code"] == "not_allowed_now"
+    assert len(t.flyer.of("error")) == n_errors  # §B13.2: non-holder ptt_end is ignored silently
+
+
+async def test_stray_ptt_end_does_not_cut_off_partner(make_room: MakeRoom) -> None:
+    t, f = await real_room(make_room, transcript="तीन नंबर बटन दबाओ।", items=HINDI_ITEMS)
+    await t.tower.send({"type": "ptt_start"})
+    await frames(t, "tower", 5)
+    n_errors = len(t.flyer.of("error"))
+    await t.flyer.send({"type": "ptt_end"})
+    await t.settle()
+    assert len(t.flyer.of("error")) == n_errors
+    assert t.room.channel_holder == "tower" and t.room.transmission is not None
+    assert t.last("flyer", "channel")["busy_by"] == "tower"
+    assert not f.sessions[0].aborted
 
 
 async def test_say_text_refused_in_real_room_without_dev_or_demo(make_room: MakeRoom) -> None:
