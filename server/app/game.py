@@ -1000,16 +1000,19 @@ def finalize_pending(room: Room) -> bool:
     if finalize_ok(run, p):
         step_done(room, p.step_index)
         return True
-    _restore_notch(room, p)
-    wrong(room, "wrong_count", p.object_id, p.verb, p.count)
+    restored = _restore_notch(room, p)
+    wrong(room, "wrong_count", p.object_id, p.verb, p.count, skip_bounce=restored)
     return False
 
 
-def _restore_notch(room: Room, p: Pending) -> None:
+def _restore_notch(room: Room, p: Pending) -> bool:
+    """Restore a notch lever to its pre-count state. Returns True if a bounce was sent."""
     g = _game(room)
     if isinstance(p.start_state, NotchState):
         g.objects[p.object_id] = p.start_state
         send_object_state(room, p.object_id, bounce=True)
+        return True
+    return False
 
 
 def reset_partials(room: Room) -> None:
@@ -1032,7 +1035,15 @@ def step_done(room: Room, i: int) -> None:
         on_action_success(room)
 
 
-def wrong(room: Room, reason: ActionReason, object_id: str, verb: Verb, count: int) -> None:
+def wrong(
+    room: Room,
+    reason: ActionReason,
+    object_id: str,
+    verb: Verb,
+    count: int,
+    *,
+    skip_bounce: bool = False,
+) -> None:
     """A wrong action: −10 s, bounce, results, `last_wrong` (§B9.3)."""
     g = _game(room)
     content = room.svc.content
@@ -1044,7 +1055,7 @@ def wrong(room: Room, reason: ActionReason, object_id: str, verb: Verb, count: i
     g.phase_stats.setdefault(g.phase, PhaseStats()).wrong += 1
     g.fuel.add(-WRONG_PENALTY_S)
     ptype = content.objects_by_id[object_id].control.type
-    if bounces(ptype):
+    if bounces(ptype) and not skip_bounce:
         send_object_state(room, object_id, bounce=True)
     base = {
         "type": "action_result",
@@ -1258,6 +1269,7 @@ def on_fuel_empty(room: Room) -> None:
     g.retry_votes.clear()
     log_event(log, "crash", room=room.code, game=g.id, phase=g.phase)
     broadcast_all(room, Crash(type="crash", phase=PHASE_NO[g.phase]))
+    send_flyer_view(room)
     send_manual(room)
     play(room, "crash", {}, None)
 
@@ -1377,6 +1389,9 @@ def abandon(room: Room) -> None:
     g = room.game
     if room.status != "PAUSED":
         return
+    from app import bots
+
+    bots.restore_auto_bots(room)
     log_event(log, "abandon", room=room.code, game=g.id if g else None)
     room.game = None
     room.ticker = None
@@ -1449,19 +1464,22 @@ def handle_swap_roles(room: Room, p: Player) -> None:
 
 
 def send_snapshot(room: Room, p: Player) -> None:
-    """game_state, flyer_view | manual_card, history, cinematic, channel, deck (§B7)."""
+    """game_state, flyer_view | manual_card, history, cinematic, channel, deck (§B7).
+
+    Uses broadcast / send_role for role-filtered messages so the privacy test's broadcast
+    wrapper audits every outbound frame.
+    """
     from app import deck
 
-    send(p, game_state_msg(room))
-    if p.role == "flyer":
-        send(p, flyer_view_msg(room))
-    else:
-        send(p, ManualCardMsg(type="manual_card", card=current_card(room)))
+    broadcast_all(room, game_state_msg(room))
+    send_flyer_view(room)
+    send_manual(room)
     send(p, history_msg(room, p))
     g = room.game
     if g is not None and g.cinematic is not None:
-        send(p, cinematic_msg(g.cinematic, p.role))
-    send(p, ChannelMsg(type="channel", busy_by=room.channel_holder))
+        cin = g.cinematic
+        broadcast(room, lambda r: cinematic_msg(cin, r))
+    broadcast_all(room, ChannelMsg(type="channel", busy_by=room.channel_holder))
     if room.status == "DECK":
         deck.send_deck(room, p)
 

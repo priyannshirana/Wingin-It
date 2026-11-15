@@ -15,9 +15,17 @@ P1 = list(itertools.product(["RED", "BLUE"], ["YES", "NO"], ["GREEN", "RED"]))
 P2 = list(itertools.product(["LEFT", "RIGHT"], ["YES", "NO"]))
 P3 = list(itertools.product(["YES", "NO"], ["BLUE", "RED"], ["YES", "NO"]))
 HIDDEN_PARAMS = {"fire_side", "stopped_side", "damaged_side"}
-SIDE_WORDS = re.compile(r"\b(left|right|LEFT|RIGHT)\b|_L\b|_R\b")
-ROLLED = re.compile(r"\b(RED|BLUE|GREEN|YELLOW|YES|NO|LEFT|RIGHT)\b")
-SPEECH_TYPES = {"utterance", "utterance_echo", "history", "translation", "caption_partial"}
+SIDE_WORDS = re.compile(r"\b(left|right|LEFT|RIGHT)\b|_L\b|_R\b", re.IGNORECASE)
+ROLLED = re.compile(r"\b(RED|BLUE|GREEN|YELLOW|YES|NO|LEFT|RIGHT)\b", re.IGNORECASE)
+# Types allowed to carry secrets: speech (what Tower said out loud) + dev_state (debug only).
+EXEMPT_TYPES = {
+    "utterance",
+    "utterance_echo",
+    "history",
+    "translation",
+    "caption_partial",
+    "dev_state",
+}
 
 
 def forces(k: int) -> dict[str, str]:
@@ -40,7 +48,23 @@ def branch_lines(content: Content) -> set[str]:
     out: set[str] = set()
     for a in content.actions_by_id.values():
         for b in a.branches or []:
-            out |= {norm_line(b.say.hi), norm_line(b.say.hi_roman), norm_line(b.say.en)}
+            for line in (norm_line(b.say.hi), norm_line(b.say.hi_roman), norm_line(b.say.en)):
+                if line:
+                    out.add(line)
+    return out
+
+
+def _all_strings(obj: object) -> list[str]:
+    """Extract every string value from a nested dict/list structure."""
+    out: list[str] = []
+    if isinstance(obj, str):
+        out.append(obj)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            out.extend(_all_strings(v))
+    elif isinstance(obj, list):
+        for v in obj:
+            out.extend(_all_strings(v))
     return out
 
 
@@ -59,10 +83,16 @@ def assert_private(t: Table, content: Content) -> None:
     for m in t.flyer.msgs:
         assert m["type"] != "manual_card"
         assert "row_index" not in m and "used" not in m
-        if m["type"] in SPEECH_TYPES:
-            continue  # what the Tower said out loud
-        for text in re.findall(r"'(?:text|label|alt_text)': '([^']*)'", str(m)):
-            assert norm_line(text) not in lines or not norm_line(text), (m["type"], text)
+        if m["type"] in EXEMPT_TYPES:
+            continue  # speech (what the Tower said out loud) or dev_state (debug only)
+        for text in _all_strings(m):
+            normed = norm_line(text)
+            if not normed:
+                continue
+            for branch in lines:
+                assert branch not in normed, (
+                    f"Flyer message {m['type']!r} leaks branch line: {text!r}"
+                )
 
 
 @pytest.mark.parametrize("driver", ["natural", "bots"])

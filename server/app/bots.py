@@ -24,8 +24,8 @@ VERB_CONCEPTS = frozenset({"PRESS", "PULL", "ON", "OFF", "DOWN"})
 
 
 def bot_active(room: Room, role: Role) -> bool:
-    """A bot drives `role` right now (toggle on or virtual player, PLAYING only)."""
-    return room.status == "PLAYING" and role in room.bot_roles()
+    """A bot drives `role` right now (toggle on, PLAYING only)."""
+    return room.status == "PLAYING" and room.bots.get(role, False)
 
 
 def _player(room: Room, role: Role) -> Player | None:
@@ -179,6 +179,11 @@ def on_phase_start(room: Room, n: int) -> None:
 def on_phase_end(room: Room, n: int) -> None:
     """…and back off at the phase's outro (§A17)."""
     del n
+    restore_auto_bots(room)
+
+
+def restore_auto_bots(room: Room) -> None:
+    """Restore saved bot toggles if auto-phase bots were active (§A17)."""
     g = room.game
     if g is None or g.auto_bots_prev is None:
         return
@@ -190,11 +195,13 @@ def set_bots(room: Room, *, flyer: object = None, tower: object = None) -> None:
     """Dev `bots {flyer?, tower?}`: toggle bots; an empty role in LOBBY gets a virtual player."""
     from app.rooms import broadcast_room_state, maybe_start, new_player
 
+    newly_on: list[Role] = []
     pairs: tuple[tuple[Role, object], ...] = (("flyer", flyer), ("tower", tower))
     for role, value in pairs:
         if value is None:
             continue
         on = bool(value)
+        was_on = room.bots.get(role, False)
         room.bots[role] = on
         held = room.players.get(role)
         if on and held is None and room.status == "LOBBY":
@@ -209,8 +216,17 @@ def set_bots(room: Room, *, flyer: object = None, tower: object = None) -> None:
             room.players[role] = new_player(name, role, lang, gender, bot=True)
         elif not on and held is not None and held.is_bot and room.status == "LOBBY":
             del room.players[role]
+        if on and not was_on:
+            newly_on.append(role)
     broadcast_room_state(room)
     if room.status == "LOBBY":
         maybe_start(room)
-    else:
-        on_action_active(room)
+    elif newly_on:
+        # Only plan bot actions for roles that just went from off to on.
+        # Don't reset run flags for roles already on.
+        g = room.game
+        run = g.run if g else None
+        if run is not None and run.active and "tower" in newly_on and not run.bot_acting:
+            _plan_tower(room, run)
+            # For flyer, on_action_active only resets flags and plans tower.
+            # The flyer bot reacts to utterances, not activation.

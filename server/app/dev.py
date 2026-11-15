@@ -136,6 +136,9 @@ def goto_phase(room: Room, n: int) -> None:
     g = room.game
     if g is None:
         return
+    from app import bots
+
+    bots.restore_auto_bots(room)
     content = room.svc.content
     room.bump()
     g.cinematic = None

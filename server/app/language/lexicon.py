@@ -108,10 +108,6 @@ class Lexicon:
                 ls_en.add(v, one, c.en.display)
             for hv in c.hi.variants:
                 sp_hi.add(hv.deva, one, hv.roman)
-                # SPEC-ASSUMPTION: an English speaker's Hindi word may come back in Devanagari
-                # under multi-language identification, so the listener-hi index also holds the
-                # Devanagari variants — the simplest way to keep that crossover working.
-                ls_hi.add(hv.deva, one, hv.roman)
             for v in c.hi.roman_variants:
                 sp_hi.add(v, one, None)
                 sp_hi.add_fuzzy(v, one)

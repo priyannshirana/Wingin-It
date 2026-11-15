@@ -418,7 +418,7 @@ async def handle_async(room: Room, conn: Connection, msg: LifelineMsg | PttEndMs
             return
     if isinstance(msg, PttEndMsg):
         if tx is not None:
-            await end_transmission(room, tx)
+            room.spawn(end_transmission(room, tx))
         return
     await game.handle_lifeline(room, p, msg)
 
@@ -477,7 +477,14 @@ def send_partial(room: Room, tx: Transmission, text: str) -> None:
     speaker = room.player_by_id(tx.player_id)
     toks = tokenize(text)
     lexicon = room.svc.lexicon
-    shown = display_line(toks, gaps(text, toks), tx.lang, lexicon.match(toks, tx.lang), lexicon)
+    matches = lexicon.match(toks, tx.lang)
+    listener = room.partner(speaker) if speaker else None
+    listener_matches = []
+    if listener is not None and listener.lang != tx.lang:
+        from app.language.lexicon import taken_indices
+
+        listener_matches = lexicon.match_listener_side(toks, listener.lang, taken_indices(matches))
+    shown = display_line(toks, gaps(text, toks), tx.lang, [*matches, *listener_matches], lexicon)
     send(speaker, CaptionPartial(type="caption_partial", text=shown))
 
 
@@ -514,6 +521,9 @@ async def end_transmission(room: Room, tx: Transmission) -> None:
         too_short = duration_ms < MIN_UTTERANCE_MS
         if too_short:
             send(speaker, UtteranceDropped(type="utterance_dropped", reason="too_short"))
+        # Save state before releasing the lock so we can re-check after await.
+        saved_gen = room.gen
+        saved_game = room.game
         room.after_handle()
     if too_short:
         await abort_transmission(tx)
@@ -522,6 +532,11 @@ async def end_transmission(room: Room, tx: Transmission) -> None:
     async with room.lock:
         speaker = room.player_by_id(tx.player_id)
         if speaker is None:
+            return
+        # Re-check: drop the utterance if the room moved on while we were transcribing.
+        if room.status in ("DECK", "LOBBY") or room.game is not saved_game or room.gen != saved_gen:
+            log_event(log, "utterance_stale", level=logging.DEBUG, room=room.code)
+            room.after_handle()
             return
         if not result.ok:
             log_event(

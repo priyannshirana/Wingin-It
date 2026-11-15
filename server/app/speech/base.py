@@ -126,14 +126,17 @@ async def run_feeder(
 
 
 async def finish_transmission(tx: Transmission, timeout_s: float) -> TranscriptResult:
-    """Wait for the feeder, then the final transcript (≤ timeout)."""
+    """Wait for the feeder, then the final transcript — one shared deadline (≤ timeout)."""
     tx.frames.put_nowait(None)
     try:
+        deadline = asyncio.get_running_loop().time() + timeout_s
         if tx.feeder is not None:
-            await asyncio.wait_for(tx.feeder, timeout_s)
+            remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+            await asyncio.wait_for(tx.feeder, remaining)
         if tx.session is None:
             return TranscriptResult(transcript="", items=[], ok=False, error=tx.failed)
-        return await asyncio.wait_for(tx.session.finish(timeout_s), timeout_s + 1.0)
+        remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+        return await asyncio.wait_for(tx.session.finish(remaining), remaining + 0.5)
     except (SpeechError, TimeoutError, OSError) as exc:
         return TranscriptResult(transcript="", items=[], ok=False, error=repr(exc))
 

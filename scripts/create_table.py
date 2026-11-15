@@ -22,14 +22,18 @@ def table_spec(name: str) -> dict[str, Any]:
 
 def main() -> int:
     import boto3
+    from botocore.exceptions import ClientError
 
     region = os.environ.get("AWS_REGION", "us-east-1")
     name = os.environ.get("DDB_TABLE") or "wingin_games"
     client = boto3.client("dynamodb", region_name=region)
-    existing = client.list_tables().get("TableNames", [])
-    if name in existing:
+    try:
+        client.describe_table(TableName=name)
         print(f"table {name} already exists in {region}")
         return 0
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] != "ResourceNotFoundException":
+            raise
     client.create_table(**table_spec(name))
     client.get_waiter("table_exists").wait(TableName=name)
     print(f"created table {name} in {region}")

@@ -147,24 +147,35 @@ class AwsSession:
         if self.stream is None or self.handler is None or self.reader is None:
             return TranscriptResult(transcript="", items=[], ok=False, error="not started")
         try:
-            await asyncio.wait_for(self.stream.input_stream.end_stream(), END_TIMEOUT_S)
+            # Use a single deadline for the entire finish sequence.
+            deadline = asyncio.get_running_loop().time() + timeout_s
+            remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+            await asyncio.wait_for(self.stream.input_stream.end_stream(), remaining)
+            remaining = max(0.0, deadline - asyncio.get_running_loop().time())
             with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(asyncio.shield(self.reader), timeout_s)
+                await asyncio.wait_for(asyncio.shield(self.reader), remaining)
             if self.reader.done() and not self.reader.cancelled():
                 failure = self.reader.exception()
                 if failure is not None:
                     raise SpeechError(repr(failure)) from failure
         except STREAM_ERRORS as exc:  # any SDK failure (SpeechError is a RuntimeError)
             log_event(log, "transcribe_fail", level=logging.WARNING, err=repr(exc))
+            # On timeout/error, return whatever finals we've collected so far.
+            if self.handler.finals:
+                return self._build_from_finals()
             return TranscriptResult(transcript="", items=[], ok=False, error=repr(exc))
         finally:
             if not self.reader.done():
                 self.reader.cancel()
-        finals = self.handler.finals
+        return self._build_from_finals()
+
+    def _build_from_finals(self) -> TranscriptResult:
+        """Build a TranscriptResult from whatever finals the handler has collected."""
+        finals = self.handler.finals if self.handler else []
         return TranscriptResult(
             transcript=" ".join(f.transcript for f in finals if f.transcript),
             items=[i for f in finals for i in f.items],
-            ok=self.error is None,
+            ok=self.error is None and bool(finals),
             error=self.error,
         )
 
