@@ -37,10 +37,16 @@ describe("Home game modes", () => {
   it("notes English and Hindi in both popups", () => {
     renderHome();
     fireEvent.click(screen.getByRole("button", { name: "How to play" }));
+    const pills = (root: HTMLElement) =>
+      within(root)
+        .getAllByTestId("lang-pill")
+        .map((p) => p.textContent);
     expect(within(screen.getByRole("dialog")).getByText(/Only two languages/)).toBeTruthy();
+    expect(pills(screen.getByRole("dialog"))).toEqual(["English", "Hindi"]);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     fireEvent.click(screen.getByRole("button", { name: "Game modes" }));
     expect(screen.getByText(/Only two languages/)).toBeTruthy();
+    expect(pills(screen.getByRole("dialog"))).toEqual(["English", "Hindi"]);
   });
 
   it("builds ?demo=1&voice=1 and creates the room with demo+voice", async () => {

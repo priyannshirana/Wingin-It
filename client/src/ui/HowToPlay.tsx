@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { useT } from "../i18n/useT";
+import { LangsNote } from "./LangsNote";
 import { FlyerPortrait } from "./avatars/FlyerPortrait";
 import { TowerPortrait } from "./avatars/TowerPortrait";
 import { ToyButton } from "./ToyButton";
@@ -28,7 +29,7 @@ export function HowToPlay({ onClose }: Props) {
       <p className="max-w-3xl text-center font-display text-xl text-cream/85">
         {t("home.blurb_1")} {t("home.blurb_2")} {t("home.blurb_3")}
       </p>
-      <p className="-mt-2 text-center font-display text-sm text-cream/55">{t("home.langs_note")}</p>
+      <LangsNote className="-mt-2 text-center" />
       <div className="grid max-w-5xl grid-cols-3 gap-6">
         <Card index={0} text={t("home.how_1")}>
           <div className="flex items-end justify-center -space-x-4">
