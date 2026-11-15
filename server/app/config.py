@@ -53,7 +53,7 @@ class Settings:
     dev_mode: bool = True
     demo_mode: bool = False
     aws_region: str = "us-east-1"
-    transcribe_multi_lang: bool = True
+    transcribe_multi_lang: bool = False
     transcribe_vocab_hi: str = ""
     transcribe_vocab_en: str = ""
     translate_terminology: str = ""
@@ -81,7 +81,7 @@ class Settings:
             dev_mode=_flag(e, "DEV_MODE", True),
             demo_mode=_flag(e, "DEMO_MODE", False),
             aws_region=e.get("AWS_REGION", "us-east-1").strip() or "us-east-1",
-            transcribe_multi_lang=_flag(e, "TRANSCRIBE_MULTI_LANG", True),
+            transcribe_multi_lang=_flag(e, "TRANSCRIBE_MULTI_LANG", False),
             transcribe_vocab_hi=e.get("TRANSCRIBE_VOCAB_HI", "").strip(),
             transcribe_vocab_en=e.get("TRANSCRIBE_VOCAB_EN", "").strip(),
             translate_terminology=e.get("TRANSLATE_TERMINOLOGY", "").strip(),

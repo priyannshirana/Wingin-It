@@ -839,7 +839,7 @@ Read once at startup into a frozen `Settings` object (pydantic-settings or plain
 | `DEV_MODE` | `1` locally, `0` in prod images | Enables `dev` messages, `dev_state`, quick-say, ad-hoc room codes, `seed`. |
 | `DEMO_MODE` | `0` | `1` = every new room is a demo room (§A17). |
 | `AWS_REGION` | `us-east-1` | Must support Transcribe streaming for `hi-IN`. Check the supported-languages table before deploying. |
-| `TRANSCRIBE_MULTI_LANG` | `1` | `1` = multi-language identification (`hi-IN,en-US`, the speaker's language preferred). `0` = single language per speaker. See §B13.3. |
+| `TRANSCRIBE_MULTI_LANG` | `0` | `0` = single language per speaker (the default). `1` = opt-in multi-language identification (`hi-IN,en-US`, the speaker's language preferred). See §B13.3. |
 | `TRANSCRIBE_VOCAB_HI` / `TRANSCRIBE_VOCAB_EN` | empty | Optional custom vocabulary names. |
 | `TRANSLATE_TERMINOLOGY` | empty | Optional custom terminology, e.g. `wingin-terms`. |
 | `BEDROCK_MODEL_ID` | empty | Any text model enabled in the account. Empty = template report. |
@@ -2342,7 +2342,8 @@ class Handler(TranscriptResultStreamHandler):
 ```
 
 - One stream per utterance. Any exception → `ok=False` → "Didn't catch that, try again".
-- Fallback when multi-language identification is unreliable: `TRANSCRIBE_MULTI_LANG=0`. Hindi speakers' English words then arrive as Devanagari loan spellings, which the shared-word table and the `en.crossover` lists already map (ओवरहेड → overhead, लेफ्ट → left).
+- Single-language is the default (`TRANSCRIBE_MULTI_LANG=0`): each speaker is transcribed in their own `lang`. Hindi speakers' English words then arrive as Devanagari loan spellings, which the shared-word table and the `en.crossover` lists already map (ओवरहेड → overhead, लेफ्ट → left).
+- Multi-language identification is opt-in (`TRANSCRIBE_MULTI_LANG=1`). A real-AWS smoke test showed it never switched language on short radio lines (it always returned the preferred language) and roughly tripled finish latency (about 500–760 ms vs 190–240 ms single-language), so it buys nothing for this game's utterance length.
 - On startup in real mode, log a warning if the region isn't one where `hi-IN` streaming is supported (keep a small allow-list in `config.py`; verify against AWS docs at deploy time).
 
 ### B13.4 Latency

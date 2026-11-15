@@ -12,6 +12,7 @@ from amazon_transcribe.client import TranscribeStreamingClient
 from amazon_transcribe.model import Alternative, Item, Result, Transcript, TranscriptEvent
 from botocore.exceptions import ClientError
 
+from app.config import Settings
 from app.main import handle_audio
 from app.protocol import Lang
 from app.speech.base import PartialCallback, SpeechSession, WordItem
@@ -45,6 +46,13 @@ def test_stream_kwargs_bind_to_the_installed_sdk(multi: bool, lang: Lang) -> Non
         assert kwargs["language_code"] == ("hi-IN" if lang == "hi" else "en-US")
         assert kwargs["vocabulary_name"] == ("wingin-hi" if lang == "hi" else "w-en")
     assert kwargs["media_sample_rate_hz"] == 16000 and kwargs["media_encoding"] == "pcm"
+
+
+def test_multi_language_is_opt_in() -> None:
+    # §B3: single-language per speaker unless TRANSCRIBE_MULTI_LANG=1.
+    assert Settings.from_env({}).transcribe_multi_lang is False
+    assert Settings.from_env({"TRANSCRIBE_MULTI_LANG": "1"}).transcribe_multi_lang is True
+    assert stream_kwargs(Settings.from_env({}), "hi")["language_code"] == "hi-IN"
 
 
 async def test_handler_partials_and_finals() -> None:
