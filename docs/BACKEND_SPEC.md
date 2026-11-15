@@ -1869,7 +1869,7 @@ Build it per role from `game` (identical for both roles: it contains no secrets)
 - If a cinematic was running when the pause began, remember it. **On resume** it is completed instantly (its `finish()` runs, applying the end state) **[ASSUMPTION]**. If the paused state was PLAYING with an active action, the action stays active and its partial press counts are reset. Any pending 1.5 s "next action" gap restarts in full.
 - Resume when every human player is connected again: `status = paused_from`, `fuel.resume()` if PLAYING, broadcast `game_state`, toast `toast.partner_back`.
 - `abandon()`: the game is dropped (persist nothing), `status = LOBBY`, the absent player removed, the present one set to not ready, toast `toast.partner_gone`.
-- In LOBBY and DECK a disconnect only marks the player disconnected; after 60 s the slot is freed.
+- In LOBBY and DECK a disconnect only marks the player disconnected; after 60 s the slot is freed. A slot freed in DECK also ends the finished game like `abandon()` (nothing more is persisted: the game was saved at ENDING): `status = LOBBY`, deck votes cleared, the remaining player set to not ready, `room_state` + `game_state` broadcast, toast `toast.partner_gone`. A new partner can then join the empty seat and both readying starts a new `Game` with a new seed.
 
 ### B8.5 Play again / swap roles (DECK only)
 

@@ -1424,6 +1424,29 @@ def abandon(room: Room) -> None:
     send_manual(room)
 
 
+def deck_seat_freed(room: Room) -> None:
+    """A seat freed in DECK: drop the finished game, back to LOBBY (§B8.4)."""
+    g = room.game
+    if room.status != "DECK":
+        return
+    from app import bots
+
+    bots.restore_auto_bots(room)
+    log_event(log, "deck_seat_freed", room=room.code, game=g.id if g else None)
+    # The game was already persisted at ENDING (§B8.2): nothing more to save.
+    room.game = None
+    room.ticker = None
+    room.deck_votes.clear()
+    set_status(room, "LOBBY")
+    for p in room.players.values():
+        p.ready = p.is_bot
+    toast(room, set(ALL_ROLES), "warning", "toast.partner_gone")
+    broadcast_room_state(room)
+    broadcast_game_state(room)
+    send_flyer_view(room)
+    send_manual(room)
+
+
 # -------------------------------------------------------------- play again / swap (§B8.5)
 
 
