@@ -17,14 +17,15 @@ jobs:
 
   server:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11", cache: pip, cache-dependency-path: server/requirements.txt }
-      - run: pip install -r server/requirements.txt && pip install ruff mypy
+      - run: pip install -r server/requirements.txt && pip install ruff mypy pytest-timeout
       - run: ruff check server scripts content && ruff format --check server scripts content
       - run: cd server && mypy --strict app
-      - run: pytest -q server/tests
+      - run: pytest -q --timeout=120 server/tests
 
   client:
     runs-on: ubuntu-latest
