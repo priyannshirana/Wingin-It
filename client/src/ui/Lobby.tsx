@@ -19,6 +19,7 @@ export function Lobby() {
   const room = useStore((s) => s.room);
   const me = useStore(useShallow((s) => s.me));
   const mock = useStore(selectMock);
+  const micPermission = useStore((s) => s.mic.permission);
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -97,6 +98,7 @@ export function Lobby() {
         <ToyButton
           variant={mine?.ready ? "secondary" : "primary"}
           data-testid="ready"
+          disabled={!mock && micPermission === "denied" && !mine?.ready}
           onClick={() => send({ type: "ready", ready: !mine?.ready })}
           className="text-2xl"
         >
