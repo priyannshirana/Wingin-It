@@ -379,6 +379,7 @@ class Welcome(_Model):
     mock_speech: bool
     dev_mode: bool
     demo: bool
+    voice: bool
     gloss_threshold: int
     version: str
 
@@ -416,6 +417,7 @@ class RoomState(_Model):
     status: Status
     demo: bool
     mock_speech: bool
+    voice: bool
     players: list[PlayerPublic]
     can_start: bool
     block_reason: BlockReason | None

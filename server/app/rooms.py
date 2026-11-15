@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from app.config import Settings
 from app.constants import (
+    AUDIO_RELAY_MAX_QUEUED,
     RATE_AUDIO_FRAMES_PER_S,
     RATE_INTERACT_PER_S,
     RATE_TEXT_BURST,
@@ -149,7 +150,7 @@ def _bucket(capacity: float, rate: float) -> TokenBucket:
 class Connection:
     """One socket. Its writer task is the only thing that writes to the WebSocket (§B1)."""
 
-    queue: asyncio.Queue[str | None] = field(default_factory=asyncio.Queue)
+    queue: asyncio.Queue[str | bytes | None] = field(default_factory=asyncio.Queue)
     ws: WebSocket | None = None
     writer: asyncio.Task[None] | None = None
     player_id: str | None = None
@@ -170,6 +171,11 @@ class Connection:
     def put(self, data: str) -> None:
         """Queue one outbound text frame."""
         if not self.closed:
+            self.queue.put_nowait(data)
+
+    def put_audio(self, data: bytes) -> None:
+        """Queue one relayed binary audio frame; dropped when the socket is backed up (§B13.5)."""
+        if not self.closed and self.queue.qsize() < AUDIO_RELAY_MAX_QUEUED:
             self.queue.put_nowait(data)
 
     def close(self) -> None:
@@ -252,6 +258,7 @@ class Room:
     created_at: float
     demo: bool
     mock_speech: bool
+    voice: bool = False
     seed_override: int | None = None
     status: Status = "LOBBY"
     paused_from: Status | None = None
@@ -428,6 +435,17 @@ def broadcast(room: Room, msg_for_role: Callable[[Role], BaseModel | None]) -> N
             p.conn.put(encode(msg))
 
 
+def relay_audio(room: Room, sender: Player, data: bytes) -> None:
+    """Voice rooms: the speaker's accepted PCM frame to the partner only (§A9, §B13.5)."""
+    if not room.voice or room.mock_speech:
+        return
+    for role in ALL_ROLES:
+        p = room.players.get(role)
+        if p is None or p is sender or p.is_bot or p.conn is None:
+            continue
+        p.conn.put_audio(data)
+
+
 def send_role(room: Room, role: Role, msg: BaseModel) -> None:
     """Send to exactly one role, through `broadcast`."""
     broadcast(room, lambda r: msg if r == role else None)
@@ -481,6 +499,7 @@ def room_state_msg(room: Room) -> RoomState:
         status=room.status,
         demo=room.demo,
         mock_speech=room.mock_speech,
+        voice=room.voice,
         players=players,
         can_start=can_start and room.status == "LOBBY",
         block_reason=None if room.status != "LOBBY" else reason,
@@ -668,6 +687,7 @@ class Registry:
         code: str | None = None,
         demo: bool | None = None,
         mock: bool | None = None,
+        voice: bool | None = None,
         seed: int | None = None,
     ) -> Room:
         """Create a room; overrides are already filtered by the caller (§A4)."""
@@ -678,11 +698,19 @@ class Registry:
             created_at=self.svc.clock.monotonic(),
             demo=s.demo_mode or bool(demo),
             mock_speech=s.mock_speech if mock is None else mock,
+            voice=bool(voice),
             seed_override=seed,
             last_activity=self.svc.clock.monotonic(),
         )
         self.rooms[room.code] = room
-        log_event(log, "room_created", room=room.code, demo=room.demo, mock=room.mock_speech)
+        log_event(
+            log,
+            "room_created",
+            room=room.code,
+            demo=room.demo,
+            mock=room.mock_speech,
+            voice=room.voice,
+        )
         return room
 
     def get(self, code: str) -> Room | None:

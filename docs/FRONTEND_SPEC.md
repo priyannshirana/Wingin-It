@@ -95,8 +95,8 @@ These hold everywhere. Tests on both sides check them.
 | Method + path | Request | Response | Notes |
 | --- | --- | --- | --- |
 | `GET /health` | — | `{"ok": true, "mock_speech": bool, "dev_mode": bool, "demo_mode": bool, "rooms": int, "version": "0.1.0"}` | ALB health check. 200 when content validated. |
-| `POST /api/rooms` | `{"demo"?: bool, "seed"?: int, "mock"?: bool}` | `{"code": "KXPD"}` | Creates a room. `demo` and `mock` are always honored per room (the client sends them from `?demo=1` / `?mock=1`); `DEMO_MODE=1` still makes every room a demo room. `seed` honored only in Dev Mode. |
-| `GET /api/rooms/{code}` | — | `{"exists": bool, "status": Status, "roles_taken": Role[], "demo": bool}` | Used by the join form before opening the socket. 404 → `{"exists": false}`. |
+| `POST /api/rooms` | `{"demo"?: bool, "seed"?: int, "mock"?: bool, "voice"?: bool}` | `{"code": "KXPD"}` | Creates a room. `demo` and `mock` are always honored per room (the client sends them from `?demo=1` / `?mock=1`); `DEMO_MODE=1` still makes every room a demo room. `voice` (default `false`) is always honored per room and makes it a voice room (§A5.1). `seed` honored only in Dev Mode. |
+| `GET /api/rooms/{code}` | — | `{"exists": bool, "status": Status, "roles_taken": Role[], "demo": bool, "voice": bool}` | Used by the join form before opening the socket. 404 → `{"exists": false}`. |
 | `GET /clips/{clip_id}.wav` | — | `audio/wav` (16 kHz mono PCM16) | 404 if unknown. `Cache-Control: private, max-age=3600`. |
 | `WS /ws/{code}` | — | — | One socket per player tab. Origin checked against `ALLOWED_ORIGINS`. |
 
@@ -105,14 +105,14 @@ Room codes: 4 uppercase letters from the alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ` (no
 ## A5. WebSocket basics
 
 - **Text frames** are JSON objects with a `type` field and the payload fields flat beside it: `{"type": "interact", "object_id": "OH_BTN_1", "verb": "press"}`.
-- **Binary frames** (client → server only) are raw audio: mono, Int16 little-endian PCM, 16 kHz, normally 3,200 bytes (100 ms). Accepted only between a granted `ptt_start` and `ptt_end`. Max 6,400 bytes per frame.
+- **Binary frames** client → server are raw mic audio: mono, Int16 little-endian PCM, 16 kHz, normally 3,200 bytes (100 ms). Accepted only between a granted `ptt_start` and `ptt_end`. Max 6,400 bytes per frame. Server → client binary frames exist only in voice rooms (§A5.1).
 - Max text frame 8 KB. `say_text.text` max 300 characters. `join.name` 1–16 characters, trimmed.
 
 **Connection handshake**
 
 ```
 client opens WS /ws/KXPD
-server -> welcome      {server_ms, room_code, mock_speech, dev_mode, demo, gloss_threshold, version}
+server -> welcome      {server_ms, room_code, mock_speech, dev_mode, demo, voice, gloss_threshold, version}
 server -> room_state   (spectator view, so the join form can disable taken roles)
 client -> ping x5      {client_ms}            (100 ms apart)
 server -> pong x5      {client_ms, server_ms}
@@ -128,6 +128,16 @@ server -> game_state, flyer_view | manual_card, history, cinematic (if one is ru
 **Reconnect and tokens.** `joined.token` is an opaque string. The client stores it in `sessionStorage` under `wingin:token:{CODE}:{role}` (keyed by role, because same-origin iframes in `/dev/split` share `sessionStorage`). On reconnect it sends `join` with the token; the server re-binds the same player slot. A `join` without a valid token for a role that is held by another player (connected, or disconnected less than 60 s ago) gets `error role_taken`. In Dev Mode a token-less join for a disconnected role takes it over **[ASSUMPTION]**.
 
 Client reconnect backoff: 0.5 s, 1 s, 2 s, 4 s, then every 5 s, forever, with a "Reconnecting…" overlay.
+
+### A5.1 Partner audio (voice rooms)
+
+A room created with `{"voice": true}` is a voice room (`welcome.voice`, `room_state.voice`). In a voice room the server forwards every binary audio frame it **accepts** from the current channel holder (exactly the frames it feeds to transcription, including the pre-roll the client sends right after `ptt_start`) to the **partner** as a server → client binary frame with identical bytes: mono, Int16 little-endian PCM, 16 kHz, normally 3,200 bytes. Rules:
+
+- Only to the other joined player, never back to the speaker, never to spectators or bots.
+- Only while the speaker holds the channel; relaying stops at `channel{busy_by: null}`.
+- Never in mock rooms (they have no audio), never in normal rooms.
+- Best effort: the server drops relayed frames if the partner's connection is backed up, so the client must tolerate gaps. Subtitles (`utterance`) still arrive as usual.
+- Every binary frame a client receives is partner audio; text frames are unchanged.
 
 ## A6. Enums and ids
 
@@ -228,14 +238,14 @@ type S2C =
   | ChannelMsg | Toast | Crash | RetryVotes | DeckMsg | DeckReport | ErrorMsg | DevState;
 
 interface Welcome { type: "welcome"; server_ms: number; room_code: string; mock_speech: boolean;
-  dev_mode: boolean; demo: boolean; gloss_threshold: number; version: string }
+  dev_mode: boolean; demo: boolean; voice: boolean; gloss_threshold: number; version: string }
 interface Pong { type: "pong"; client_ms: number; server_ms: number }
 interface Joined { type: "joined"; player_id: string; token: string; role: Role; lang: Lang; gender: Gender; name: string }
 
 interface PlayerPublic { id: string; name: string; role: Role; lang: Lang; gender: Gender; ready: boolean;
   connected: boolean; is_bot: boolean }
 interface RoomState { type: "room_state"; code: string; status: Status; demo: boolean;
-  mock_speech: boolean; players: PlayerPublic[]; can_start: boolean;
+  mock_speech: boolean; voice: boolean; players: PlayerPublic[]; can_start: boolean;
   block_reason: null | "missing_player" | "same_language" | "not_ready";
   play_again_votes: Role[] }
 
@@ -374,6 +384,7 @@ interface DevState { type: "dev_state"; /* see A13 */ }
 | `crash`, `retry_votes` | ✓ | ✓ | |
 | `deck`, `deck_report` | own deck | own deck | entering DECK |
 | `dev_state` | ✓ | ✓ | DEV_MODE only, on every change (throttled 4/s) |
+| binary partner audio | listener | listener | voice rooms only, while the partner holds the channel (§A5.1) |
 
 ## A10. Cinematics
 

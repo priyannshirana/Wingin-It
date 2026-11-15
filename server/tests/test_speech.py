@@ -311,3 +311,85 @@ async def test_talking_allowed_during_cinematics(make_room: MakeRoom) -> None:
     await t.flyer.send({"type": "ptt_start"})
     assert t.room.channel_holder == "flyer"
     await asyncio.sleep(0)
+
+
+# ------------------------------------------------------------- voice rooms (§A9, §B13.5)
+
+
+async def test_voice_room_relays_accepted_frames_to_partner_only(make_room: MakeRoom) -> None:
+    t, f = await real_room(make_room, transcript="Yes")
+    t.room.voice = True
+    other = bytes(range(256)) * 12 + b"\x00" * 128  # 3200 bytes, distinct content
+    await t.flyer.send({"type": "ptt_start"})
+    await frames(t, "tower", 3)  # not the holder: neither fed nor relayed
+    await frames(t, "flyer", 2)
+    await frames(t, "flyer", 1, other)
+    await handle_audio(t.room, t.flyer.conn, b"\x00" * 7)  # rejected: not relayed
+    await t.settle()
+    t.drain()
+    fed = f.sessions[0].fed
+    assert t.tower.audio == fed == [FRAME, FRAME, other]
+    assert t.flyer.audio == []
+    await t.flyer.send({"type": "ptt_end"})
+    await t.settle()
+    await frames(t, "flyer", 2)  # channel released: nothing more
+    t.drain()
+    assert len(t.tower.audio) == 3 and t.flyer.audio == []
+
+
+async def test_normal_room_relays_nothing(make_room: MakeRoom) -> None:
+    t, f = await real_room(make_room, transcript="Yes")
+    assert t.room.voice is False
+    await t.flyer.send({"type": "ptt_start"})
+    await frames(t, "flyer", 4)
+    t.drain()
+    assert len(f.sessions[0].fed) == 4
+    assert t.tower.audio == [] and t.flyer.audio == []
+
+
+async def test_mock_voice_room_never_relays(make_room: MakeRoom) -> None:
+    from app.rooms import relay_audio
+
+    t = await make_room(seed=1, mock=True)
+    t.room.voice = True
+    t.until_active()
+    await t.flyer.send({"type": "ptt_start"})
+    assert t.last("flyer", "error")["code"] == "mock_only"
+    await frames(t, "flyer", 3)
+    relay_audio(t.room, t.room.players["flyer"], FRAME)  # guard holds even if called directly
+    t.drain()
+    assert t.tower.audio == [] and t.flyer.audio == []
+
+
+async def test_voice_relay_drops_when_partner_backs_up(make_room: MakeRoom) -> None:
+    from app.constants import AUDIO_RELAY_MAX_QUEUED
+
+    t, f = await real_room(make_room, transcript="Yes")
+    t.room.voice = True
+    await t.flyer.send({"type": "ptt_start"})
+    for _ in range(AUDIO_RELAY_MAX_QUEUED + 10):  # tower's queue is never drained here
+        t.clock.advance(100)
+        await handle_audio(t.room, t.flyer.conn, FRAME)
+    await t.settle()
+    t.drain()
+    assert 0 < len(t.tower.audio) <= AUDIO_RELAY_MAX_QUEUED  # backlog cap: the rest dropped
+    assert len(f.sessions[0].fed) == AUDIO_RELAY_MAX_QUEUED + 10  # transcription unaffected
+
+
+def test_voice_flag_in_http_welcome_and_room_state() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    app = create_app(make_settings(mock_speech=False))
+    with TestClient(app) as client:
+        voice = client.post("/api/rooms", json={"voice": True}).json()["code"]
+        plain = client.post("/api/rooms", json={}).json()["code"]
+        assert app.state.registry.get(voice).voice is True
+        assert app.state.registry.get(plain).voice is False
+        assert client.get(f"/api/rooms/{voice}").json()["voice"] is True
+        assert client.get(f"/api/rooms/{plain}").json()["voice"] is False
+        for code, want in ((voice, True), (plain, False)):
+            with client.websocket_connect(f"/ws/{code}") as ws:
+                assert ws.receive_json()["voice"] is want  # welcome
+                assert ws.receive_json()["voice"] is want  # room_state
