@@ -18,6 +18,7 @@ export default defineConfig({
     fs: { allow: [".."] },
     proxy: {
       "/api": { target: proxyTarget, changeOrigin: true },
+      "/health": { target: proxyTarget, changeOrigin: true }, // §A4: GET /health is at the root
       "/clips": { target: proxyTarget, changeOrigin: true },
       "/ws": { target: proxyTarget.replace("http", "ws"), ws: true },
     },

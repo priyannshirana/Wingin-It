@@ -1,7 +1,8 @@
 import { useFrame } from "@react-three/fiber";
 import gsap from "gsap";
-import { MathUtils, Vector3 } from "three";
+import { MathUtils, PerspectiveCamera, Vector3 } from "three";
 import { rig } from "../cinematics/cameraRig";
+import { fovForAspect } from "./cameraFov";
 import { applyFreeLook } from "./freeLookHead";
 import { DEG } from "./parts/kit";
 
@@ -21,6 +22,13 @@ function noise(t: number, seed: number): number {
 // offset, then roll. Shake decays toward the resting shake when no tween is driving it.
 export function CameraRigDriver() {
   useFrame(({ camera, clock }, dt) => {
+    if (camera instanceof PerspectiveCamera) {
+      const fov = fovForAspect(camera.aspect);
+      if (Math.abs(camera.fov - fov) > 1e-4) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
+    }
     const t = clock.elapsedTime * 9;
     const k = 0.03 * rig.shake;
     camera.position.set(

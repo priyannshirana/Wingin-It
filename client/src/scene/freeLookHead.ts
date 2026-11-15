@@ -38,7 +38,9 @@ export const LOOK = {
   // current view and the station's shot"; the aim share rises as needed until the whole panel fits.
   settleAim: 0.4, // minimum share of the aim moved from the player's spot toward the shot's aim
   settleFov: 55, // degrees, the cockpit camera's vertical FOV (CockpitCanvas)
-  settleAspect: 1.6, // the framing is checked at 1440×900
+  // Narrower canvases widen the vertical FOV to keep this horizontal coverage (cameraFov.ts), so a
+  // fit checked at 1.6 / 55° holds at every aspect.
+  settleAspect: 1.6,
   settleFit: 0.94, // every panel corner must land inside this share of NDC
   settleInset: 0.7, // the player's spot is kept within this share of the panel's half-size
   settlePos: 0.9, // share of the way toward the station shot's eye (it rises over the yokes)
