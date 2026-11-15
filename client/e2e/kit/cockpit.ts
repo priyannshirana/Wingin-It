@@ -2,7 +2,7 @@
 // at the control's on-screen position. Where that is comes from the live scene (the dev server
 // serves the same ES modules the app runs, so importing them in the page gives the same
 // instances): the control's group is named by its object id (StationGroup), and the camera pose
-// is the rig the CameraRigDriver applies (fov 55, CockpitCanvas). The click itself goes through
+// is the rig plus the free-look head the CameraRigDriver applies (fov from cameraFov). The click itself goes through
 // R3F's raycaster and the part's own handler, so the client's `interact` is what gets tested.
 import { expect, type Frame } from "@playwright/test";
 
@@ -30,16 +30,26 @@ const PROJECT = `async (id) => {
     const b = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
     box = box ? box.union(b) : b;
   });
-  const cam = refs.rig.position;
+  // The camera the CameraRigDriver builds: the rig pose, the free-look head on top, then roll.
+  const head = await import("/src/scene/freeLookHead.ts");
+  const fov = await import("/src/scene/cameraFov.ts");
+  const cam = refs.rig.position.clone();
+  const look = refs.rig.target.clone();
+  look.y += Math.tan((refs.rig.pitchOffset * Math.PI) / 180) * cam.distanceTo(look);
+  head.applyFreeLook(cam, look, 0);
   const c = box ? box.getCenter(cam.clone()) : obj.getWorldPosition(cam.clone());
-  const f = refs.rig.target.clone().sub(cam).normalize();
-  const r = f.clone().cross(cam.clone().set(0, 1, 0)).normalize();
-  const u = r.clone().cross(f);
+  const f = look.clone().sub(cam).normalize();
+  let r = f.clone().cross(cam.clone().set(0, 1, 0)).normalize();
+  let u = r.clone().cross(f);
+  const roll = (refs.rig.roll * Math.PI) / 180;
+  const r0 = r.clone();
+  r = r0.clone().multiplyScalar(Math.cos(roll)).addScaledVector(u, Math.sin(roll)).normalize();
+  u = r.clone().cross(f);
   const d = c.clone().sub(cam);
   const z = d.dot(f);
   if (z <= 0) return null;
   const rect = canvas.getBoundingClientRect();
-  const t = Math.tan((55 * Math.PI) / 360);
+  const t = Math.tan((fov.fovForAspect(rect.width / rect.height) * Math.PI) / 360);
   const nx = d.dot(r) / (z * t * (rect.width / rect.height));
   const ny = d.dot(u) / (z * t);
   return { x: ((nx + 1) / 2) * rect.width, y: ((1 - ny) / 2) * rect.height, w: rect.width, h: rect.height };
@@ -72,6 +82,29 @@ async function pointerIsHot(flyer: Frame): Promise<boolean> {
   return (await flyer.evaluate("document.body.style.cursor")) === "pointer";
 }
 
+/** A canvas corner: nothing but cabin shell is drawn there. */
+const EMPTY_SPOT = { x: 8, y: 8 };
+
+const hasPointerLock = (flyer: Frame) =>
+  flyer.evaluate<boolean>("document.pointerLockElement !== null");
+
+/**
+ * Gets into interact mode the way a player does (§F10.3): a click on empty canvas enters look
+ * mode (pointer lock), a second click freezes the view and shows the cursor. A click on empty
+ * space while already in interact mode only re-locks, so the second click then freezes again.
+ */
+async function enterInteractMode(flyer: Frame): Promise<void> {
+  const canvas = flyer.locator("canvas").first();
+  if (!(await hasPointerLock(flyer))) {
+    await canvas.click({ position: EMPTY_SPOT });
+    await flyer.page().waitForTimeout(300);
+  }
+  if (await hasPointerLock(flyer)) {
+    await canvas.click({ position: EMPTY_SPOT });
+    await flyer.page().waitForTimeout(100);
+  }
+}
+
 /**
  * Click a cockpit control `times` times (presses 250 ms apart, inside the 1.2 s count window).
  * Waits for the camera to settle on the station shot first, and checks the cursor turns into
@@ -80,6 +113,7 @@ async function pointerIsHot(flyer: Frame): Promise<boolean> {
 export async function clickControl(flyer: Frame, objectId: string, times = 1): Promise<void> {
   const canvas = flyer.locator("canvas").first();
   await expect(canvas).toBeVisible();
+  await enterInteractMode(flyer);
   // The rig eases to the station shot (≤ 1 s); wait until the projection stops moving.
   let last: ScreenPoint | null = null;
   await expect

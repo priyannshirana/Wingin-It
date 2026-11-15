@@ -78,9 +78,10 @@ function requestLock(el: HTMLElement): void {
   try {
     // Chrome returns a promise (rejected e.g. right after an Esc); older engines return nothing.
     const result: unknown = el.requestPointerLock();
-    if (result instanceof Promise) result.catch(() => undefined);
+    if (result instanceof Promise) result.catch(() => dispatchLook({ type: "lock_failed" }));
   } catch {
     // No pointer lock (jsdom, embedded without permission): stay in interact mode.
+    dispatchLook({ type: "lock_failed" });
   }
 }
 

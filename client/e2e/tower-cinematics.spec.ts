@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test, type Page, type WebSocketRoute } from "@playwright/test";
 
 // The Tower half of M3b (§F14.4): screenshots of every Tower hero beat in both Tower languages.
@@ -160,9 +161,10 @@ async function beat(page: Page, server: FakeServer, lang: Lang, b: Beat) {
  */
 async function flashBeat(page: Page, server: FakeServer, lang: Lang, b: Beat) {
   await page.evaluate(() => {
-    const w = window as unknown as { __flashCatch?: MutationObserver };
-    w.__flashCatch?.disconnect();
-    const obs = new MutationObserver(() => {
+    const w = window as unknown as { __flashCatch?: number };
+    if (w.__flashCatch !== undefined) clearInterval(w.__flashCatch);
+    // Polled (not a MutationObserver): the animation exists only after the next style recalc.
+    w.__flashCatch = window.setInterval(() => {
       const layers = Array.from(document.querySelectorAll<HTMLElement>("div[style*='flash-fade']"));
       for (const el of layers) {
         for (const a of el.getAnimations()) {
@@ -170,9 +172,7 @@ async function flashBeat(page: Page, server: FakeServer, lang: Lang, b: Beat) {
           a.currentTime = 8;
         }
       }
-    });
-    obs.observe(document.body, { childList: true, subtree: true });
-    w.__flashCatch = obs;
+    }, 4);
   });
   server.cinematic(b.id, b.ms, Math.max(0, b.t - LEAD_S), b.params);
   await page.waitForFunction(
@@ -185,32 +185,39 @@ async function flashBeat(page: Page, server: FakeServer, lang: Lang, b: Beat) {
   );
   await page.screenshot({ path: `${DIR}/tower-${lang}-${b.name}.png` });
   await page.evaluate(() => {
-    const w = window as unknown as { __flashCatch?: MutationObserver };
-    w.__flashCatch?.disconnect();
+    const w = window as unknown as { __flashCatch?: number };
+    if (w.__flashCatch !== undefined) clearInterval(w.__flashCatch);
     const layers = Array.from(document.querySelectorAll<HTMLElement>("div[style*='flash-fade']"));
     for (const el of layers) for (const a of el.getAnimations()) a.finish();
   });
 }
 
-const PROLOGUE = { id: "prologue", ms: 12000 };
-const P1_OUTRO = { id: "p1_outro", ms: 6000 };
-const P2_INTRO = { id: "p2_intro", ms: 9000 };
-const P2_EXT = { id: "p2_extinguish", ms: 3000 };
-const P2_OUTRO = { id: "p2_outro", ms: 8000 };
-const P3_INTRO = { id: "p3_intro", ms: 7000 };
-const STRIKE = { id: "lightning_strike", ms: 1500 };
-const REVEAL = { id: "p3_runway_reveal", ms: 4000 };
-const TOUCHDOWN = { id: "p3_touchdown", ms: 6000 };
-const LANDING = { id: "landing", ms: 7000 };
-const ENDING = { id: "ending", ms: 6000, params: { fuel_left_s: 42, total_time_s: 305 } };
-const CRASH = { id: "crash", ms: 5000 };
+const CINEMATICS = JSON.parse(
+  readFileSync(new URL("../../content/cinematics.json", import.meta.url), "utf8"),
+) as { cinematics: Record<string, { duration_ms?: number }> };
+const dur = (id: string): number => CINEMATICS.cinematics[id]?.duration_ms ?? 0;
+
+const PROLOGUE = { id: "prologue", ms: dur("prologue") };
+const P1_OUTRO = { id: "p1_outro", ms: dur("p1_outro") };
+const P2_INTRO = { id: "p2_intro", ms: dur("p2_intro") };
+const P2_EXT = { id: "p2_extinguish", ms: dur("p2_extinguish") };
+const P2_OUTRO = { id: "p2_outro", ms: dur("p2_outro") };
+const P3_INTRO = { id: "p3_intro", ms: dur("p3_intro") };
+const STRIKE = { id: "lightning_strike", ms: dur("lightning_strike") };
+const REVEAL = { id: "p3_runway_reveal", ms: dur("p3_runway_reveal") };
+const TOUCHDOWN = { id: "p3_touchdown", ms: dur("p3_touchdown") };
+const LANDING = { id: "landing", ms: dur("landing") };
+const ENDING = { id: "ending", ms: dur("ending"), params: { fuel_left_s: 42, total_time_s: 305 } };
+const CRASH = { id: "crash", ms: dur("crash") };
 
 for (const lang of ["en", "hi"] as const) {
   test(`Tower hero beats (${lang})`, async ({ page }) => {
     test.setTimeout(180_000);
     const errors: string[] = [];
     page.on("console", (m) => {
-      if (m.type() === "error" || m.type() === "warning") errors.push(m.text());
+      // THREE.Clock: an upstream three deprecation warning from the Tower window's scene.
+      if ((m.type() === "error" || m.type() === "warning") && !m.text().includes("THREE.Clock"))
+        errors.push(m.text());
     });
     const server = new FakeServer(lang);
     await server.attach(page);
@@ -230,13 +237,13 @@ for (const lang of ["en", "hi"] as const) {
         radar: radar({ blip: "red", icon: "mayday", progress: 0.06 }),
       }),
     );
-    await go({ ...PROLOGUE, t: 0.45, name: "1a-radar-boot" });
-    await flash({ ...PROLOGUE, t: 8.5, name: "1b-mayday-flash" });
-    await go({ ...PROLOGUE, t: 8.6, name: "1c-mayday-slam" });
-    await go({ ...PROLOGUE, t: 9.5, name: "1d-mayday-hold" });
-    await go({ ...PROLOGUE, t: 11.0, name: "1e-phase1-title-bars" });
+    await go({ ...PROLOGUE, t: 3.0, name: "1a-tower-window" });
+    await go({ ...PROLOGUE, t: 8.0, name: "1b-radar-boot" });
+    await flash({ ...PROLOGUE, t: 17.0, name: "1c-mayday-flash" });
+    await go({ ...PROLOGUE, t: 17.4, name: "1d-mayday-slam" });
+    await go({ ...PROLOGUE, t: 18.5, name: "1e-take-control" });
+    await go({ ...PROLOGUE, t: 26.5, name: "1f-phase1-title" });
 
-    // 2. p1_outro 4: the AUTOPILOT ENGAGED banner; the blip is green.
     server.send(
       gameState({
         status: "PHASE_OUTRO",
