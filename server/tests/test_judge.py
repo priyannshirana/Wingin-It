@@ -75,6 +75,10 @@ async def test_wrong_object(make_room: MakeRoom) -> None:
     tw = next(r for r in results(t, "tower") if not r["success"])
     assert tw["used"]["verb"] == "toggle"
     assert "".join(s["text"] for s in tw["used"]["label"]) == "तीन नंबर स्विच"
+    # §A8 Segment: `concept?` / `concepts?` are omitted when absent, never sent as null.
+    for seg in tw["used"]["label"]:
+        assert seg.get("concept", "absent") is not None and "concepts" not in seg, seg
+        assert (seg["kind"] == "keyword") == ("concept" in seg), seg
     bounce = [m for m in t.flyer.of("object_state") if m["object_id"] == "OH_SW_3"][-1]
     assert bounce["bounce"] is True and bounce["state"] == {"kind": "toggle", "value": "on"}
     assert before - fuel(t) >= 10

@@ -89,6 +89,26 @@ class FakeClock:
 # ----------------------------------------------------------------------------- fake socket
 
 
+# §A8 optional fields typed `key?: T` (not `T | null`) in the client's protocol.ts: when absent
+# they must be omitted from the frame, never sent as null. No other field uses these names
+# with a null value.
+NEVER_NULL_KEYS = frozenset(
+    {"concept", "concepts", "alt_text", "translation", "row_index", "used"}
+    | {"text", "value", "count"}
+)
+
+
+def assert_no_null_optionals(obj: object, path: str = "") -> None:
+    """Fail when an optional-but-not-nullable §A8 field is sent as null."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            assert not (v is None and k in NEVER_NULL_KEYS), f"{path}.{k} is null"
+            assert_no_null_optionals(v, f"{path}.{k}")
+    elif isinstance(obj, list):
+        for v in obj:
+            assert_no_null_optionals(v, f"{path}[]")
+
+
 class Client:
     """A FakeSocket: records every outbound message for one connection."""
 
@@ -106,6 +126,7 @@ class Client:
                 continue
             data = orjson.loads(raw)
             S2C_ADAPTER.validate_python(data)  # every outbound frame obeys the contract
+            assert_no_null_optionals(data, data.get("type", "?"))
             new.append(data)
         self.msgs.extend(new)
         return new

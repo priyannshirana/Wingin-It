@@ -1085,7 +1085,8 @@ def wrong(
         verb=verb,
         count=count,
     )
-    tower_msg = ActionResult.model_validate({**base, "used": used.model_dump()})
+    # model_copy keeps `used`'s unset optionals (Segment.concept/concepts) off the wire.
+    tower_msg = flyer_msg.model_copy(update={"used": used})
     broadcast(room, lambda r: flyer_msg if r == "flyer" else tower_msg)
     g.last_wrong = LastWrongRec(run.action.id, object_id, verb, count)
     send_manual(room)
