@@ -7,6 +7,7 @@ import { selectDemo, selectMock } from "../state/selectors";
 import { useStore } from "../state/store";
 import { TowerPortrait } from "./avatars/TowerPortrait";
 import { FuelBar } from "./FuelBar";
+import { FxOverlays } from "./FxOverlays";
 import { Lifelines } from "./Lifelines";
 import { ManualCard } from "./ManualCard";
 import { ManualCover } from "./manual/ManualCover";
@@ -18,6 +19,7 @@ import { SignalBars } from "./SignalBars";
 import { Subtitles } from "./Subtitles";
 import { TitleCard } from "./TitleCard";
 import { TowerCueLayer } from "./tower/TowerCueLayer";
+import { TowerFeedback } from "./TowerFeedback";
 
 // Columns are 22 / 58 / 20 %: the open-book manual's two equal pages need the wider center (§F12.3).
 const NEXT_PHASE: Record<0 | PhaseNo, PhaseNo> = { 0: 1, 1: 2, 2: 3, 3: 3 };
@@ -99,6 +101,8 @@ export function TowerScreen() {
       </div>
       <TitleCard />
       <TowerCueLayer />
+      <FxOverlays />
+      <TowerFeedback />
     </main>
   );
 }

@@ -5,6 +5,7 @@ import { ACESFilmicToneMapping } from "three";
 import { cutNow, moveTo, rig, STATION_SHOT } from "../cinematics/cameraRig";
 import { DEV } from "../config";
 import { useStore } from "../state/store";
+import { CameraFxDriver } from "./CameraFxDriver";
 import { CameraRigDriver } from "./CameraRigDriver";
 import { FirstPersonHands } from "./characters/FirstPersonHands";
 import { FlyerAvatar } from "./characters/FlyerAvatar";
@@ -20,6 +21,7 @@ import { Weather } from "./env/Weather";
 import { WingFire } from "./env/WingFire";
 import { Wings } from "./env/Wings";
 import { LightRig } from "./LightRig";
+import { StationRim } from "./StationRim";
 import { FrontPanel } from "./stations/FrontPanel";
 import { Overhead } from "./stations/Overhead";
 import { Pedestal } from "./stations/Pedestal";
@@ -66,6 +68,8 @@ export function CockpitCanvas() {
       }}
     >
       {orbit ? <OrbitControls target={[0.1, 1.2, -0.6]} makeDefault /> : <CameraRigDriver />}
+      {/* After the rig (same-priority frames run in mount order); never on top of OrbitControls. */}
+      {!orbit && <CameraFxDriver />}
       <Atmosphere />
       <LightRig />
       <Sky />
@@ -80,6 +84,7 @@ export function CockpitCanvas() {
       <Overhead />
       <Pedestal />
       <FrontPanel />
+      <StationRim />
       <Runway />
       <ExteriorPlane />
       <Effects />

@@ -3,7 +3,9 @@ import { useT } from "../i18n/useT";
 import { useCinematicRunner } from "../cinematics/runner";
 import { buildFlyerTimeline } from "../cinematics/timelines";
 import { CockpitCanvas } from "../scene/CockpitCanvas";
+import { FlyerFeedback } from "./FlyerFeedback";
 import { FlyerHUD } from "./FlyerHUD";
+import { FxOverlays } from "./FxOverlays";
 
 function hasWebGL2(): boolean {
   try {
@@ -31,6 +33,8 @@ export function FlyerScreen() {
     <main data-screen="flyer" className="relative h-full overflow-hidden bg-night">
       <CockpitCanvas />
       <FlyerHUD />
+      <FxOverlays />
+      <FlyerFeedback />
     </main>
   );
 }
