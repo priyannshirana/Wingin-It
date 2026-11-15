@@ -1873,6 +1873,7 @@ Build it per role from `game` (identical for both roles: it contains no secrets)
 ### B8.5 Play again / swap roles (DECK only)
 
 - `play_again`: votes per role (bots vote at once). Both → new `Game` with a new seed (or the same `seed_override` in Dev Mode), same roles → PROLOGUE.
+- **Votes:** each player has exactly **one current vote** (`play_again` or `swap_roles`); a later vote replaces that player's earlier one. The server acts only when both players' current votes are the same; mismatched votes just wait. Broadcast `room_state.play_again_votes` (the roles whose current vote is play_again) after every vote.
 - `swap_roles`: both → swap the two players' roles, **keep each player's language and gender**, set both not ready → LOBBY. Tokens stay valid (the client re-keys its sessionStorage entry on the new role from `joined`, which the server re-sends to both after the swap).
 
 ## B9. Actions, randomization and the judge (`app/actions.py`, `app/rng.py`)
