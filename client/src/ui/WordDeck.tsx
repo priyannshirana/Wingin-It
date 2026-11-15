@@ -1,66 +1,72 @@
-import { useState } from "react";
 import { useT } from "../i18n/useT";
-import { send } from "../net/socket";
+import { selectLang } from "../state/selectors";
 import { useStore } from "../state/store";
-import { TowerPortrait } from "./avatars/TowerPortrait";
 import { FlyerPortrait } from "./avatars/FlyerPortrait";
-import { ToyButton } from "./ToyButton";
+import { TowerPortrait } from "./avatars/TowerPortrait";
+import { DeckGrid } from "./deck/DeckGrid";
+import { DeckStats } from "./deck/DeckStats";
+import { DeckVote } from "./deck/DeckVote";
+import { splitAtSlot } from "./deck/format";
+import { MissionReport } from "./deck/MissionReport";
 
-// M1 minimum of the end screen (§F17) so a game can be finished and replayed: the header, the
-// words, Play again / Swap roles. M5 builds the full deck (report, stats, clips, dealing).
+/**
+ * The end screen (§F17), in the viewer's own language: the partner's portrait and how many words
+ * they taught me, the mission report, the word cards, the stats row and the two vote buttons.
+ */
 export function WordDeck() {
   const t = useT();
   const deck = useStore((s) => s.deck);
   const role = useStore((s) => s.me?.role);
-  const [voted, setVoted] = useState(false);
-  if (!deck) return <main data-screen="deck" className="h-full bg-cream" />;
+  const lang = useStore(selectLang);
+  if (!deck) return <main data-screen="deck" className="h-full bg-night" />;
+
+  // The portrait is the partner's character: the Tower's controller for a Flyer and vice versa.
   const Portrait = role === "flyer" ? TowerPortrait : FlyerPortrait;
-  const words = [...deck.words].sort((a, b) => Number(b.learned) - Number(a.learned));
+  const [before, after] = splitAtSlot(t("deck.header"));
+
   return (
     <main
       data-screen="deck"
-      className="flex h-full flex-col items-center gap-8 overflow-auto bg-cream p-10 text-ink"
+      lang={lang}
+      className="flex h-full flex-col overflow-hidden bg-night bg-[radial-gradient(ellipse_at_50%_-10%,#2a3a6a_0%,#0b1026_62%)] text-cream"
     >
-      <header className="flex items-center gap-6">
-        <Portrait gender={deck.partner_gender} state="happy" size={120} />
-        <h1 className="font-display text-4xl font-extrabold">
-          {t("deck.header", { n: deck.learned_count })}
-        </h1>
-      </header>
-      <ul className="grid grid-cols-4 gap-4">
-        {words.map((w) => (
-          <li
-            key={w.concept}
-            className={`flex flex-col gap-1 rounded-2xl bg-page-right p-4 shadow ${w.learned ? "" : "opacity-40"}`}
-          >
-            <span className="font-display text-[40px] leading-none font-extrabold">{w.word}</span>
-            <span className="font-display text-lg">{w.meaning}</span>
-          </li>
-        ))}
-      </ul>
-      {voted ? (
-        <p className="font-display text-xl">{t("deck.waiting_vote")}</p>
-      ) : (
-        <div className="flex gap-4">
-          <ToyButton
-            variant="primary"
-            onClick={() => {
-              send({ type: "play_again" });
-              setVoted(true);
-            }}
-          >
-            {t("deck.play_again")}
-          </ToyButton>
-          <ToyButton
-            onClick={() => {
-              send({ type: "swap_roles" });
-              setVoted(true);
-            }}
-          >
-            {t("deck.swap_roles")}
-          </ToyButton>
+      <header className="mx-auto flex w-full max-w-[1280px] shrink-0 items-center gap-7 px-10 pt-8 pb-5">
+        <div className="shrink-0 rounded-full p-1 ring-4 ring-teal/70">
+          <Portrait gender={deck.partner_gender} state="happy" size={120} />
         </div>
-      )}
+        <div className="flex min-w-0 flex-col gap-2">
+          <h1
+            data-testid="deck-header"
+            className="font-display text-[34px] leading-tight font-extrabold text-cream"
+          >
+            {before}
+            <span
+              data-testid="deck-count"
+              className="mx-1 inline-block align-[-0.08em] text-[64px] leading-none text-teal [text-shadow:0_4px_0_#1a7f76]"
+            >
+              {deck.learned_count}
+            </span>
+            {after}
+          </h1>
+          <MissionReport report={deck.report} pending={deck.report_pending} lang={lang} />
+        </div>
+      </header>
+
+      <section
+        data-testid="deck-grid"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-color:rgb(242_232_213/0.25)_transparent]"
+      >
+        <div className="mx-auto w-full max-w-[1280px] px-10 pt-3 pb-8">
+          <DeckGrid words={deck.words} partnerLang={deck.partner_lang} />
+        </div>
+      </section>
+
+      <footer className="shrink-0 border-t border-white/10 bg-night/80">
+        <div className="mx-auto flex w-full max-w-[1280px] items-end justify-between gap-6 px-10 pt-4 pb-5">
+          <DeckStats stats={deck.stats} />
+          <DeckVote />
+        </div>
+      </footer>
     </main>
   );
 }
