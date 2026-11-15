@@ -136,6 +136,15 @@ def test_clean_report_trims_truncated_hindi_to_last_danda() -> None:
     assert clean_report(text, False) == text
 
 
+def test_clean_report_truncation_keeps_closing_marks_and_dandas() -> None:
+    assert clean_report('Great landing." And', True) == 'Great landing."'
+    assert clean_report("Asha (landed.) Then", True) == "Asha (landed.)"
+    assert clean_report("Asha said ‘done.’ and", True) == "Asha said ‘done.’"
+    assert clean_report("उतारा॥ फिर", True) == "उतारा॥"
+    assert clean_report("आशा ने उतारा।फिर वे", True) == "आशा ने उतारा।"
+    assert clean_report("Fuel was 61.5 litres", True) == ""
+
+
 def test_clean_report_empty_or_no_full_sentence_is_empty() -> None:
     assert clean_report("", False) == ""
     assert clean_report("# Mission Report", False) == ""
@@ -196,29 +205,57 @@ async def test_report_facts_have_litres_and_seconds(make_room: MakeRoom) -> None
     assert any(f"{fuel} लीटर ({fuel} सेकंड) ईंधन" in p for p in rep.prompts)
 
 
+class EchoReporter:
+    """Answers with the reader taken from the prompt's facts, so the deck shows whose it is."""
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    async def report(self, prompt: str) -> str:
+        self.prompts.append(prompt)
+        f = json.loads(prompt.split("Facts: ", 1)[1])
+        lang = "hi" if "Language: Hindi" in prompt else "en"
+        words = ",".join(f["learned_words"])
+        return f"{f['reader_role']}|{f['reader_name']}|{f['reader_gender']}|{lang}|{words}."
+
+
 @pytest.mark.parametrize("langs", [("en", "hi"), ("hi", "en")])
 async def test_report_facts_carry_the_reader(make_room: MakeRoom, langs: tuple[Lang, Lang]) -> None:
     t = await make_room(seed=5, mock=False, bedrock_model_id="anthropic.test", langs=langs)
-    clients = {"flyer": FakeBedrockClient("ok."), "tower": FakeBedrockClient("ok.")}
-    t.room.svc.reporter = None
+    rep = EchoReporter()
+    t.room.svc.reporter = rep
     await t.play_to_deck(naturally=True)
-    room = t.room
+    await t.settle()
+    assert len(rep.prompts) == 2
     for role, gender in (("flyer", "female"), ("tower", "male")):
-        p = room.players[role]
-        q = room.partner(p)
-        assert q is not None
-        words = deck.build_words(room, p, q)
-        r = BedrockReporter("us-east-1", "m", client=clients[role])
-        await r.report(deck.report_prompt(room, p, words))
-        prompt = clients[role].prompts[-1]
-        facts = json.loads(prompt.split("Facts: ", 1)[1])
-        assert facts["reader_name"] == p.name
-        assert facts["reader_role"] == role
-        assert facts["reader_gender"] == gender
-        assert facts["learned_words"] == [w.word for w in words if w.learned][:3]
+        p = t.room.players[role]
+        d = t.last(role, "deck")
+        learned = ",".join([w["word"] for w in d["words"] if w["learned"]][:3])
+        assert t.last(role, "deck_report")["report"] == (
+            f"{role}|{p.name}|{gender}|{p.lang}|{learned}."
+        )
+    for prompt in rep.prompts:
+        role = json.loads(prompt.split("Facts: ", 1)[1])["reader_role"]
         assert f"the {role})" in prompt and "words the READER learned" in prompt
         assert "under 20 words" in prompt
-        assert ('"आप / आपने"' if p.lang == "hi" else '"you"') in prompt
+        lang = t.room.players[role].lang
+        assert ('"आप / आपने"' if lang == "hi" else '"you"') in prompt
+
+
+def test_fuel_rounds_half_up_like_the_client() -> None:
+    assert deck.round_half_up(60.5) == 61
+    assert deck.round_half_up(0.4) == 0
+    assert deck.round_half_up(61.49) == 61
+
+
+async def test_fuel_amounts_round_half_up(make_room: MakeRoom) -> None:
+    t = await finished(make_room)
+    g = t.room.game
+    assert g is not None
+    g.phase_stats[3].fuel_left_s = 60.5
+    assert deck.fuel_amounts(t.room) == (61, 61)
+    g.phase_stats[3].fuel_left_s = 0.4
+    assert deck.fuel_amounts(t.room) == (0, 0)
 
 
 async def test_report_prompt_with_no_learned_words(make_room: MakeRoom) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -53,11 +54,16 @@ def _game(room: Room) -> Game:
     return g
 
 
+def round_half_up(x: float) -> int:
+    """Round .5 up, like the client's Math.round (§B15.3)."""
+    return math.floor(x + 0.5)
+
+
 def fuel_amounts(room: Room) -> tuple[int, int]:
     """Final fuel as whole (litres, seconds) for the report (§B15.3)."""
     g = _game(room)
     fuel_s = g.phase_stats[3].fuel_left_s if 3 in g.phase_stats else 0.0
-    return round(fuel_s * FUEL_LITRES_PER_S), round(fuel_s)
+    return round_half_up(fuel_s * FUEL_LITRES_PER_S), round_half_up(fuel_s)
 
 
 def build_words(room: Room, p: Player, q: Player) -> list[DeckWord]:
@@ -163,7 +169,9 @@ class Reporter(Protocol):
 
 
 _HEADING = re.compile(r"^\s*#.*(?:\n|$)")
-_SENTENCE_END = re.compile(r"[.!?।](?=\s|$)")
+# . ! ? end a sentence only before whitespace/end (so 61.5 doesn't); । ॥ always do. Closing
+# quotes and brackets after the mark belong to the sentence.
+_SENTENCE_END = re.compile(r"(?:[.!?][\"'”’)\]]*(?=\s|$)|[।॥][\"'”’)\]]*)")
 
 
 def clean_report(text: str, truncated: bool) -> str:
