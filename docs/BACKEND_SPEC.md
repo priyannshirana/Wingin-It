@@ -1126,7 +1126,7 @@ This is the one layout file for both the 3D cockpit and the manual drawings (bui
         {"id": "FP_LEVER_1", "type": "UpDownLever", "label": "1", "color": "grey", "row": 2, "col": 0, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever one",   "hi": "एक नंबर लीवर"}},
         {"id": "FP_LEVER_2", "type": "UpDownLever", "label": "2", "color": "grey", "row": 2, "col": 1, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever two",   "hi": "दो नंबर लीवर"}},
         {"id": "FP_LEVER_3", "type": "UpDownLever", "label": "3", "color": "grey", "row": 2, "col": 2, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever three", "hi": "तीन नंबर लीवर"}},
-        {"id": "FP_LEVER_4", "type": "UpDownLever", "label": "4", "color": "grey", "row": 2, "col": 3, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever four",  "hi": "चार नंबर लीवर"}},
+        {"id": "FP_LEVER_4", "type": "UpDownLever", "label": "4", "color": "grey", "row": 1, "col": 3, "default": {"kind": "lever", "value": "up"}, "manual_name": {"en": "lever four",  "hi": "चार नंबर लीवर"}},
         {"id": "FP_FLAP_L", "type": "NotchLever", "label": "←", "color": "grey", "row": 2, "col": 4, "default": {"kind": "notch", "value": 0}, "manual_name": {"en": "left lever",  "hi": "बायाँ लीवर"}},
         {"id": "FP_FLAP_R", "type": "NotchLever", "label": "→", "color": "grey", "row": 2, "col": 5, "default": {"kind": "notch", "value": 0}, "manual_name": {"en": "right lever", "hi": "दायाँ लीवर"}},
         {"id": "FP_BRAKE", "type": "PullHandle", "size": "big", "label": null, "color": "red", "row": 2, "col": 6, "default": {"kind": "handle", "value": "in"}, "manual_name": {"en": "red lever", "hi": "लाल लीवर"}},

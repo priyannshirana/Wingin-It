@@ -1470,7 +1470,7 @@ Every rig parameter is a tweenable number; a rig change tweens all of them over 
 - **Clicking any control** keeps interact mode, including a control on another station that's inert (it does nothing, as today). Only a click that hits **no control mesh** returns to look mode.
 - **Head limits** (from the seated eye at the `FLYER_DEFAULT` position):
   - **turn:** yaw ±110° (enough to look out of both side windows), pitch −55° (down to the pedestal) to +60° (up to the overhead);
-  - **lean** with the look direction: up to **25 cm** forward/down when looking toward the front panel or the pedestal, and up to **20 cm sideways** toward a side window when yaw > 60°, so the player can **see past the pedestal** (it hides lever 4 from the upright head) and look **side to side** out of both windows at the wings and fire;
+  - **lean** with the look direction: up to **25 cm** forward/down when looking toward the front panel or the pedestal, and up to **20 cm sideways** toward a side window when yaw > 60°, so the player can **see past the pedestal** and look **side to side** out of both windows at the wings and fire;
   - a collision clamp keeps the camera ≥ 6 cm from cockpit geometry.
 - **Settle on freeze:** when look → interact, find the station whose panel the view ray hits (or the nearest within 25°). Ease over **0.3 s** (`power2.out`) toward a clean framing of that panel: a blend of the current view and that station's shot (§F10.1), keeping most of the player's angle and any lean needed to see the bottom row. If no panel is near, stay exactly where the view is.
 - **Feel:** mouse sensitivity is set in Settings (default 0.15°/px, range 0.05–0.4, saved in `wingin:settings`). The look is smoothed with critical damping (~60 ms); there's no Y inversion by default (optional toggle). Camera shake, roll and pitch from cinematics and `fx` compose on top of the look rotation (§F10.1 rig).
@@ -1480,7 +1480,7 @@ Every rig parameter is a tweenable number; a rig change tweens all of them over 
 - **HUD hint** (new strings, both languages): `look.hint_enter` "Click to look around" / "चारों ओर देखने के लिए क्लिक करो"; `look.hint_look` "Move the mouse to look · Click to use the controls" / "देखने के लिए माउस घुमाओ · कंट्रोल चलाने के लिए क्लिक करो"; `look.hint_interact` "Click empty space to look around again" / "फिर से देखने के लिए खाली जगह पर क्लिक करो"; `settings.sensitivity` "Mouse sensitivity" / "माउस की संवेदनशीलता". The hint shows small and bottom-left, and fades after the first 3 uses of each mode.
 - **Privacy and rules unchanged:** only the server's `interactive` ids react (§A2 rule 6); the Tower is unaffected; there are no protocol changes.
 - **Consequences:**
-  - The **FRONT occlusion** (the pedestal hiding lever 4) is solved by the lean, so the controls stay frozen.
+  - The **FRONT occlusion**: the lean alone couldn't clear the pedestal, so FP_LEVER_4 moved to row 1, col 3 in `stations.json` (decision 2026-11-15); the 3D controls are otherwise frozen.
   - Free look means all three stations are on screen more often, so the **draw-call budget** (§F21; WIDE-type views reach ~280) matters more. Plan the control-batching optimization (identical controls in one draw each, with **no visual change**) alongside this.
   - The station shots (§F10.1) remain the cinematic shots, the settle targets, and the initial facing.
 - **Tests and visual check:**
@@ -1489,7 +1489,7 @@ Every rig parameter is a tweenable number; a rig change tweens all of them over 
   - the settle target picking;
   - an empty-space click returning to look mode;
   - a click on a control in interact mode sending `interact` and staying in interact mode;
-  - screenshots of the leaned view past the pedestal showing lever 4, both side-window looks, and each settle framing, at 1440×900.
+  - screenshots of the leaned view over the pedestal, both side-window looks, and each settle framing, at 1440×900.
 
 ## F11. Flyer HUD (`ui/FlyerHUD.tsx`)
 
