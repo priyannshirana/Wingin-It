@@ -279,6 +279,10 @@ async function measure(page: Page) {
       gloss: px("[data-testid=subtitle-line] [data-testid=gloss]"),
       translation: px("[data-testid=translation]"),
       toast: px("[data-testid=toast]"),
+      // The translation is 0.8 em of its parent row's font size.
+      translationParent: Array.from(document.querySelectorAll("[data-testid=translation]"), (el) =>
+        el.parentElement ? parseFloat(getComputedStyle(el.parentElement).fontSize) : 0,
+      ),
       chipClassLists: new Set(classes).size,
       glossClassLists: new Set(
         Array.from(document.querySelectorAll("[data-testid=gloss]"), (el) => el.className),
@@ -291,11 +295,18 @@ async function measure(page: Page) {
         const b = chip.getBoundingClientRect();
         return a.top > b.bottom || a.bottom < b.top;
       }).length,
+      // Segment text only: glosses are in the listener's script and live inside the chips.
       devanagariInSegments: Array.from(
-        document.querySelectorAll(
-          "[data-testid=subtitle-line] [data-kind], [data-testid=subtitle-line] [data-testid=gloss]",
-        ),
-      ).some((p) => /[ऀ-ॿ]/.test(p.textContent ?? "")),
+        document.querySelectorAll("[data-testid=subtitle-line] [data-kind]"),
+      ).some((p) => {
+        const clone = p.cloneNode(true) as Element;
+        clone.querySelectorAll("[data-testid=gloss]").forEach((g) => g.remove());
+        return /[ऀ-ॿ]/.test(clone.textContent ?? "");
+      }),
+      glossTexts: Array.from(
+        document.querySelectorAll("[data-testid=gloss]"),
+        (g) => g.textContent ?? "",
+      ),
     };
   });
 }
@@ -322,6 +333,8 @@ for (const pair of PAIRINGS) {
         expect(m.devanagariInSegments).toBe(false);
         expect(m.detachedGlosses).toBe(0);
         expect(m.glossClassLists).toBeLessThanOrEqual(1);
+        // Glosses are in the listener's script: Devanagari for Hindi, Latin for English.
+        for (const g of m.glossTexts) expect(/[ऀ-ॿ]/.test(g)).toBe(pair.flyer === "hi");
         const glossCount = m.gloss.length;
         if (level === 1) expect(glossCount).toBe(8);
         if (level === 2) expect(glossCount).toBe(2);
@@ -353,7 +366,10 @@ for (const pair of PAIRINGS) {
       await page.mouse.move(10, 10);
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${SHOTS}/m2-${pair.name}-flyer-lifeline-revealed.png` });
-      expect((sizes.revealed as { translation: number[] }).translation[0]).toBeCloseTo(26 * 0.8, 0);
+      const rev = sizes.revealed as { translation: number[]; translationParent: number[] };
+      expect(rev.translation[0]).toBeCloseTo((rev.translationParent[0] ?? 0) * 0.8, 0);
+      // The lifelined line is pinned: it stays open until unpinned, then collapses to the link.
+      await page.getByTestId("unpin").click();
       await page.getByTestId("lifeline-show").waitFor({ timeout: 8000 });
       await page.screenshot({ path: `${SHOTS}/m2-${pair.name}-flyer-lifeline-collapsed.png` });
 
@@ -386,6 +402,8 @@ for (const pair of PAIRINGS) {
       expect(p1.devanagariInSegments).toBe(false);
       expect(p1.detachedGlosses).toBe(0);
       expect(p1.glossClassLists).toBe(1);
+      expect(p1.glossTexts.length).toBeGreaterThan(0);
+      for (const g of p1.glossTexts) expect(/[ऀ-ॿ]/.test(g)).toBe(pair.tower === "hi");
 
       room.push(gameState(3));
       for (const segs of lines(pair.tower, 3)) say(room, "flyer", pair.flyer, 3, segs);
