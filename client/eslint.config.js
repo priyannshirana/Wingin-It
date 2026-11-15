@@ -21,7 +21,11 @@ export default defineConfig(
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/no-non-null-assertion": "error",
-      "@typescript-eslint/switch-exhaustiveness-check": "error",
+      // `default: assertNever(x)` makes union switches exhaustive at compile time.
+      "@typescript-eslint/switch-exhaustiveness-check": [
+        "error",
+        { considerDefaultExhaustiveForUnions: true },
+      ],
       // console.log only behind `if (DEV)` — use console.debug for those; warn/error are allowed.
       "no-console": ["error", { allow: ["warn", "error", "debug"] }],
     },

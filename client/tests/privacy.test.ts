@@ -8,21 +8,54 @@ const sources = import.meta.glob<string>("../src/**/*.{ts,tsx,js,jsx,mts,css}", 
   eager: true,
 });
 
-// Any mention of the alias or a relative path into content/ (no `\b`: catches `@content"` too).
-const CONTENT_REF = /@content|(?:\.\.\/)+content\//g;
-// The only accepted form: the alias + an allowed file name + a closing quote. Wildcards, braces,
-// template strings, concatenation, a bare alias and relative paths all fail this.
-const ALLOWED_REF = /^@content\/(?:stations|cinematics)\.json["'`]/;
+// Any mention of the alias or a relative path into a `content/` folder.
+const CONTENT_REF = /@content|(?:\.\.?\/)+content\//g;
+// The only accepted alias form: an allowed file name followed by the closing quote. Wildcards,
+// braces, template strings, concatenation, query suffixes and a bare alias all fail it.
+const ALLOWED_ALIAS = /^@content\/(?:stations|cinematics)\.json["'`]/;
+const QUOTES = new Set(["'", '"', "`"]);
+
+/** Minimal posix normalize for "a/b/../c" → "a/c" (leading ".." kept). */
+function normalize(path: string): string {
+  const out: string[] = [];
+  for (const part of path.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === ".." && out.length > 0 && out[out.length - 1] !== "..") out.pop();
+    else out.push(part);
+  }
+  return out.join("/");
+}
+
+/**
+ * Relative references are fine only when they are a closed string literal that resolves to one
+ * of our own typed modules in src/content/ (e.g. "../content/stations"), never the repo's
+ * content/ folder or a dynamic path.
+ */
+function relativeAllowed(file: string, text: string, index: number): boolean {
+  const open = text[index - 1];
+  if (open === undefined || !QUOTES.has(open)) return false;
+  const close = text.indexOf(open, index);
+  if (close < 0) return false;
+  const spec = text.slice(index, close);
+  if (open === "`" && spec.includes("${")) return false;
+  const dir = file.split("/").slice(0, -1).join("/");
+  const resolved = normalize(`${dir}/${spec}`);
+  return /^\.\.\/src\/content\/[\w-]+$/.test(resolved);
+}
 
 /** Returns every disallowed content reference in `text` (with a little context). */
-function contentViolations(text: string): string[] {
+function contentViolations(file: string, text: string): string[] {
   const bad: string[] = [];
   for (const match of text.matchAll(CONTENT_REF)) {
     const rest = text.slice(match.index);
-    if (!ALLOWED_REF.test(rest)) bad.push(rest.slice(0, 40));
+    const ok =
+      match[0] === "@content" ? ALLOWED_ALIAS.test(rest) : relativeAllowed(file, text, match.index);
+    if (!ok) bad.push(rest.slice(0, 40));
   }
   return bad;
 }
+
+const SAMPLE_FILE = "../src/ui/Sample.tsx";
 
 describe("privacy: content imports", () => {
   it("scans the client sources", () => {
@@ -31,7 +64,7 @@ describe("privacy: content imports", () => {
 
   it("references content only as @content/stations.json or @content/cinematics.json", () => {
     for (const [file, text] of Object.entries(sources)) {
-      expect(contentViolations(text), file).toEqual([]);
+      expect(contentViolations(file, text), file).toEqual([]);
     }
   });
 
@@ -48,8 +81,15 @@ describe("privacy: content imports", () => {
   });
 
   it("self-test: the checker accepts the allowed forms", () => {
-    expect(contentViolations('import a from "@content/stations.json";')).toEqual([]);
-    expect(contentViolations("import b from '@content/cinematics.json';")).toEqual([]);
+    const ok = [
+      'import a from "@content/stations.json";',
+      "import b from '@content/cinematics.json';",
+      'import { getStation } from "../content/stations";',
+    ];
+    for (const sample of ok) expect(contentViolations(SAMPLE_FILE, sample), sample).toEqual([]);
+    expect(contentViolations("../src/content/x.ts", 'import { readInt } from "./read";')).toEqual(
+      [],
+    );
   });
 
   it("self-test: the checker catches globs, concatenation and other files", () => {
@@ -60,12 +100,15 @@ describe("privacy: content imports", () => {
       "const m = await import(`@content/${name}.json`);",
       'import x from "@content";',
       'import l from "@content/lexicon.json";',
-      'import p from "../../content/phase1_pilot_down.json";',
-      'import s from "../content/stations.json";',
       'import s from "@content/stations.json?raw";',
+      'import p from "../../../content/phase1_pilot_down.json";',
+      'import s from "../../../content/stations.json";',
+      'const m = await import("../content/" + name);',
+      "const m = await import(`../content/${name}`);",
+      'import.meta.glob("../../../content/*.json")',
     ];
     for (const sample of leaks) {
-      expect(contentViolations(sample), sample).not.toEqual([]);
+      expect(contentViolations(SAMPLE_FILE, sample), sample).not.toEqual([]);
     }
   });
 });

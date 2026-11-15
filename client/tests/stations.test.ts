@@ -111,3 +111,12 @@ describe("grid → panel face mapping (§F9.3)", () => {
     }
   });
 });
+
+describe("every station control maps to a part component (§F9.3)", () => {
+  it("has a component for every part type used", async () => {
+    const { PART_COMPONENTS } = await import("../src/scene/parts/registry");
+    for (const control of STATIONS_FILE.stations.flatMap((s) => s.controls)) {
+      expect(typeof PART_COMPONENTS[control.type], control.id).toBe("function");
+    }
+  });
+});
