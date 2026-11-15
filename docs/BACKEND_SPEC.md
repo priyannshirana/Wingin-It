@@ -2268,6 +2268,7 @@ binary frame:
     utt_buf += frame; await session.feed(frame)
 
 ptt_end (or force_end):
+    if sender != room.channel_holder: ignore silently   # a late/stray ptt_end must never cut off the partner
     release channel -> broadcast channel{busy_by: null}
     duration = len(utt_buf) / 32000
     if duration < 0.3: await session.abort(); speaker: utterance_dropped{too_short}; return
